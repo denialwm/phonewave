@@ -1,0 +1,13 @@
+#!/bin/sh
+# Keep a verified retained listener; recover older/cancelled reader sessions.
+# fprintd 1.94.5 drops its claim even when libfprint rejects close while asleep.
+# Run after kernel resume, before systemd completes the sleep operation.
+set -eu
+case "${1:-}:${2:-}" in post:suspend) ;; *) exit 0 ;; esac
+grep -q 'ZY22MMG59D' /proc/bootconfig
+if /usr/bin/timeout 2 /usr/local/libexec/jiiov-fprint-helper resume-retained; then
+    logger -t moto70-fingerprint-resume 'Preserved suspended fingerprint verification and touch listener'
+    exit 0
+fi
+/usr/bin/timeout 15 /usr/bin/systemctl try-restart fprintd.service
+logger -t moto70-fingerprint-resume 'Completed fprintd resume recovery'

@@ -1,0 +1,14 @@
+[Unit]
+Description=Mark the Edge 70 Linux slot (B) as booted successfully
+Documentation=file:///usr/share/doc/moto70-mainline/README
+ConditionKernelVersion=>=7
+After=denial-mainline.service sshd.service NetworkManager.service
+
+[Service]
+Type=oneshot
+# Until a slot is marked successful, the bootloader spends its retry count
+# and eventually falls back to slot A (Android). Mark it only once the system
+# booted cleanly and Denial and SSH are running.
+ExecCondition=/usr/bin/systemctl is-active --quiet denial-mainline.service sshd.service
+ExecCondition=/bin/sh -c 'test "$(systemctl is-system-running)" = running'
+ExecStart=/usr/lib/moto70-mainline/qbootctl -m 1

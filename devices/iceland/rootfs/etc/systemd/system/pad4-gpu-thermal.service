@@ -1,0 +1,14 @@
+[Unit]
+Description=OnePlus Pad 4 native GPU temperature regulation
+After=systemd-modules-load.service pad4-hardware.service
+Before=pad4-denial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/pad4-gpu-thermal apply
+ExecStop=/usr/bin/python3 /usr/local/libexec/pad4-gpu-thermal restore
+RemainAfterExit=yes
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target

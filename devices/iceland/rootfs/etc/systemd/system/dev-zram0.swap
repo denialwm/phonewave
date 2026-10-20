@@ -1,0 +1,10 @@
+[Unit]
+Description=Compressed RAM swap (zram0)
+
+[Swap]
+What=/dev/zram0
+Priority=100
+Options=discard
+
+[Install]
+WantedBy=swap.target

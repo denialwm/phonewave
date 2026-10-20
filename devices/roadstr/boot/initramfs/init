@@ -1,0 +1,98 @@
+#!/bin/busybox sh
+# Moto Edge 70 mainline early userspace.
+#
+# The bootloader loads it from init_boot_b and passes it after the
+# vendor_boot ramdisk, which only holds Android kernel modules; switch_root
+# frees both.
+#
+# Brings up the USB gadget (ECM network + ACM serial), mounts the Arch root
+# from the userdata partition read-only and hands over to systemd, which
+# checks it and remounts it read-write from fstab. The gadget stays bound;
+# the installed system gives usb0 its address (10.77.71.2) and SSH.
+#
+# If the root cannot be mounted, or it contains /etc/moto70-mainline-rescue,
+# this stays as PID 1 with SSH at 10.77.71.2 and a shell on ttyGS0.
+#
+# There is no firmware here: the drivers that need it are modules, loaded
+# from the installed system together with their firmware.
+export PATH=/bin
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /sys/kernel/config /sys/fs/pstore
+mount -t tmpfs -o mode=0755 tmpfs /run
+mount -t configfs configfs /sys/kernel/config
+exec </dev/null >>/dev/kmsg 2>&1
+mark() { echo "moto70-init: $*" > /dev/kmsg; }
+mark "started on $(uname -r)"
+
+g=/sys/kernel/config/usb_gadget/moto70
+mkdir -p $g/strings/0x409 $g/configs/c.1/strings/0x409 $g/functions/acm.usb0 $g/functions/ecm.usb0
+echo 0x1d6b > $g/idVendor
+echo 0x0104 > $g/idProduct
+echo 0x0200 > $g/bcdUSB
+echo 0x0200 > $g/bcdDevice
+echo "roadstr-mainline-$(uname -r)" > $g/strings/0x409/serialnumber
+echo 'Linux' > $g/strings/0x409/manufacturer
+echo 'Edge 70' > $g/strings/0x409/product
+echo 'ACM serial + ECM network' > $g/configs/c.1/strings/0x409/configuration
+echo 100 > $g/configs/c.1/MaxPower
+echo 02:70:70:00:00:01 > $g/functions/ecm.usb0/host_addr
+echo 02:70:70:00:00:02 > $g/functions/ecm.usb0/dev_addr
+ln -s $g/functions/ecm.usb0 $g/configs/c.1/ecm.usb0
+ln -s $g/functions/acm.usb0 $g/configs/c.1/acm.usb0
+
+# UFS LUNs attach asynchronously and their sdX names change between boots.
+part() {
+	for b in /sys/class/block/sd*; do
+		grep -qx "PARTNAME=$1" $b/uevent 2>/dev/null && { echo /dev/${b##*/}; return 0; }
+	done
+	return 1
+}
+
+rescue() {
+	mark "rescue: $*"
+	udc=
+	for i in $(seq 30); do
+		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+		[ -n "$udc" ] && break
+		sleep 1
+	done
+	[ -n "$udc" ] && [ -z "$(cat $g/UDC)" ] && echo "$udc" > $g/UDC
+	ifname=$(cat $g/functions/ecm.usb0/ifname)
+	ip link set lo up
+	ip address add 10.77.71.2/30 dev "$ifname"
+	ip link set "$ifname" up
+	mkdir -p /etc/dropbear
+	dropbearmulti dropbear -R -E -p 10.77.71.2:22 -P /run/dropbear.pid
+	mark "rescue SSH on $ifname at 10.77.71.2 (rc=$?)"
+	mount -t devpts -o mode=0620,ptmxmode=0666 devpts /dev/pts
+	mount -t pstore pstore /sys/fs/pstore 2>/dev/null
+	while :; do
+		[ -c /dev/ttyGS0 ] && setsid sh -c 'exec sh -i </dev/ttyGS0 >/dev/ttyGS0 2>&1'
+		sleep 2
+	done
+}
+
+root=
+for i in $(seq 30); do
+	root=$(part userdata) && break
+	sleep 1
+done
+[ -n "$root" ] || rescue "no userdata partition"
+mount -t ext4 -o ro "$root" /newroot || rescue "cannot mount $root"
+[ -e /newroot/etc/moto70-mainline-rescue ] && rescue "rescue requested by the root"
+[ -x /newroot/usr/lib/systemd/systemd ] || rescue "no systemd on $root"
+
+# Bind the gadget now: the host sees the phone during the whole boot.
+for i in $(seq 10); do
+	udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+	[ -n "$udc" ] && { echo "$udc" > $g/UDC; break; }
+	sleep 1
+done
+mark "root $root, gadget on ${udc:-no UDC}; starting systemd"
+for m in /dev /proc /sys /run; do
+	mount --move $m /newroot$m
+done
+exec switch_root /newroot /usr/lib/systemd/systemd

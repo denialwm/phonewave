@@ -1,0 +1,24 @@
+#!/bin/bash
+# Send the eight standard test notifications to Denial on the Moto Edge 70.
+# Run on the workstation; it uses the same host as moto70-shell-loop.
+set -euo pipefail
+host=${MOTO_HOST:-roadstr-wifi}
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+    -o ConnectTimeout=5 "$host" bash -s <<'REMOTE'
+n() {
+  runuser -u logix -- env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+    gdbus call --session --dest org.freedesktop.Notifications \
+    --object-path /org/freedesktop/Notifications \
+    --method org.freedesktop.Notifications.Notify \
+    "$1" 0 "$2" "$3" "$4" '[]' '{"urgency": <byte 1>}' 5000 >/dev/null && echo "sent: $1"
+  sleep 0.4
+}
+n "Messages" "mail-message-new" "Ana" "Are we still on for dinner tonight? I booked the place near the station."
+n "Calendar" "x-office-calendar" "Standup in 10 minutes" "Daily sync, room 3 and online"
+n "Mail" "mail-unread" "Weekly build report" "All 85 checks passed. Two warnings about deprecated APIs in the launcher module."
+n "Messages" "mail-message-new" "Marco" "Sent you the photos from Saturday"
+n "Downloads" "folder-download" "Download complete" "denial-wallpapers.tar.zst, 48 MB"
+n "Music" "audio-x-generic" "Now playing" "Ocean Drive, Duke Dumont"
+n "Weather" "weather-few-clouds" "Rain expected at 17:00" "Bring an umbrella if you go out this evening."
+n "System" "battery-good" "Battery at 80%" "Charging paused to protect battery health."
+REMOTE

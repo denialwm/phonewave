@@ -1,0 +1,16 @@
+[Unit]
+Description=NYX Aston mainline temperature sensors
+ConditionPathIsDirectory=/usr/lib/modules/%v
+After=local-fs.target systemd-modules-load.service
+Before=denial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/modprobe icc-osm-l3
+ExecStart=/usr/bin/modprobe bq27xxx_battery_i2c
+ExecStart=/usr/bin/modprobe qcom-spmi-adc5-gen3
+ExecStart=/usr/bin/modprobe iio_hwmon
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

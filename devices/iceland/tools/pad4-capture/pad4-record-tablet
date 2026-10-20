@@ -1,0 +1,51 @@
+#!/bin/sh
+# Record the denialpad4 screen at 720p60 (x264) into ~/Videos.
+# Usage: pad4-record start [name] | stop | status
+set -eu
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+UNIT=pad4-record
+DIR="$HOME/Videos"
+CURRENT="$XDG_RUNTIME_DIR/pad4-record.path"
+
+case "${1:-}" in
+start)
+    if systemctl --user -q is-active "$UNIT"; then
+        echo "already recording" >&2
+        exit 1
+    fi
+    mkdir -p "$DIR"
+    file="$DIR/${2:-screen}-$(date +%Y%m%d-%H%M%S).mkv"
+    # pad4-capture scales on the GPU and feeds ffmpeg. SIGINT reaches only
+    # pad4-capture (KillMode=mixed); it closes the pipe and waits for ffmpeg
+    # to finish the file. While the screen is off it records black. One x264
+    # thread: its own threading tripled the CPU cost on this tablet for no
+    # throughput gain.
+    systemd-run --user --quiet --collect --unit="$UNIT" -p KillSignal=SIGINT -p KillMode=mixed \
+        --setenv=WAYLAND_DISPLAY=wayland-1 \
+        "$HOME/.local/bin/pad4-capture" --size 720 --fps 60 -- \
+        -c:v libx264 -preset ultrafast -crf 20 -threads 1 -pix_fmt yuv420p -y "$file"
+    echo "$file" > "$CURRENT"
+    echo "$file"
+    ;;
+stop)
+    if ! systemctl --user -q is-active "$UNIT"; then
+        echo "not recording" >&2
+        exit 1
+    fi
+    systemctl --user stop "$UNIT"
+    file="$(cat "$CURRENT")"
+    if [ ! -s "$file" ]; then
+        echo "nothing recorded: the screen stayed off" >&2
+        exit 1
+    fi
+    echo "$file"
+    ;;
+status)
+    systemctl --user --no-pager status "$UNIT" || true
+    ;;
+*)
+    echo "usage: pad4-record start [name] | stop | status" >&2
+    exit 2
+    ;;
+esac

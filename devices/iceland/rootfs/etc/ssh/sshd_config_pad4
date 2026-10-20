@@ -1,0 +1,14 @@
+Port 22
+ListenAddress 192.168.77.2
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/sshd-rescue.pid
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+UsePAM no
+UseDNS no
+AllowUsers root
+AuthorizedKeysFile .ssh/authorized_keys
+Subsystem sftp internal-sftp

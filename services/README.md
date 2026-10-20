@@ -10,6 +10,7 @@ tests, packaging and README.
 | [`clock/rtc-offset`](clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
+| [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
 
 A service that works on any device never hard-codes one. It reads
 configuration or discovers hardware through standard interfaces (udev

@@ -1,0 +1,14 @@
+[Unit]
+Description=OnePlus Pad 4 verified audio DSP initialization
+After=pad4-hardware.service pad4-denial.service
+Requires=pad4-hardware.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pad4-audio-init --start
+RemainAfterExit=yes
+TimeoutStartSec=45
+# Stopping this unit intentionally does not tear down the DSP.
+
+[Install]
+WantedBy=multi-user.target

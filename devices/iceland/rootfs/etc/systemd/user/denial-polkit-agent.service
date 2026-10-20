@@ -1,0 +1,15 @@
+[Unit]
+Description=Denial authentication agent
+PartOf=denial-session.target
+After=graphical-session-pre.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/denial-polkit-agent
+Restart=on-failure
+RestartSec=1s
+TimeoutStopSec=5s
+UMask=0077
+
+[Install]
+WantedBy=denial-session.target

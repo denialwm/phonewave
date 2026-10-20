@@ -1,0 +1,91 @@
+#!/usr/bin/python3
+"""Apply the Pad 4 GPU passive cooling target through native thermal sysfs."""
+from pathlib import Path
+import json
+import os
+import sys
+import time
+
+CONFIG = Path('/etc/pad4/gpu-thermal.json')
+STATE = Path('/run/pad4-gpu-thermal-originals.json')
+ROOT_ID = '59b8e7b3:archroot-v1'
+
+def main():
+    assert os.geteuid() == 0
+    assert Path('/etc/pad4-root-id').read_text().strip() == ROOT_ID
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'apply'
+    assert mode in ['apply', 'restore']
+    if mode == 'restore':
+        if not STATE.exists():
+            return
+        saved = json.loads(STATE.read_text())
+        assert saved['root_id'] == ROOT_ID
+        for name, value in saved['originals'].items():
+            path = Path(name)
+            assert path.parent.parent == Path('/sys/class/thermal')
+            assert path.name.startswith('trip_point_') and path.name.endswith('_temp')
+            kind = path.with_name(path.name.removesuffix('_temp') + '_type')
+            assert kind.read_text().strip() == 'passive'
+            if int(path.read_text()) == saved['target_mc']:
+                path.write_text(str(value) + '\n')
+        STATE.unlink()
+        print('Restored previous GPU passive cooling thresholds.')
+        return
+
+    config = json.loads(CONFIG.read_text())
+    assert config['root_id'] == ROOT_ID
+    target, hysteresis = config['passive_mc'], config['hysteresis_mc']
+    assert target == 90000 and hysteresis == 5000
+    expected = {f'gpuss-{i}-thermal' for i in range(11)}
+    deadline = time.monotonic() + 20
+    while True:
+        zones = {p: (p / 'type').read_text().strip()
+                 for p in Path('/sys/class/thermal').glob('thermal_zone*')
+                 if (p / 'type').read_text().strip().startswith('gpuss-')}
+        if set(zones.values()) == expected:
+            break
+        assert time.monotonic() < deadline, 'Expected GPU thermal sensors unavailable'
+        time.sleep(0.25)
+    originals, protected = {}, {}
+    for zone, name in zones.items():
+        assert (zone / 'policy').read_text().strip() == 'step_wise'
+        passive = []
+        for path in zone.glob('trip_point_*_temp'):
+            prefix = path.name.removesuffix('_temp')
+            kind = (zone / (prefix + '_type')).read_text().strip()
+            if kind == 'passive':
+                assert int(path.read_text()) in [target, 105000]
+                assert int((zone / (prefix + '_hyst')).read_text()) == hysteresis
+                passive.append(path)
+                originals[str(path)] = int(path.read_text())
+            else:
+                protected[path] = path.read_text()
+        assert len(passive) == 1, name
+        bindings = [p for p in zone.glob('cdev[0-9]*') if p.is_symlink()]
+        assert any((p / 'type').read_text().strip() == 'devfreq-3d00000.gpu' for p in bindings)
+    if not STATE.exists():
+        with STATE.open('x') as output:
+            json.dump({'root_id': ROOT_ID, 'target_mc': target, 'originals': originals}, output)
+        STATE.chmod(0o600)
+    else:
+        saved = json.loads(STATE.read_text())
+        assert saved['root_id'] == ROOT_ID and saved['target_mc'] == target
+        assert saved['originals'].keys() == originals.keys()
+    changed = []
+    try:
+        for name in originals:
+            path = Path(name)
+            path.write_text(str(target) + '\n')
+            changed.append(path)
+        assert all(int(Path(name).read_text()) == target for name in originals)
+        assert all(path.read_text() == value for path, value in protected.items())
+    except BaseException:
+        for path in reversed(changed):
+            path.write_text(str(originals[str(path)]) + '\n')
+        raise
+    print(json.dumps({'passive_mc': target, 'hysteresis_mc': hysteresis,
+                      'gpu_sensors': len(zones), 'governor': 'step_wise',
+                      'critical_and_hot_trips_unchanged': True}))
+
+if __name__ == '__main__':
+    main()

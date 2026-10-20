@@ -1,0 +1,29 @@
+# Mainline kernel modules for the Motorola Edge 70 (roadstr).
+#
+# The kernel, with its own device tree built in, is the
+# boot_b image produced by ../../boot/build-boot.sh from the
+# Moto's own build of the shared devices kernel (branch devices/v7.3); this
+# package carries its modules and the image's checksum.
+# Build: ../build.sh linux-moto70-mainline N   (release 7.3.0-rc7-devicesN-roadstr)
+pkgname=linux-moto70-mainline
+_n=${MOTO70_KERNEL_SUFFIX:?set MOTO70_KERNEL_SUFFIX to the devices release number, e.g. 1}
+_kernelrel=7.3.0-rc7-devices${_n}-roadstr
+_out=/mnt/development/linux-perpetua-build/releases/devices-${_n}-roadstr
+_image=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr/boot/boot-${_n}.img
+pkgver=7.3.0rc7.devices${_n}
+pkgrel=1
+pkgdesc='Mainline Linux 7.3 modules for the Motorola Edge 70 (kernel flashed to boot_b)'
+arch=(aarch64)
+url='https://kernel.org'
+license=(GPL-2.0-only)
+depends=(kmod)
+options=(!strip !debug)
+
+package() {
+  install -d "$pkgdir/usr/lib/modules"
+  cp -a "$_out/modules-root/lib/modules/$_kernelrel" "$pkgdir/usr/lib/modules/"
+  rm -f "$pkgdir/usr/lib/modules/$_kernelrel/build" "$pkgdir/usr/lib/modules/$_kernelrel/source"
+  install -Dm644 "$_out/artifacts/kernel.config" "$pkgdir/usr/lib/modules/$_kernelrel/config"
+  install -Dm644 "$_out/artifacts/System.map" "$pkgdir/usr/lib/modules/$_kernelrel/System.map"
+  (cd "${_image%/*}" && sha256sum "${_image##*/}") > "$pkgdir/usr/lib/modules/$_kernelrel/boot-image.sha256"
+}

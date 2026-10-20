@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.freedesktop.impl.portal.desktop.denial
+Exec=/opt/denial/systemd-helpers-20261013/bin/denial-portal
+SystemdService=denial-portal.service

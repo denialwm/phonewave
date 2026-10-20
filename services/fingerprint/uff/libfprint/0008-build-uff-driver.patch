@@ -1,0 +1,36 @@
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -151,6 +151,7 @@
+     # SPI driver (non-optional if SPI is available)
+     'elanspi': { 'spi': true, 'helper': ['udev'], 'optional': not have_spi },
+     'jiiov': { 'helper': ['udev'], 'optional': true },
++    'uff': { 'helper': ['udev'], 'optional': true },
+
+     # Virtual drivers (test-only, optional)
+     'virtual_image': { 'virtual': true, 'helper': ['virtual'], 'optional': true },
+diff --git a/libfprint/meson.build b/libfprint/meson.build
+--- a/libfprint/meson.build
++++ b/libfprint/meson.build
+@@ -89,6 +89,7 @@
+
+ driver_sources = {
+     'jiiov': files('drivers/jiiov.c'),
++    'uff': files('drivers/uff.c'),
+     'upekts' : files(
+         'drivers/upekts.c',
+         'drivers/upek_proto.c',
+diff --git a/tests/meson.build b/tests/meson.build
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -323,6 +323,10 @@
+
+ unit_tests_deps = { 'fpi-assembling' : [cairo_dep] }
+
++if 'uff' in drivers
++    unit_tests += ['uff-suspend']
++endif
++
+ if 'jiiov' in drivers
+     unit_tests += ['jiiov-suspend']
+ endif

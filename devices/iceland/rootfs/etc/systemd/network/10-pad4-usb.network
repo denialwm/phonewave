@@ -1,0 +1,12 @@
+[Match]
+Name=usb0
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=192.168.77.2/30
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+ConfigureWithoutCarrier=yes
+KeepConfiguration=static

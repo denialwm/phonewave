@@ -1,0 +1,199 @@
+#!/usr/bin/python3
+"""User-run, one-partition updater. Agents may invoke --check only.
+
+Only release-registered full-size boot/init_boot images for tablet 59b8e7b3,
+slot B are accepted. A registry entry is installed with each audited release.
+There are no arbitrary device, slot, erase, reboot or force options.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import struct
+import subprocess
+import sys
+import time
+
+REGISTRY = Path('/usr/share/pad4-flash/images.json')
+BACKUPS = Path('/var/lib/pad4-flash/backups')
+PARTITIONS = {
+    'boot': (100663296, '18963643-3a34-5d30-252d-3ce92701780e'),
+    'init_boot': (8388608, 'b71f7665-41b5-608b-2da4-25618656aad0'),
+}
+
+
+def require(ok, message):
+    if not ok:
+        raise RuntimeError(message)
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def file_hash(path):
+    with open(path, 'rb', buffering=0) as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def trusted_file(path):
+    path = path.resolve(strict=True)
+    for parent in [path, *path.parents]:
+        s = parent.stat()
+        require(s.st_uid == 0 and not s.st_mode & 0o022,
+                f'Not a root-owned, write-protected release record: {parent}')
+    require(path.is_file(), f'Not a regular release record: {path}')
+    return path
+
+
+def validate_image(data, partition, record):
+    require(len(data) == PARTITIONS[partition][0], 'Image must fill the exact partition.')
+    require(data[:8] == b'ANDROID!', 'Not an Android boot image.')
+    kernel, ramdisk = struct.unpack_from('<II', data, 8)
+    header_size = struct.unpack_from('<I', data, 20)[0]
+    version = struct.unpack_from('<I', data, 40)[0]
+    require(version == 4 and header_size == 1584, 'Expected the audited v4 image layout.')
+    require(4096 + ((kernel + 4095) & ~4095) + ((ramdisk + 4095) & ~4095) <= len(data),
+            'Image payload exceeds its partition.')
+    require(record['partition'] == partition, 'Registry target does not match the requested partition.')
+    if partition == 'boot':
+        require(kernel > 0 and ramdisk == 0, 'Expected kernel-only boot image.')
+        payload = data[4096:4096 + kernel]
+        require(digest(payload) == record['kernel_sha256'], 'Kernel payload hash mismatch.')
+        require(payload[0x38:0x3c] == b'ARM\x64', 'Expected an uncompressed ARM64 kernel.')
+        banners = re.findall(rb'Linux version ([^\x00\n]+)', payload)
+        require(record['kernel_banner'].encode() in banners, 'Kernel build identity mismatch.')
+    else:
+        require(kernel == 0 and ramdisk > 0, 'Expected ramdisk-only init_boot image.')
+
+
+def device(partition):
+    size, uuid = PARTITIONS[partition]
+    label = partition + '_b'
+    path = (Path('/dev/disk/by-partlabel') / label).resolve(strict=True)
+    require(stat.S_ISBLK(path.stat().st_mode), 'Target is not a block device.')
+    sysdir = Path('/sys/class/block') / path.name
+    props = dict(line.split('=', 1) for line in (sysdir / 'uevent').read_text().splitlines() if '=' in line)
+    require(props.get('PARTNAME') == label and props.get('PARTUUID') == uuid,
+            'Partition label/UUID does not match this tablet.')
+    require(int((sysdir / 'size').read_text()) * 512 == size, 'Partition size changed.')
+    require((sysdir / 'ro').read_text().strip() == '0', 'Partition is read-only.')
+    require(not list((sysdir / 'holders').iterdir()), 'Partition has active holders.')
+    devno = (sysdir / 'dev').read_text().strip()
+    for mountfile in ['/proc/self/mountinfo', '/proc/1/mountinfo']:
+        require(not any(line.split()[2] == devno for line in Path(mountfile).read_text().splitlines()),
+                'Partition is mounted.')
+    return path
+
+
+def verify_modules(record):
+    checksum_file = trusted_file(Path(record['modules_manifest']))
+    require(file_hash(checksum_file) == record['modules_manifest_sha256'], 'Module manifest changed.')
+    prefix = 'usr/lib/modules/' + record['kernel_release'] + '/'
+    expected = set()
+    for line in checksum_file.read_text().splitlines():
+        checksum, name = line.split(maxsplit=1)
+        require(name.startswith(prefix) and '..' not in Path(name).parts, 'Invalid module path.')
+        require(re.fullmatch('[0-9a-f]{64}', checksum), 'Invalid module checksum.')
+        require(file_hash(Path('/') / name) == checksum, f'Module closure mismatch: {name}')
+        expected.add(name)
+    actual = {str(p.relative_to('/')) for p in (Path('/') / prefix).rglob('*') if p.is_file()}
+    require(actual == expected, 'Module closure contains missing or unregistered files.')
+
+
+def write_all(fd, data):
+    remaining = memoryview(data)
+    while remaining:
+        count = os.write(fd, remaining)
+        require(count > 0, 'Short write.')
+        remaining = remaining[count:]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('partition', choices=PARTITIONS)
+    parser.add_argument('image', type=Path)
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument('--check', action='store_true', help='Read-only preflight (default).')
+    action.add_argument('--write', action='store_true', help='USER ONLY: require interactive confirmation, then write.')
+    args = parser.parse_args()
+    require(os.geteuid() == 0, 'Run with sudo on the tablet.')
+    bootconfig = Path('/proc/bootconfig').read_text().splitlines()
+    require('androidboot.serialno = "59b8e7b3"' in bootconfig, 'Wrong tablet.')
+    require('androidboot.slot_suffix = "_b"' in bootconfig, 'Only current slot B is supported.')
+    require(Path('/etc/pad4-root-id').read_text().strip() == '59b8e7b3:archroot-v1', 'Wrong root filesystem.')
+    registry = json.loads(trusted_file(REGISTRY).read_text())
+    source = args.image.resolve(strict=True)
+    require(source.is_file() and source.stat().st_size == PARTITIONS[args.partition][0], 'Wrong image type/size.')
+    # Immutable memory snapshot prevents a mutable source file changing during confirmation.
+    data = source.read_bytes()
+    image_hash = digest(data)
+    require(image_hash in registry['images'], 'Image is not registered by an audited Pad 4 release.')
+    record = registry['images'][image_hash]
+    validate_image(data, args.partition, record)
+    verify_modules(record)
+    companion = 'init_boot' if args.partition == 'boot' else 'boot'
+    require(file_hash(device(companion)) in record['companion_sha256'], 'Other boot image is incompatible with this release.')
+    target = device(args.partition)
+    previous = file_hash(target)
+    print(f'Partition: {args.partition}_b\nSource: {source}\nSHA256: {image_hash}\nRelease: {record["release"]}')
+    print('Purpose: install the selected audited release; slot A stays untouched.')
+    print('Recovery: hardware fastboot on slot B, restore the saved partition image from a computer.')
+    print('Keep a copy of the backup on the computer before rebooting; a tablet-local backup alone is insufficient.')
+    if previous == image_hash:
+        print('Already installed, full partition checksum matches. No write needed.')
+        return
+    if not args.write:
+        print('Preflight passed. Read-only: no partition writes performed.')
+        return
+    require(sys.stdin.isatty(), 'Writing requires the user at an interactive terminal.')
+    capacity = int(Path('/sys/class/power_supply/qcom-battmgr-bat/capacity').read_text())
+    require(capacity >= 20, 'Charge the battery to at least 20% before flashing.')
+    BACKUPS.mkdir(parents=True, exist_ok=True, mode=0o700)
+    require(shutil.disk_usage(BACKUPS).free >= len(data) * 3, 'Insufficient space for complete backups.')
+    with open('/run/pad4-flash.lock', 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Recheck after acquiring the process lock.
+        require(device(args.partition) == target and file_hash(target) == previous, 'Target changed during preflight.')
+        require(file_hash(device(companion)) in record['companion_sha256'], 'Companion changed during preflight.')
+        directory = BACKUPS / (time.strftime('%Y%m%dT%H%M%S') + '-' + str(os.getpid()))
+        directory.mkdir(mode=0o700)
+        backup = directory / (args.partition + '_b.img')
+        with open(target, 'rb', buffering=0) as src, open(backup, 'xb', buffering=0) as dst:
+            shutil.copyfileobj(src, dst, 4 * 1024 * 1024)
+            os.fsync(dst.fileno())
+        require(backup.stat().st_size == len(data) and file_hash(backup) == previous, 'Backup verification failed.')
+        result = {'partition': args.partition + '_b', 'source': str(source), 'image_sha256': image_hash,
+                  'backup_sha256': previous, 'backup': str(backup), 'readback_verified': False}
+        report = directory / 'result.json'
+        report.write_text(json.dumps(result, indent=2) + '\n')
+        os.sync()
+        print(f'Full verified backup: {backup}')
+        phrase = f'write {args.partition}_b {image_hash[:12]}'
+        require(input(f'Type exactly "{phrase}": ').strip() == phrase, 'Cancelled; partition unchanged.')
+        require(device(args.partition) == target and file_hash(target) == previous, 'Target changed after backup.')
+        require(file_hash(device(companion)) in record['companion_sha256'], 'Companion changed after backup.')
+        # The only block-writing branch: user-run --write with literal confirmation.
+        fd = os.open(target, os.O_WRONLY | os.O_EXCL | os.O_SYNC)
+        try:
+            write_all(fd, data)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        require(file_hash(target) == image_hash, f'READBACK FAILED. Do not reboot. Backup: {backup}')
+        result['readback_verified'] = True
+        report.write_text(json.dumps(result, indent=2) + '\n')
+        os.sync()
+        print('Write and complete readback verified. No reboot performed.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, KeyError, EOFError) as exc:
+        sys.exit(f'STOP: {exc}')

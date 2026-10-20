@@ -1,0 +1,2 @@
+# 2026-10-16: compressed RAM swap (zstd, half of RAM), enabled by dev-zram0.swap.
+ACTION=="add", KERNEL=="zram0", ATTR{initstate}=="0", ATTR{comp_algorithm}="zstd", ATTR{disksize}="5632M", RUN="/usr/bin/mkswap -U clear %N", TAG+="systemd"

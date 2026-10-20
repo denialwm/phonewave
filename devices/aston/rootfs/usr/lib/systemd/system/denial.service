@@ -1,0 +1,43 @@
+[Unit]
+Description=Denial graphical session
+After=systemd-user-sessions.service
+Conflicts=getty@tty1.service
+ConditionFileIsExecutable=/usr/bin/deniald
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=logix
+Group=logix
+SupplementaryGroups=audio input render video
+CPUAffinity=3-7
+AllowedCPUs=3-7
+PAMName=system-local-login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+UtmpIdentifier=tty1
+UtmpMode=user
+StandardInput=null
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_SESSION_TYPE=wayland
+Environment=DESKTOP_SESSION=Denial
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+Environment=LIBSEAT_BACKEND=logind
+Environment=DENIA_SHELL_PROFILE=mobile
+Environment=DENIA_RENDER_AUDIT=1
+Environment=RUST_LOG=deniald=info,smithay=warn
+ExecStart=/usr/bin/deniald --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /home/logix/.config/denial/outputs.conf --wayland --flutter-bundle /home/logix/denial/bundles/0f06dba7-b2f6f44f-f66112e5 --flutter-renderer impeller --flutter-offscreen-blit
+Restart=on-failure
+RestartSec=1
+TimeoutStopSec=5
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=denial
+
+[Install]
+WantedBy=graphical.target
+Alias=display-manager.service

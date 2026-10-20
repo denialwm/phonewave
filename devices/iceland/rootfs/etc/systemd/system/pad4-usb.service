@@ -1,0 +1,14 @@
+[Unit]
+Description=Preserve the Pad 4 USB management gadget
+After=systemd-udev-trigger.service sys-kernel-config.mount
+Wants=sys-kernel-config.mount
+Before=serial-getty@ttyGS0.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/pad4-usb-setup
+RemainAfterExit=yes
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target

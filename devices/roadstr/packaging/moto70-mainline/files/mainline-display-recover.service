@@ -1,0 +1,15 @@
+[Unit]
+Description=Reset the Edge 70 display pipeline after the splash takeover
+Documentation=file:///usr/share/doc/moto70-mainline/README
+ConditionKernelVersion=>=7
+DefaultDependencies=no
+After=systemd-udevd.service
+Before=sysinit.target systemd-backlight@backlight:ae94000.dsi.0.service denial-mainline.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/moto70-mainline/recover-boot-display
+
+[Install]
+WantedBy=sysinit.target

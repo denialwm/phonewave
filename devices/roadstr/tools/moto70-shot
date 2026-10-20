@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Capture the Moto's Denial output with grim and print the local file path.
+#   moto70-shot [SCALE]   (relative to the 610x1356 logical output; default 1, 2 = native 1220x2712)
+set -euo pipefail
+scale=${1:-1}
+[[ $scale =~ ^[0-9.]+$ ]] || { echo "usage: $0 [SCALE]" >&2; exit 2; }
+dir=${MOTO70_SHOT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/roadstr/shots}
+out=$dir/$(date +%Y%m%d-%H%M%S).png
+mkdir -p -- "$dir"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+    -o ConnectTimeout=5 "${MOTO_HOST:-roadstr-wifi}" \
+    "runuser -u logix -- env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 grim -s $scale -" >"$out"
+printf '%s\n' "$out"

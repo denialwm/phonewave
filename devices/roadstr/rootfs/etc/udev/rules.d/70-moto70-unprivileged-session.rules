@@ -1,0 +1,7 @@
+# Moto Edge 70: unprivileged Denial session (alarm) and Droidloom KGSL cell.
+SUBSYSTEM=="drm", KERNEL=="card*", GROUP="video", MODE="0660"
+SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="render", MODE="0666"
+KERNEL=="kgsl-3d0", GROUP="video", MODE="0666"
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0666"
+SUBSYSTEM=="input", GROUP="input", MODE="0660"
+SUBSYSTEM=="backlight", RUN+="/usr/bin/chgrp video /sys%p/brightness", RUN+="/usr/bin/chmod g+w /sys%p/brightness"

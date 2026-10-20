@@ -1,0 +1,10 @@
+[Unit]
+Description=Mark the Edge 70 Linux slot as booted successfully after a stable minute
+ConditionKernelVersion=>=7
+
+[Timer]
+OnBootSec=60s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Stage the back-gesture candidate (new native/deniald + shell libapp/assets)
+# next to the running set, select it and restart denial-mainline.
+# Engine, ICU, Settings, denialctl and denial-ui are hard links to the base.
+# No automatic rollback: the previous selection is printed for a manual switch.
+# DENIAL_CANDIDATE is the candidate directory: deniald, shell/lib/libapp.so,
+# shell/flutter_assets, source-head, source.patch and source-live.patch.
+set -euo pipefail
+
+B=${DENIAL_CANDIDATE:?set DENIAL_CANDIDATE to the candidate directory}
+ARM=$HOME/.cache/denial/flutter-engine/build-arm64/out/denial_linux_arm64_release
+MOTO_HOST=${MOTO_HOST:-roadstr-wifi}
+SETS=/var/lib/moto70-denial
+UNIT=denial-mainline
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5)
+moto() { ssh "${SSH_OPTS[@]}" "$MOTO_HOST" "$@"; }
+
+stage() {
+    local pid mapped local_engine base deniald libapp id st
+    pid=$(moto systemctl show -p MainPID --value "$UNIT")
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || { echo "$UNIT not running" >&2; exit 1; }
+    mapped=$(moto "sha256sum \"\$(awk '\$6 ~ /libflutter_engine\\.so\$/ { print \$6; exit }' /proc/$pid/maps)\"" | cut -d' ' -f1)
+    local_engine=$(sha256sum "$ARM/libflutter_engine.so" | cut -d' ' -f1)
+    [[ $mapped == "$local_engine" ]] || { echo "engine ${local_engine:0:8} != running ${mapped:0:8}" >&2; exit 1; }
+    base=$(moto readlink -f "$SETS/mainline-current")
+    [[ $base == "$SETS"/* ]] || { echo "unexpected base $base" >&2; exit 1; }
+    deniald=$(sha256sum "$B/deniald" | cut -d' ' -f1)
+    libapp=$(sha256sum "$B/shell/lib/libapp.so" | cut -d' ' -f1)
+    id=back-gesture-$(date +%Y%m%d-%H%M%S)-${deniald:0:8}-${libapp:0:8}
+    st=$SETS/.staging-$id
+    python3 - "$id" "$base" "$deniald" "$libapp" "$(<"$B/source-head")" >"$B/deployment.json" <<'PY'
+import json, sys
+ident, base, deniald, libapp, head = sys.argv[1:]
+print(json.dumps(dict(id=ident, base=base, deniald_sha256=deniald, libapp_sha256=libapp, source_head=head,
+    changed='native/deniald and shell/lib/libapp.so + shell/data/flutter_assets: Android edge Back gesture (edge swipe regions, NavigateBack -> KEY_BACK) and mobile close-lease completion; deniald from the source/ snapshot (source.patch), shell from the live checkout (source-live.patch); engine, ICU, settings, denialctl, denial-ui are hard links to base',
+    mode='DEVELOPMENT, not release/runtime validated'), indent=2))
+PY
+    (cd "$B/shell" && find flutter_assets -type f -print0 | sort -z | xargs -0 sha256sum \
+        | sed 's#  flutter_assets/#  shell/data/flutter_assets/#') >"$B/assets.sha256"
+
+    moto "set -e; b='$base'; n='$st'; rm -rf -- \"\$n\"
+        mkdir -p \"\$n/shell/lib\" \"\$n/shell/data\"
+        cp -al \"\$b/native\" \"\$b/settings\" \"\$n/\"
+        rm -f \"\$n/native/deniald\"
+        ln \"\$b/shell/lib/libflutter_engine.so\" \"\$n/shell/lib/\"
+        ln \"\$b/shell/data/icudtl.dat\" \"\$n/shell/data/\""
+    rsync -a --chown=root:root --chmod=F755 --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
+        "$B/deniald" "$MOTO_HOST:$st/native/deniald"
+    rsync -a --delete --chown=root:root --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
+        --link-dest="$base/shell/data/flutter_assets" \
+        "$B/shell/flutter_assets/" "$MOTO_HOST:$st/shell/data/flutter_assets/"
+    rsync -a --chown=root:root --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
+        "$B/shell/lib/libapp.so" "$MOTO_HOST:$st/shell/lib/libapp.so"
+    rsync -a --chown=root:root -e "ssh ${SSH_OPTS[*]}" \
+        "$B/deployment.json" "$B/source.patch" "$B/source-live.patch" "$MOTO_HOST:$st/"
+    {
+        printf '%s  native/deniald\n%s  shell/lib/libapp.so\n%s  shell/lib/libflutter_engine.so\n' \
+            "$deniald" "$libapp" "$local_engine"
+        cat -- "$B/assets.sha256"
+    } | moto "set -e; cd '$st'; cat > SHA256SUMS; sha256sum --quiet -c SHA256SUMS
+        chmod -R a-w . ; mv -T '$st' '$SETS/$id'"
+    printf '%s\n' "$id" >"$B/staged-id"
+    printf 'staged %s on base %s (running deniald %s)\n' "$id" "${base##*/}" "$pid"
+}
+
+activate() {
+    local id old
+    id=$(<"$B/staged-id")
+    old=$(moto systemctl show -p MainPID --value "$UNIT")
+    moto "set -e; cd '$SETS'; echo previous=\$(readlink mainline-current)
+        ln -sfn '$id' .mainline-current.new; mv -T .mainline-current.new mainline-current
+        echo selected=\$(readlink mainline-current)
+        systemctl restart '$UNIT'"
+    printf 'restarted %s (old deniald %s)\n' "$UNIT" "$old"
+}
+
+verify() {
+    moto "set -e; pid=\$(systemctl show -p MainPID --value '$UNIT')
+        echo unit=\$(systemctl is-active '$UNIT') pid=\$pid
+        echo selected=\$(readlink '$SETS/mainline-current')
+        echo exe=\$(readlink /proc/\$pid/exe)
+        sha256sum /proc/\$pid/exe
+        awk '\$6 ~ /lib(app|flutter_engine)\\.so\$/ { print \$6 }' /proc/\$pid/maps | sort -u | xargs sha256sum
+        journalctl -u '$UNIT' -b --since '-2min' --no-pager -o cat -p warning | tail -20"
+}
+
+case ${1:-} in
+    stage) stage ;;
+    activate) activate ;;
+    verify) verify ;;
+    *) echo "usage: $0 stage|activate|verify" >&2; exit 2 ;;
+esac

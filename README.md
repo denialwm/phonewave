@@ -20,6 +20,9 @@ Named after Future Gadget #8 from Steins;Gate, a microwave wired to a phone.
 | `devices/<codename>/` | Everything specific to one device. The codename is the board name in the kernel device tree. |
 | `devices/<codename>/device.toml` | Hardware facts: model, SoC, DTB, display, touch, haptics. |
 | `devices/<codename>/rootfs/` | Files installed on that device, at the same path. `rootfs/usr/lib/udev/rules.d/x.rules` installs to `/usr/lib/udev/rules.d/x.rules`. |
+| `devices/<codename>/boot/` | Packs a linux-perpetua release into the device's boot images, and the init_boot sources. |
+| `devices/<codename>/packaging/` | Pacman packages for the device, where it has them. |
+| `devices/<codename>/tools/` | Host scripts: install a kernel release, reboot checks, Denial deployment. They reach the device as `ssh <codename>`. |
 | `services/<capability>/<name>/` | Daemons and drivers for one hardware capability: haptics, fingerprint, clock. Each is a self-contained project. |
 
 Programs go under `services/`; the configuration that ties them to one device
@@ -47,6 +50,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | clock | [`rtc-offset`](services/clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | fingerprint | [`jiiov`](services/fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | fingerprint | [`uff`](services/fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
+| modem | [`qmi-tools`](services/modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
 
 ## Install
 
@@ -56,8 +60,11 @@ Device files:
 sudo make install-device DEVICE=aston
 ```
 
-Each service builds from its own directory, except the fingerprint drivers,
-which the device workspaces still build. See each README.
+Each service builds from its own directory; see each README.
+
+Stock firmware, partition backups, firmware blobs and the boot images a
+release is packed on are not public. The scripts read them from
+`$PHONEWAVE_VAULT/<codename>` (default `/mnt/development/device-vault`).
 
 hapticd is a `git subtree`; pull updates with
 `--prefix=services/haptics/hapticd`.

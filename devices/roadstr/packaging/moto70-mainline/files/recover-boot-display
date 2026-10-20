@@ -1,0 +1,18 @@
+#!/bin/sh
+# Workaround for an open kernel issue on the Edge 70: msm takes over the
+# bootloader's splash while it is still scanning out (MDSS SMMU faults at
+# IOVA 0, "DSI PLL lock failed"), which leaves the DSI pipeline stalled:
+# commits time out and panel commands such as brightness fail. A
+# framebuffer blank and unblank runs a clean modeset. Remove this once the
+# kernel hands the splash over properly.
+set -eu
+fb=/sys/class/graphics/fb0
+for i in $(seq 20); do
+	[ "$(cat $fb/name 2>/dev/null)" = msmdrmfb ] && break
+	sleep 0.5
+done
+[ "$(cat $fb/name 2>/dev/null)" = msmdrmfb ] || { echo "no msm framebuffer; nothing to recover"; exit 0; }
+echo 1 > $fb/blank
+sleep 1
+echo 0 > $fb/blank
+echo "display pipeline reset"

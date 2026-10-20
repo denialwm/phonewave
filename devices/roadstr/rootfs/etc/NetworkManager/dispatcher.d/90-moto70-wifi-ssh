@@ -1,0 +1,42 @@
+#!/bin/sh
+# Keep SSH restricted to USB and the last assigned wlan0 IPv4 address.
+set -eu
+[ "${1:-}" = wlan0 ] || exit 0
+# Keep the existing listening sockets during a link-down transition. Reloading
+# then can kill sshd when USB is unplugged and no configured address is local.
+case "${2:-}" in up|dhcp4-change) ;; *) exit 0 ;; esac
+exec 9>/run/moto70-wifi-ssh.lock
+flock 9
+config=/etc/ssh/sshd_config.d/15-moto70-wifi.conf
+next=$(mktemp /etc/ssh/sshd_config.d/.moto70-wifi.XXXXXX)
+backup=$(mktemp /run/moto70-wifi-ssh.XXXXXX)
+trap 'rm -f "$next" "$backup"' EXIT HUP INT TERM
+printf '# Managed by NetworkManager dispatcher 90-moto70-wifi-ssh.\n' > "$next"
+ip -4 -o address show dev wlan0 scope global | awk '{ split($4,a,"/"); print "ListenAddress " a[1] }' >> "$next"
+# An early/stale activation event must not remove the last listener either.
+grep -q '^ListenAddress ' "$next" || exit 0
+
+activate() {
+    # A previous bind failure may have exhausted the automatic restart limit.
+    systemctl reset-failed sshd.service
+    systemctl reload-or-restart sshd.service
+}
+
+if cmp -s "$config" "$next"; then
+    # A previous boot could have started sshd before this address existed.
+    activate
+    exit 0
+fi
+cp -p "$config" "$backup"
+chmod 0644 "$next"
+mv "$next" "$config"
+if ! /usr/bin/sshd -t; then
+    cp -p "$backup" "$config"
+    exit 1
+fi
+if ! activate; then
+    cp -p "$backup" "$config"
+    activate || true
+    exit 1
+fi
+logger -t moto70-wifi-ssh 'Updated SSH listener for wlan0 address'

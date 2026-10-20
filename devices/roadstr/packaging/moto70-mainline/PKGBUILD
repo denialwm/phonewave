@@ -1,0 +1,49 @@
+# System integration for the Motorola Edge 70 (roadstr) on the mainline kernel.
+# Build: ../build.sh moto70-mainline
+pkgname=moto70-mainline
+pkgver=2026.10.18
+pkgrel=11
+pkgdesc='Motorola Edge 70 firmware and system integration for the mainline kernel'
+arch=(any)
+license=(LicenseRef-proprietary-firmware LicenseRef-local GPL-3.0-or-later)
+depends=(systemd pipewire networkmanager)
+makedepends=(python)
+optdepends=('hapticd: haptic feedback' 'bluez: Bluetooth')
+options=(!strip !debug)
+_fw=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr/firmware
+_files=$startdir/files
+
+package() {
+  cd "$pkgdir"
+  # Firmware. The board-specific GPU, Wi-Fi and Bluetooth files override any
+  # generic linux-firmware copies through the updates directory.
+  install -Dm644 -t usr/lib/firmware/updates/qcom "$_fw"/qcom/gen71700_sqe.fw "$_fw"/qcom/gen71700_gmu.bin
+  install -Dm644 -t usr/lib/firmware/qcom/eliza/motorola/roadstr "$_fw"/roadstr/*
+  install -Dm644 -t usr/lib/firmware/updates/qca "$_fw"/bt/*
+  # Wi-Fi board and regulatory data under the device tree's
+  # qcom,calibration-variant. Without it ath11k takes the generic
+  # linux-firmware entry for board ID 255, and the radio then fails to
+  # authenticate.
+  python "$_files"/ath11k-board2 'bus=ahb,qmi-chip-id=1,qmi-board-id=255,variant=Motorola_roadstr' \
+    "$_fw"/ath11k/board.bin "$_fw"/ath11k/regdb.bin "$srcdir"/board-2.bin
+  install -Dm644 -t usr/lib/firmware/updates/ath11k/WCN6750/hw1.0 "$srcdir"/board-2.bin
+
+  local unit
+  # Droidloom is not gated: its cell uses the msm DRM render node (Mesa knows
+  # the A722), so it runs on mainline.
+  for unit in moto70-.service moto70-.target denial-moto70.service \
+      jiiov-platform.service jiiov-wayland-ready.service; do
+    install -Dm644 "$_files"/10-android-kernel.conf usr/lib/systemd/system/$unit.d/10-android-kernel.conf
+  done
+  install -Dm644 -t usr/lib/systemd/system "$_files"/denial-mainline.service "$_files"/mainline-display-recover.service \
+    "$_files"/mainline-boot-success.service "$_files"/mainline-boot-success.timer
+  install -Dm755 -t usr/lib/moto70-mainline "$_files"/recover-boot-display
+  # Static build of unmodified linux-msm/qbootctl 39a6e6d
+  # (aarch64-linux-gnu-gcc -std=gnu11 -O2 -static).
+  install -Dm755 "$_fw"/qbootctl usr/lib/moto70-mainline/qbootctl
+  install -Dm644 "$_files"/90-moto70-watchdog.conf usr/lib/systemd/system.conf.d/90-moto70-watchdog.conf
+  install -Dm644 "$_files"/80-moto70-mainline.rules usr/lib/udev/rules.d/80-moto70-mainline.rules
+  install -Dm644 "$_files"/90-moto70-dummy-sink.conf usr/share/pipewire/pipewire.conf.d/90-moto70-dummy-sink.conf
+  install -Dm644 -t usr/share/moto70-mainline "$_files"/outputs.conf
+  install -Dm644 -t usr/share/doc/moto70-mainline "$_files"/README
+}

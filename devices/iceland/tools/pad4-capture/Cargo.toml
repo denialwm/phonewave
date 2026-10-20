@@ -1,0 +1,18 @@
+[package]
+name = "pad4-capture"
+version = "0.1.0"
+edition = "2024"
+description = "GPU-scaled screen capture from Denial into ffmpeg"
+publish = false
+
+[dependencies]
+gbm = { version = "0.18", default-features = false }
+glow = "0.17"
+khronos-egl = { version = "6", features = ["dynamic"] }
+libc = "0.2"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

@@ -1,0 +1,33 @@
+[Unit]
+Description=Denial locked desktop for logix
+Requires=pad4-hardware.service systemd-logind.service
+After=pad4-hardware.service systemd-logind.service systemd-user-sessions.service dbus.service
+Conflicts=getty@tty1.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+User=logix
+Group=logix
+PAMName=login
+WorkingDirectory=/home/logix
+Environment=XDG_SESSION_TYPE=wayland XDG_SESSION_CLASS=user XDG_SESSION_DESKTOP=Denial XDG_CURRENT_DESKTOP=Denial
+Environment=XDG_SEAT=seat0 XDG_VTNR=1
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+UtmpIdentifier=tty1
+ExecStartPre=+/usr/bin/chvt 1
+ExecStart=/usr/local/bin/pad4-denial-login
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+UMask=0022
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Check the actual installed boot manifest before allowing a phone reboot.
+set -euo pipefail
+case "${1:---check}" in
+  --check|--reboot) action=${1:---check} ;;
+  *) echo 'Usage: tools/moto70-reboot [--check|--reboot]' >&2; exit 2 ;;
+esac
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/roadstr
+mkdir -p "$cache"
+audit_dir=$(mktemp -d "$cache/reboot-check.XXXXXX")
+# The rescue initramfs's dropbear makes new host keys every boot.
+phone_ssh=(ssh -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5
+  -o ServerAliveInterval=5 -o ServerAliveCountMax=3 "${MOTO70_SSH_HOST:-roadstr}")
+if [ -n "${MOTO70_SSH_WRAPPER:-}" ]; then
+  phone_ssh=("$MOTO70_SSH_WRAPPER" sh -c)
+fi
+echo "Checking phone boot compatibility; evidence: $audit_dir"
+"${phone_ssh[@]}" 'set -eu
+if [ -s /proc/bootconfig ]; then
+  grep -q "ZY22MMG59D" /proc/bootconfig
+  grep androidboot.slot_suffix /proc/bootconfig | grep -q _b
+else
+  # Mainline boots through the FDT handoff without bootconfig: identify
+  # the unit by its device tree and SoC serial, and the slot by the GPT.
+  tr "\0" "\n" < /proc/device-tree/compatible | grep -qx motorola,roadstr
+  grep -qx 3313331068 /sys/devices/soc0/serial_number
+  /usr/lib/moto70-mainline/qbootctl -c 2>/dev/null | grep -qx "Current slot: _b"
+fi
+for block in /sys/class/block/*; do
+  if grep -qx PARTNAME=init_boot_b "$block/uevent"; then part=/dev/${block##*/}; fi
+done
+test -n "${part:-}"
+test "$(blockdev --getsize64 "$part")" = 8388608
+dd if="$part" bs=1M' > "$audit_dir/init_boot.img"
+unpack_bootimg --boot_img "$audit_dir/init_boot.img" --out "$audit_dir/unpacked" > "$audit_dir/image.txt"
+lz4 -dc "$audit_dir/unpacked/ramdisk" > "$audit_dir/ramdisk.cpio"
+cpio -it < "$audit_dir/ramdisk.cpio" > "$audit_dir/entries.txt" 2> "$audit_dir/cpio.log"
+manifest_entry=$(grep -E '^(\./)?etc/moto70-rootfs\.sha256$' "$audit_dir/entries.txt" || true)
+if [ -n "$manifest_entry" ]; then
+test "$(printf '%s\n' "$manifest_entry" | wc -l)" = 1
+cpio -i --to-stdout "$manifest_entry" < "$audit_dir/ramdisk.cpio" > "$audit_dir/boot-rootfs.sha256" 2>> "$audit_dir/cpio.log"
+test -s "$audit_dir/boot-rootfs.sha256"
+"${phone_ssh[@]}" 'set -eu
+if grep -q " /newroot ext4 " /proc/mounts; then cd /newroot; else cd /; fi
+sha256sum -c -' < "$audit_dir/boot-rootfs.sha256" > "$audit_dir/rootfs-check.log" 2>&1 || {
+  grep -v ': OK$' "$audit_dir/rootfs-check.log" >&2
+  echo 'STOP: installed boot manifest does not match the rootfs. No reboot requested.' >&2
+  exit 1
+}
+manifest_summary="$(wc -l < "$audit_dir/boot-rootfs.sha256") boot-critical files match the installed init_boot_b"
+else
+# The mainline chain's init_boot only mounts the rootfs and carries no
+# manifest. Its boot-critical pair is the kernel on boot_b and the modules
+# of the installed kernel package, which records that image's checksum.
+grep -qx '\(\./\)\?init' "$audit_dir/entries.txt"
+"${phone_ssh[@]}" 'set -eu
+part=$(readlink -f /dev/disk/by-partlabel/boot_b)
+sum=$(sha256sum < "$part" | cut -c1-64)
+record=$(grep -l "^$sum " /usr/lib/modules/*/boot-image.sha256 | head -n 1)
+test -n "$record"
+release=${record%/boot-image.sha256}
+test -s "$release/modules.dep"
+echo "boot_b $sum is the kernel of the installed modules ${release##*/}"' > "$audit_dir/mainline-check.log" 2>&1 || {
+  cat "$audit_dir/mainline-check.log" >&2
+  echo 'STOP: boot_b is not the kernel of an installed module tree. No reboot requested.' >&2
+  exit 1
+}
+manifest_summary=$(tail -n 1 "$audit_dir/mainline-check.log")
+module_release=${manifest_summary##* }
+fi
+"${phone_ssh[@]}" "set -eu
+module_release='${module_release:-}'"'
+if [ -x /usr/bin/systemctl ]; then
+  if [ -x /usr/lib/moto70-mainline/qbootctl ]; then
+    slot_status=$(/usr/lib/moto70-mainline/qbootctl -n 1)
+    if ! printf "%s\n" "$slot_status" | grep -qx "SLOT _b: is marked successful"; then
+      echo "STOP: Linux slot B is not marked successful; another reboot would consume a boot retry." >&2
+      exit 1
+    fi
+  fi
+  if [ -n "$module_release" ]; then
+    # Mainline: the display driver of the kernel about to boot.
+    plan=$(modprobe -S "$module_release" --show-depends msm)
+  else
+    plan=$(modprobe --show-depends msm_drm)
+  fi
+  if printf "%s\n" "$plan" | grep -q "^install "; then
+    echo "STOP: a private display-module loader bypasses the boot-audited tree." >&2
+    exit 1
+  fi
+  if grep -q "modprobe .*--dirname\|modprobe -d " /opt/moto70/hardware-up; then
+    echo "STOP: hardware startup selects a private module tree." >&2
+    exit 1
+  fi
+fi'
+echo "PASS: $manifest_summary."
+if [ "$action" = --reboot ]; then
+  echo 'Rebooting the Moto Edge 70.'
+  "${phone_ssh[@]}" 'set -eu
+sync
+if [ -x /usr/bin/systemctl ]; then
+  systemctl reboot
+else
+  umount /newroot
+  /bin/reboot2 ""
+fi'
+fi

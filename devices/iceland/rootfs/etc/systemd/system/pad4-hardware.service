@@ -1,0 +1,13 @@
+[Unit]
+Description=OnePlus Pad 4 verified display and touch initialization
+After=systemd-udev-trigger.service
+Before=pad4-denial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pad4-hardware-init
+RemainAfterExit=yes
+TimeoutStartSec=45
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,38 @@
+Motorola Edge 70 (roadstr) on the mainline kernel
+=================================================
+
+The flashed boot_b image is a mainline 7.2 kernel with its device tree and a
+small early userspace built in. The early userspace brings up the USB gadget
+(ECM + ACM), mounts this root read-only and starts systemd, which checks it
+and remounts it read-write. If the root cannot be mounted, or
+/etc/moto70-mainline-rescue exists, it stays in a rescue shell with SSH at
+10.77.71.2 instead.
+
+This package adds what the mainline kernel needs:
+
+- firmware: GPU (SQE, GMU, zap), WPSS and the WCN6750 board data (Wi-Fi),
+  ADSP (battery and charger)
+  and the Bluetooth patch and NVM from the phone's bluetooth partition;
+- denial-mainline.service, which starts Denial as logix on the mainline
+  kernel only;
+- ConditionKernelVersion=<7 drop-ins for the units that belong to the 6.6
+  Android kernel stack (moto70-*, denial-moto70, jiiov-*), so the same root
+  still boots the 6.6 kernel. Droidloom is not gated: its cell uses the msm
+  DRM render node and runs on mainline;
+- udev rules: the haptics actuator for hapticd, the GPU power and frequency
+  floor (workarounds for open kernel issues) and the USB input limit;
+- mainline-display-recover.service, which resets the display pipeline once
+  after the splash takeover (a workaround for an open kernel issue);
+- mainline-boot-success.timer, which marks slot B successful a minute after
+  a clean boot with Denial and SSH running (qbootctl from linux-msm);
+  until then the bootloader counts retries down and falls back to slot A;
+- a silent PipeWire sink until the sound card exists and the hardware
+  watchdog.
+
+Wi-Fi power saving stays on. Measured on battery with the screen on, it
+lowers system power by about 0.4 W (0.82 W against 1.23 W); incoming
+packets after an idle period wait up to about 0.7 s for the next DTIM.
+
+The Denial deployment is /var/lib/moto70-denial/mainline-current (a symlink
+to the deployment directory). Point it at a new deployment and restart
+denial-mainline.service to switch.

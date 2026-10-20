@@ -1,0 +1,22 @@
+# Motorola Edge 70 on the mainline kernel.
+
+# The AW86938 is hapticd's built-in actuator; hapticd finds it by these tags.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="aw86927-haptics", ENV{HAPTICD_DEVICE}="1", ENV{HAPTICD_ID}="builtin"
+
+# The A722 GMU does not always come back from runtime suspend yet ("GMU
+# firmware initialization timed out"), so the GPU and GMU stay powered
+# until that is fixed in the kernel.
+ACTION=="add", SUBSYSTEM=="platform", KERNEL=="3d00000.gpu|3d6a000.gmu", ATTR{power/control}="on"
+
+# simple_ondemand samples every 50 ms, too late for 120 Hz touch and
+# animation bursts, and a frame that misses its vblank lowers the load it
+# sees. Hold a floor between interactions. While the user interacts, Denial
+# raises the floor to the highest operating point and restores it after its
+# hold time, so the video group may write it.
+ACTION=="add", SUBSYSTEM=="devfreq", KERNEL=="3d00000.gpu", ATTR{min_freq}="900000000", \
+  RUN+="/usr/bin/chgrp video /sys%p/min_freq", RUN+="/usr/bin/chmod g+w /sys%p/min_freq"
+
+# The ADSP starts a computer's USB port (SDP) at 100 mA, less than the phone
+# draws. Ask for the 500 mA that USB 2.0 allows; chargers that negotiate
+# more are left alone.
+SUBSYSTEM=="power_supply", KERNEL=="qcom-battmgr-usb", ATTR{input_current_limit}=="100000", ATTR{input_current_limit}="500000"

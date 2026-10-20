@@ -1,0 +1,13 @@
+[Unit]
+Description=NYX mainline physical battery gauge
+ConditionPathIsDirectory=/usr/lib/modules/%v
+After=local-fs.target systemd-modules-load.service
+Before=nyx-user-session.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/modprobe bq27xxx_battery_i2c
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=OnePlus Pad 4 Wi-Fi power and transport drivers
+After=systemd-udev-trigger.service
+Before=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pad4-wifi-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

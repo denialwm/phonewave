@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Pack one board's ath11k board data and regulatory database into board-2.bin.
+
+Usage: ath11k-board2 NAME BOARD_BIN REGDB_BIN OUTPUT
+
+NAME is the board name ath11k searches for, such as
+"bus=ahb,qmi-chip-id=1,qmi-board-id=255,variant=Motorola_roadstr". The
+layout is the one drivers/net/wireless/ath/ath11k/core.c parses: the
+NUL-terminated magic padded to 4 bytes, then a board IE and a regdb IE, each
+holding a name IE and a data IE.
+"""
+import struct
+import sys
+
+MAGIC = b"QCA-ATH11K-BOARD\0"
+BD_IE_BOARD, BD_IE_REGDB = 0, 1
+SUB_IE_NAME, SUB_IE_DATA = 0, 1
+
+
+def pad4(data):
+    return data + b"\0" * (-len(data) % 4)
+
+
+def ie(ie_id, data):
+    return struct.pack("<II", ie_id, len(data)) + pad4(data)
+
+
+def main():
+    if len(sys.argv) != 5:
+        sys.exit(__doc__.strip().splitlines()[2])
+    name, board, regdb, output = sys.argv[1:]
+    name = name.encode("ascii")
+    with open(board, "rb") as f:
+        board = f.read()
+    with open(regdb, "rb") as f:
+        regdb = f.read()
+    blob = pad4(MAGIC)
+    blob += ie(BD_IE_BOARD, ie(SUB_IE_NAME, name) + ie(SUB_IE_DATA, board))
+    blob += ie(BD_IE_REGDB, ie(SUB_IE_NAME, name) + ie(SUB_IE_DATA, regdb))
+    with open(output, "wb") as f:
+        f.write(blob)
+
+
+if __name__ == "__main__":
+    main()

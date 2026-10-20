@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+test "$(id -un)" = logix
+test "$(cat /etc/pad4-root-id)" = 59b8e7b3:archroot-v1
+bundle=/opt/denial/pad4-buffer-return-20261016
+cd "$bundle"
+sha256sum -c payload.sha256
+. /usr/local/libexec/pad4-denial-user-env
+export DENIAL_SETTINGS_BINARY=/opt/denial/pad4-buffer-return-20261016/settings/denial-settings
+export DENIAL_COMPOSITOR_BINARY="$bundle/native/deniald"
+export DENIAL_CONTROL_TOOL="$bundle/native/denialctl"
+xdg-user-dirs-update
+# PAM creates the logind session and its systemd user manager.
+for n in 1 2 3 4 5; do
+    test -S "$XDG_RUNTIME_DIR/bus" && break
+    sleep 1
+done
+test -S "$XDG_RUNTIME_DIR/bus"
+systemctl --user import-environment PATH LD_LIBRARY_PATH XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DENIAL_SETTINGS_BINARY
+unset DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE SWAYSOCK I3SOCK
+exec "$bundle/native/deniald" --device /dev/dri/card0 \
+    --output-config "$XDG_CONFIG_HOME/denial/outputs.conf" \
+    --wayland --flutter-bundle "$bundle/shell" --flutter-renderer impeller

@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# Fast Moto shell loop for Dart-only changes.
+#
+# Rebuilds only dart_shell's ARM64 release libapp.so and flutter_assets from
+# the live Denial checkout (Flutter's own incremental build cache), stages
+# them on the phone as a new set next to the running one (native, Settings,
+# engine and ICU are hard links to the running set), retargets
+# mainline-current and asks the running deniald to reload its bundle with
+# SIGUSR1. The Wayland session, clients and lock state stay up.
+#
+#   moto70-shell-loop            build + push + activate
+#   moto70-shell-loop build      rebuild the ARM64 AOT shell only
+#   moto70-shell-loop push       build + stage a verified set, no activation
+#   moto70-shell-loop activate [ID]   select ID (default: last pushed) and reload
+#   moto70-shell-loop status     selection, running PID and mapped libapp
+#
+# Engine, dart:ui or compositor changes are out of scope: the push refuses
+# when the local ARM64 engine differs from the one deniald has mapped.
+# Nothing here rolls back automatically; `activate OLD_ID` is the manual path.
+set -euo pipefail
+
+DENIAL=${DENIAL:-/home/logix/denial}
+FLUTTER=${DENIAL_FLUTTER_SOURCE_ROOT:-/mnt/exty/denial-flutter-fork-3.44.7}
+LOOP=${MOTO70_SHELL_LOOP:-${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/roadstr/shell-loop}
+ARM=${MOTO70_ARM_ENGINE:-$HOME/.cache/denial/flutter-engine/build-arm64/out/denial_linux_arm64_release}
+MOTO_HOST=${MOTO_HOST:-roadstr-wifi} # USB SSH is roadstr
+SETS=/var/lib/moto70-denial
+CURRENT=$SETS/mainline-current
+UNIT=denial-mainline
+JOBS=$(($(nproc) - 4))
+
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes
+    -o ConnectTimeout=5 -o ControlMaster=auto -o "ControlPath=$LOOP/ssh-%C"
+    -o ControlPersist=600)
+mkdir -p -- "$LOOP"
+
+die() { printf 'moto70-shell-loop: %s\n' "$*" >&2; exit 1; }
+moto() { ssh "${SSH_OPTS[@]}" "$MOTO_HOST" "$@"; }
+now() { date +%s.%N; }
+elapsed() { awk -v a="$1" -v b="$(now)" 'BEGIN { printf "%.1fs", b - a }'; }
+
+engine_view() {
+    # flutter assemble wants one engine tree. The ARM gen_snapshot it runs
+    # must be the host-executable cross compiler, never the target binary.
+    local view=$LOOP/engine-view host
+    host=$(readlink -f "$FLUTTER/engine/src/out/denial_host_release")
+    rm -rf -- "$view"
+    mkdir -p -- "$view/out/denial_linux_arm64_release"
+    ln -s -- "$FLUTTER/engine/src/flutter" "$view/flutter"
+    ln -s -- "$host" "$view/out/denial_host_release"
+    local entry name
+    for entry in "$ARM"/*; do
+        name=${entry##*/}
+        if [[ $name == gen_snapshot ]]; then
+            ln -s -- "$ARM/clang_x64/gen_snapshot" "$view/out/denial_linux_arm64_release/$name"
+        else
+            ln -s -- "$entry" "$view/out/denial_linux_arm64_release/$name"
+        fi
+    done
+}
+
+build() {
+    local start shell=$DENIAL/dart_shell repository
+    start=$(now)
+    mkdir -p -- "$LOOP"
+    [[ -x $ARM/clang_x64/gen_snapshot && -f $ARM/libflutter_engine.so ]] \
+        || die "no ARM64 release engine output at $ARM"
+    engine_view
+    repository=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["flutter"]["repository"])' \
+        "$DENIAL/prebuilt/flutter-engine/SOURCE_LOCK.json")
+    export CI=true FLUTTER_SUPPRESS_ANALYTICS=true PUB_ENVIRONMENT=denial:moto-local FLUTTER_GIT_URL=$repository
+    if [[ ! -f $shell/.dart_tool/package_config.json \
+        || $shell/pubspec.lock -nt $shell/.dart_tool/package_config.json \
+        || $shell/pubspec.yaml -nt $shell/.dart_tool/package_config.json ]]; then
+        (cd -- "$shell" && "$FLUTTER/bin/flutter" --suppress-analytics pub get --offline --enforce-lockfile)
+        # pub leaves an unchanged package config untouched; mark it current.
+        touch -- "$shell/.dart_tool/package_config.json"
+    fi
+    (cd -- "$shell" && "$FLUTTER/bin/flutter" assemble \
+        --local-engine-src-path="$LOOP/engine-view" \
+        --local-engine=denial_linux_arm64_release \
+        --local-engine-host=denial_host_release \
+        --suppress-analytics --resource-pool-size="$JOBS" --output="$LOOP/assembly" \
+        -dTargetFile=lib/main.dart -dBuildMode=release -dTargetPlatform=linux-arm64 \
+        -dDartObfuscation=false -dTrackWidgetCreation=true -dTreeShakeIcons=false \
+        release_bundle_linux-arm64_assets) >"$LOOP/assemble.log" 2>&1 \
+        || { tail -40 "$LOOP/assemble.log" >&2; die "flutter assemble failed (full log: $LOOP/assemble.log)"; }
+    printf 'built libapp.so %s in %s\n' \
+        "$(sha256sum "$LOOP/assembly/lib/libapp.so" | cut -c1-8)" "$(elapsed "$start")"
+}
+
+running_pid() {
+    local pid
+    pid=$(moto systemctl show -p MainPID --value "$UNIT")
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || die "$UNIT is not running"
+    printf '%s\n' "$pid"
+}
+
+push() {
+    build
+    local start pid mapped_engine local_engine base libapp id stage
+    start=$(now)
+    pid=$(running_pid)
+    mapped_engine=$(moto "sha256sum \"\$(awk '\$6 ~ /libflutter_engine\\.so\$/ { print \$6; exit }' /proc/$pid/maps)\"" | cut -d' ' -f1)
+    local_engine=$(sha256sum "$ARM/libflutter_engine.so" | cut -d' ' -f1)
+    [[ $mapped_engine == "$local_engine" ]] \
+        || die "local ARM64 engine ${local_engine:0:8} differs from the running ${mapped_engine:0:8}; this loop only swaps Dart. Deploy the engine with a full candidate and restart first"
+    base=$(moto readlink -f "$CURRENT")
+    [[ $base == "$SETS"/* ]] || die "unexpected current selection $base"
+    libapp=$(sha256sum "$LOOP/assembly/lib/libapp.so" | cut -d' ' -f1)
+    id=shell-$(date +%Y%m%d-%H%M%S)-${libapp:0:8}
+    stage=$SETS/.staging-$id
+
+    (cd -- "$LOOP/assembly" && find flutter_assets -type f -print0 | sort -z \
+        | xargs -0 sha256sum | sed 's#  flutter_assets/#  shell/data/flutter_assets/#') >"$LOOP/assets.sha256"
+    python3 - "$id" "$base" "$libapp" "$DENIAL" >"$LOOP/deployment.json" <<'PY'
+import json, subprocess, sys
+ident, base, libapp, denial = sys.argv[1:]
+git = lambda *a: subprocess.check_output(['git', '-C', denial, *a], text=True).strip()
+print(json.dumps(dict(id=ident, base=base, libapp_sha256=libapp, source_head=git('rev-parse', 'HEAD'),
+    source_status=git('status', '--porcelain=v1'),
+    changed='shell/lib/libapp.so and shell/data/flutter_assets from the live checkout (moto70-shell-loop); native, settings, engine and ICU are hard links to base',
+    mode='DEVELOPMENT, not release/runtime validated'), indent=2))
+PY
+    git -C "$DENIAL" diff --binary HEAD >"$LOOP/source.patch"
+
+    moto "set -e; b='$base'; n='$stage'; rm -rf -- \"\$n\"
+        mkdir -p \"\$n/shell/lib\" \"\$n/shell/data\"
+        cp -al \"\$b/native\" \"\$b/settings\" \"\$n/\"
+        ln \"\$b/shell/lib/libflutter_engine.so\" \"\$n/shell/lib/\"
+        ln \"\$b/shell/data/icudtl.dat\" \"\$n/shell/data/\""
+    rsync -a --delete --chown=root:root --compress --compress-choice=zstd \
+        -e "ssh ${SSH_OPTS[*]}" \
+        --link-dest="$base/shell/data/flutter_assets" \
+        "$LOOP/assembly/flutter_assets/" "$MOTO_HOST:$stage/shell/data/flutter_assets/"
+    rsync -a --chown=root:root --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
+        "$LOOP/assembly/lib/libapp.so" "$MOTO_HOST:$stage/shell/lib/libapp.so"
+    rsync -a --chown=root:root -e "ssh ${SSH_OPTS[*]}" \
+        "$LOOP/deployment.json" "$LOOP/source.patch" "$MOTO_HOST:$stage/"
+    {
+        printf '%s  shell/lib/libapp.so\n%s  shell/lib/libflutter_engine.so\n' "$libapp" "$local_engine"
+        cat -- "$LOOP/assets.sha256"
+    } | moto "set -e; cd '$stage'; cat > SHA256SUMS; sha256sum --quiet -c SHA256SUMS
+        chmod -R a-w . ; mv -T '$stage' '$SETS/$id'"
+    printf '%s\n' "$id" >"$LOOP/last-pushed"
+    printf 'staged %s (base %s) in %s\n' "$id" "${base##*/}" "$(elapsed "$start")"
+}
+
+activate() {
+    local id=${1:-} start pid previous result
+    [[ -n $id ]] || id=$(<"$LOOP/last-pushed")
+    [[ $id =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid set id $id"
+    start=$(now)
+    pid=$(running_pid)
+    previous=$(moto readlink "$CURRENT")
+    # A process-directed SIGUSR1 reaches any thread that does not block it;
+    # deniald reads it from a signalfd, so one unmasked thread would end the
+    # session instead of refreshing it.
+    result=$(moto "set -e; pid=$pid; test -f '$SETS/$id/shell/lib/libapp.so'
+        /proc/\$pid/exe --help 2>/dev/null | grep -Fq 'Control: SIGUSR1 safely refreshes the embedded Flutter bundle in process.' || { echo nosupport; exit; }
+        for s in /proc/\$pid/task/*/status; do
+            # A thread that exits during the scan cannot take the signal.
+            m=\$(awk '/^SigBlk:/ { print \$2 }' \$s 2>/dev/null) || continue
+            (( (16#\${m:12} >> 9) & 1 )) || { echo unmasked \$s; exit; }
+        done
+        cd '$SETS'; ln -sfn '$id' .mainline-current.new; mv -T .mainline-current.new mainline-current
+        since=\$(date '+%Y-%m-%d %H:%M:%S'); kill -USR1 \$pid
+        for i in \$(seq 50); do
+            line=\$(journalctl _PID=\$pid --since \"\$since\" --no-pager -o cat | grep -E 'refreshed Flutter bundle|retaining the active runtime|bundle refresh.*failed' | tail -1)
+            [ -n \"\$line\" ] && break; sleep 0.2
+        done
+        echo \"\${line:-pending}\"
+        awk '\$6 ~ /libapp\\.so\$/ { print \$6 }' /proc/\$pid/maps | sort -u")
+    case $result in
+        nosupport*) die "running deniald $pid predates in-process bundle refresh; nothing changed" ;;
+        unmasked*) die "deniald $pid has a thread that does not block SIGUSR1 (${result#unmasked }); nothing changed" ;;
+    esac
+    printf '%s\n' "$result"
+    if grep -Fq "$SETS/$id/shell/lib/libapp.so" <<<"$result"; then
+        printf 'active: %s in deniald %s (%s); previous selection: %s\n' "$id" "$pid" "$(elapsed "$start")" "$previous"
+    else
+        printf 'selected %s, but deniald %s does not map it yet (screen off or refresh still draining?); previous selection: %s\n' \
+            "$id" "$pid" "$previous"
+    fi
+}
+
+status() {
+    local pid
+    pid=$(running_pid)
+    moto "readlink '$CURRENT'; echo deniald $pid; awk '\$6 ~ /lib(app|flutter_engine)\\.so\$/ { print \$6 }' /proc/$pid/maps | sort -u | xargs sha256sum"
+}
+
+case ${1:-all} in
+    build) build ;;
+    push) push ;;
+    activate) activate "${2:-}" ;;
+    status) status ;;
+    all) push; activate ;;
+    *) die "usage: $0 [build|push|activate [ID]|status]" ;;
+esac

@@ -1,0 +1,7 @@
+[Unit]
+Description=Pad 4 desktop services
+Wants=pipewire.socket pipewire-pulse.socket wireplumber.service
+After=pipewire.socket pipewire-pulse.socket
+
+[Install]
+WantedBy=default.target

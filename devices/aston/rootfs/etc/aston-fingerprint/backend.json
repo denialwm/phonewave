@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "worker": {
+    "path": "/var/lib/aston-fingerprint/uff-service-worker-b072d4d9e9d6",
+    "sha256": "b072d4d9e9d664d5697db22a89bba884aaed9d19dfa88f5bec4e7a52d5d92a91"
+  },
+  "firmware": {
+    "path": "/var/lib/aston-fingerprint/uff_gx.elf-37e5b4fcc9ff",
+    "sha256": "37e5b4fcc9ff5c7b8e8e7336b00d95600723f806edc8e85463f9507d42e40f5f"
+  },
+  "presentation": {
+    "path": "/var/lib/aston-fingerprint/uff-denial-presentation-3b8e7d9efc52",
+    "sha256": "3b8e7d9efc52a1bfcd652fc4d248536c4920d5e3eca9aab3ee280633d98873a0"
+  },
+  "helper": {
+    "path": "/var/lib/aston-fingerprint/uff-fprint-helper.py-b85a1c64bd46",
+    "sha256": "b85a1c64bd467f2c453a9a60428b59906c29b1c18765388e3f45ec3b7253afd9"
+  }
+}

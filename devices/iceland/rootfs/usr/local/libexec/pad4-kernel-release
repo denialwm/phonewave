@@ -1,0 +1,7 @@
+# Sourced by the verified hardware, display and Wi-Fi launchers.
+release=$(uname -r)
+case "$release" in
+    7.3.0-rc7-devices9-iceland|7.3.0-rc7-devices14-iceland) ;;
+    *) echo "Unregistered Pad 4 kernel: $release" >&2; exit 1 ;;
+esac
+(cd / && sha256sum -c "/usr/share/pad4-kernel/$release/early-modules.sha256") || exit 1

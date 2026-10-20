@@ -25,19 +25,26 @@ through Denial work on `7.3.0-devices35-aston`.
 
 ## Build
 
-Built and deployed from the Ace 3 workspace,
-`/mnt/development/denial-ace3/v7.3-port/step3/fingerprint/`:
+The scripts in `build/` cross-build from this directory and write only to
+`${XDG_CACHE_HOME:-~/.cache}/phonewave/aston/fingerprint/`:
 
-- `build_native.py` cross-builds the worker against `libqcomtee`, QCBOR and
-  `minkipc` from `step3/secure-modem`, and the kernel's `uff_fp.h`.
-- `build_presentation.py` builds the presentation client.
-- `snapshot_libfprint.py` puts `libfprint/` into a libfprint source archive;
-  `build_libfprint.py` builds it on the phone.
-- `test_storage.py`, `test_libfprint_passive.py` and `run_libfprint_optical.py`
-  run the phone tests.
+- `build_native.py` builds `uff-probe` and the `uff-service-worker` child,
+  statically, against the kernel's `uff_fp.h`. It clones quic-teec, QCBOR and
+  minkipc at the commits it pins into `~/.cache/phonewave/src/`, applies
+  `deps/<name>/*.patch` on top, and builds `libqcomtee.a` and `libqcbor.a`.
+- `build_presentation.py` builds the presentation client against the cross
+  sysroot `/mnt/development/cross/sysroot` and Denial's protocol XML.
+- `assemble_firmware.py` assembles `uff_gx.elf` and `uff_spi.elf` from the
+  factory `odm_b` blobs in the device vault (`aston/firmware/factory/`).
+- `snapshot_libfprint.py` makes the libfprint source archive: upstream
+  v1.94.100 (`80a4b5ec`), `../jiiov/libfprint/0001`-`0007`,
+  `libfprint/0008-build-uff-driver.patch`, then `uff.c` and
+  `test-uff-suspend.c`. The archive name is its hash.
 
-The build manifests in that workspace still record the sources at their old
-paths. The next `build_native.py` run records the new ones.
+Staging and installing on the phone are in `devices/aston/tools/fingerprint/`.
 
-The bring-up history, live evidence and current deployment are in that
-workspace's README.
+The phone runs older builds than these sources: worker `b072d4d9e9d6`,
+helper `b85a1c64bd46` and libfprint `418190cd903a`. The worker and the
+libfprint archive are kept in the device vault (`aston/build-deps/`); the
+helper is in `devices/aston/rootfs/`. A `-g` build records absolute paths, so
+a rebuild of the same source matches the code but not the file hash.

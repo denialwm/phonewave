@@ -1,0 +1,25 @@
+[Unit]
+Description=NYX Aston mainline Wi-Fi
+Wants=nyx-usb0.service
+After=nyx-usb0.service
+Before=NetworkManager.service
+ConditionPathIsDirectory=/usr/lib/modules/%v
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/modprobe pwrseq-qcom-wcn
+ExecStart=/usr/bin/modprobe pci-pwrctrl-pwrseq
+ExecStart=/usr/bin/modprobe rfkill
+ExecStart=/usr/bin/modprobe cfg80211
+ExecStart=/usr/bin/modprobe mac80211
+ExecStart=/usr/bin/modprobe mhi
+ExecStart=/usr/bin/modprobe qrtr-mhi
+ExecStart=/usr/bin/modprobe ath12k
+ExecStart=/usr/bin/modprobe ath12k_wifi7
+# WCN7850 uses a self-managed wiphy. Reapply the approved country after the
+# driver registers so its firmware does not remain on the world profile.
+ExecStart=/usr/bin/iw reg set IT
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

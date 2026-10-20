@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Denial
+Comment=Denial locked desktop
+Exec=/usr/local/bin/pad4-denial-login
+Type=Application
+DesktopNames=Denial

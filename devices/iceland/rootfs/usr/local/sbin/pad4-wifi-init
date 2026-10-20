@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+test "$(cat /etc/pad4-root-id)" = 59b8e7b3:archroot-v1
+. /usr/local/libexec/pad4-kernel-release
+cd /usr/lib/firmware
+sha256sum -c /var/lib/pad4-wifi-20261013/firmware.sha256
+modprobe qrtr
+modprobe qrtr-mhi
+modprobe pwrseq-qcom-wcn
+modprobe pci-pwrctrl-pwrseq
+modprobe ath12k_wifi7
+iw reg set IT
+# A passive first scan also discovers APs on the firmware's NO-IR channels.
+# NetworkManager starts after this unit and owns all subsequent association.
+for attempt in $(seq 1 20); do
+    for phy in /sys/class/net/*/phy80211; do
+        test -e "$phy" || continue
+        interface=${phy%/phy80211}; interface=${interface##*/}
+        ip link set "$interface" up
+        iw dev "$interface" scan freq 5180 5200 5220 5240 5260 5280 5300 5320 passive >/dev/null || true
+        exit 0
+    done
+    sleep 1
+done
+exit 1

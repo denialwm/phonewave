@@ -1,0 +1,25 @@
+#!/bin/sh
+# Start the verified display suppliers from the persistent Arch rescue chroot.
+# This does not flash, reboot, unload drivers, or start a graphical session.
+set -eu
+. /usr/local/libexec/pad4-kernel-release
+grep -qx 'androidboot.serialno = "59b8e7b3"' /proc/bootconfig
+grep -qx 'androidboot.slot_suffix = "_b"' /proc/bootconfig
+test "$(cat /etc/pad4-root-id)" = '59b8e7b3:archroot-v1'
+cd /
+modprobe gpio-shared-proxy
+modprobe qrtr
+if test ! -L /sys/bus/platform/devices/pmic-glink/driver; then
+    printf '%s\n' pmic-glink > /sys/bus/platform/drivers_probe
+fi
+for attempt in 1 2 3 4 5; do
+    if test -c /dev/dri/card0 && test -c /dev/fb0; then
+        printf 'DRM and framebuffer ready.\n'
+        cat /sys/class/drm/card0-DSI-1/status
+        cat /sys/class/graphics/fb0/virtual_size
+        exit 0
+    fi
+    sleep 1
+done
+printf 'Display is not ready; inspect deferred probes and dmesg.\n' >&2
+exit 1

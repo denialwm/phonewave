@@ -1,0 +1,31 @@
+#!/bin/sh
+# Runtime setup for the proven mainline release, including rescue chroot paths.
+# Installs no files, flashes no partitions, and does not reboot or unload drivers.
+set -eu
+. /usr/local/libexec/pad4-kernel-release
+grep -qx 'androidboot.serialno = "59b8e7b3"' /proc/bootconfig
+grep -qx 'androidboot.slot_suffix = "_b"' /proc/bootconfig
+test "$(cat /etc/pad4-root-id)" = 59b8e7b3:archroot-v1
+cd /
+sha256sum -c <<'SUMS'
+7e2f9381dbae6ba3eda632e51e07377a90a9549e2e164a033255ab4ecd431ba8  usr/lib/firmware/qcom/gen80200_gmu.bin
+ed7916ca84e663d63fa94b0d40cc8c222e362e6cff860c539a8cca30d3721b68  usr/lib/firmware/qcom/gen80200_aqe.fw
+1f1c7bae8050a9910902ec42b3d741ff3a68bc21114dea966a502ade2a9b606d  usr/lib/firmware/qcom/gen80200_sqe.fw
+d185bfc9a819394537775a9facd49a6136f1fc66b848ea3de4e4e04ce9053db0  usr/lib/firmware/qcom/kaanapali/iceland/gen80200_zap.mbn
+5e9d96517199ce11d44db90436e5835fed7982031102f52a74b7230ad64d83e2  usr/lib/firmware/novatek/novatek_nt36536_fw.bin
+SUMS
+if test -f /proc/1/root/arch/etc/pad4-root-id &&
+   test "$(cat /proc/1/root/arch/etc/pad4-root-id)" = 59b8e7b3:archroot-v1; then
+    printf %s /arch/usr/lib/firmware > /sys/module/firmware_class/parameters/path
+elif test -f /proc/1/root/etc/pad4-root-id &&
+     test "$(cat /proc/1/root/etc/pad4-root-id)" = 59b8e7b3:archroot-v1; then
+    printf %s /usr/lib/firmware > /sys/module/firmware_class/parameters/path
+else
+    echo 'Cannot resolve verified Arch firmware directory from PID 1 root.' >&2
+    exit 1
+fi
+/usr/local/sbin/pad4-display-init
+modprobe spi-geni-qcom
+modprobe nt36536_ts
+grep -q 'NVTCapacitiveTouchScreen' /proc/bus/input/devices
+echo 'Display, GPU firmware search path, and touchscreen drivers ready.'

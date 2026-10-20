@@ -1,0 +1,24 @@
+# Sourced by the tablet's Denial launchers; isolated verified runtime only.
+export LD_LIBRARY_PATH=/opt/pad4-denial-runtime-20261013/usr/lib
+export GBM_BACKENDS_PATH=/opt/pad4-denial-runtime-20261013/usr/lib/gbm
+export LIBGL_DRIVERS_PATH=/opt/pad4-denial-runtime-20261013/usr/lib/dri
+export __EGL_VENDOR_LIBRARY_FILENAMES=/opt/pad4-denial-runtime-20261013/usr/share/glvnd/egl_vendor.d/50_mesa.json
+export XKB_CONFIG_ROOT=/opt/pad4-denial-runtime-20261013/usr/share/xkeyboard-config-2
+export LIBINPUT_QUIRKS_DIR=/opt/pad4-denial-runtime-20261013/usr/share/libinput
+export LIBWACOM_DATA_DIR=/opt/pad4-denial-runtime-20261013/usr/share/libwacom
+export FONTCONFIG_FILE=/etc/pad4-fonts.conf
+export FONTCONFIG_PATH=/opt/pad4-denial-runtime-20261013/etc/fonts
+export XDG_DATA_DIRS=/opt/pad4-denial-runtime-20261013/usr/share:/usr/local/share:/usr/share
+export PATH=/opt/denial/systemd-helpers-20261013/bin:/opt/pad4-denial-runtime-20261013/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/bin
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+export LIBSEAT_BACKEND=logind
+export DENIAL_SHELL_PROFILE=desktop
+export DENIA_SHELL_PROFILE=desktop
+export DENIAL_POLKIT_AGENT=1
+export DENIAL_PAM_SERVICE=login
+export RUST_BACKTRACE=1
+export RUST_LOG=deniald=info,smithay=warn

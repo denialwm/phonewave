@@ -1,0 +1,20 @@
+diff --git a/listeners/libfsservice/cmn/cmn.h b/listeners/libfsservice/cmn/cmn.h
+index 4cab130..6bc9470 100644
+--- a/listeners/libfsservice/cmn/cmn.h
++++ b/listeners/libfsservice/cmn/cmn.h
+@@ -31,9 +31,15 @@
+ #define DATA_VENDOR_PATH        "/data/vendor"
+ #define LEGACY_DATA_PATH        "/data/misc/qsee/"
+ #define LEGACY_PERSIST_PATH     "/persist/data/"
++#ifndef DATA_PATH
+ #define DATA_PATH               "/var/lib/qtee_supplicant/vendor/tzstorage/"
++#endif
++#ifndef PERSIST_PATH
+ #define PERSIST_PATH            "/var/lib/tee/qtee_supplicant/"
++#endif
++#ifndef PERSIST_MOUNT_PATH
+ #define PERSIST_MOUNT_PATH      "/var/lib/tee"
++#endif
+ #define OLD_PERSIST_MOUNT_PATH  "/var/persist"
+ 
+ /* Secure File System - version 2 */

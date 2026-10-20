@@ -1,0 +1,13 @@
+[Match]
+Name=usb0
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=10.77.71.2/30
+KeepConfiguration=static
+
+[Route]
+Gateway=10.77.71.1
+Metric=2048

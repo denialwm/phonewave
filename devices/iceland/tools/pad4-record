@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Record the tablet screen (720p60 x264) from this machine.
+#   pad4-record start [name]   start recording on the tablet
+#   pad4-record stop           stop, then copy the file to $PAD4_RECORD_DIR
+#   pad4-record status
+set -euo pipefail
+destination="${PAD4_RECORD_DIR:-$HOME/Videos/pad4}"
+remote() { ssh iceland .local/bin/pad4-record "$@"; }
+
+case "${1:-}" in
+start) remote start "${2:-screen}" ;;
+stop)
+    file="$(remote stop)"
+    mkdir -p "$destination"
+    scp -q "iceland:$file" "$destination/"
+    echo "$destination/${file##*/}"
+    ;;
+status) remote status ;;
+*)
+    echo "usage: pad4-record start [name] | stop | status" >&2
+    exit 2
+    ;;
+esac

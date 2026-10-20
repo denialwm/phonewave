@@ -1,0 +1,66 @@
+[Unit]
+Description=Denial on the Edge 70 (mainline kernel)
+Documentation=file:///usr/share/doc/moto70-mainline/README
+ConditionKernelVersion=>=7
+After=systemd-logind.service systemd-user-sessions.service dbus.service systemd-udev-trigger.service
+# The session owns tty1 like a login does: logind only places a session on
+# seat0, which has VTs, when it comes with one.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=120
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=logix
+Group=logix
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=/home/logix
+Environment=HOME=/home/logix
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=XDG_CONFIG_HOME=/home/logix/.config
+Environment=XDG_STATE_HOME=/home/logix/.local/state
+Environment=XDG_CACHE_HOME=/home/logix/.cache
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_SESSION_CLASS=user
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=TERMINAL=foot
+Environment=LIBSEAT_BACKEND=logind
+Environment=EGL_PLATFORM=gbm
+Environment=RUST_LOG=deniald=info,smithay=warn
+Environment=DENIA_SHELL_PROFILE=mobile
+Environment=DENIA_GLASS_DIRECT_MATERIAL=1
+Environment=DENIA_GLASS_POOLED_TARGET_PADDING=1
+Environment=DENIA_RENDER_AUDIT=1
+Environment=DENIAL_UI_CPU_MIN=512
+Environment=DENIAL_CPU_PLACEMENT=1
+# Shell frames here often need more than one 8.3 ms refresh: render the next
+# one while the previous is still on the GPU instead of skipping a refresh.
+Environment=DENIAL_RENDER_AHEAD=1
+# Denial writes its output configuration atomically into this directory.
+StateDirectory=moto70-mainline
+StateDirectoryMode=0755
+ExecStartPre=+/bin/sh -c 'test -e /var/lib/moto70-mainline/outputs.conf || install -o logix -g logix -m 0644 /usr/share/moto70-mainline/outputs.conf /var/lib/moto70-mainline/'
+# Moto helpers reach the session through this stable link.
+ExecStartPre=+/usr/bin/ln -sfn /run/user/1000 /run/denial-root
+# The deployment is the one /var/lib/moto70-denial/mainline-current names.
+ExecStart=/var/lib/moto70-denial/mainline-current/native/deniald --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /var/lib/moto70-mainline/outputs.conf --wayland --flutter-bundle /var/lib/moto70-denial/mainline-current/shell --flutter-renderer impeller
+AmbientCapabilities=CAP_SYS_NICE
+LimitRTPRIO=10
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

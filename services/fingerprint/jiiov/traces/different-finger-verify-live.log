@@ -1,0 +1,151 @@
+Binaries SHA256: {'probe': '4a8a59e616af3921fa791aa8946fc5503af6a70654501d0350909f1087823454', 'client': '288429d4dfab209bef9b8822996b3a2c69d7b49bebb2a1542bef136c9f4ecc00'}
+Submitted sensor-target diagnostic surface 610x1356; automatic exit within 120 seconds.
+First frame callback received; panel illumination readiness is unverified.
+Thu Sep 10 20:44:22 UTC 2026
+Brightness=16180
+Native client uid=0
+registerLegacy: ioctl=0 errno=0 result=0
+open compat loader: ioctl=0 errno=0 result=0
+lookup ancapp64: ioctl=0 errno=0 result=23
+Transport works; JIIOV firmware is not loaded.
+open listener registration: ioctl=0 errno=0 result=0
+register bounded filesystem listener: ioctl=0 errno=0 result=0
+register bounded bulk filesystem listener: ioctl=0 errno=0 result=0
+load ancapp64 from DMA region: ioctl=0 errno=0 result=0
+Firmware loaded from DMA region.
+Firmware group=2 command=1 parameter=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/jv_opt_data.bin" flags=0x0
+Calibration open jv_opt_data.bin flags=0x0
+Calibration FS command=0x202 result=100 errno=0
+Calibration callback op=0 counts=0x4020
+Calibration fstat size=329
+Calibration FS command=0x20e result=0 errno=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/jv_opt_data.bin" flags=0x0
+Calibration open jv_opt_data.bin flags=0x0
+GP calibration command=0x0 bytes=329 error=0
+Calibration callback op=0 counts=0x4020
+Calibration FS command=0x209 result=0 errno=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=2 command=6 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x46544301 response_bytes=320
+JIIOV chip ID: 0x46544301
+Firmware group=2 command=4 parameter=59
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+JIIOV product ID: JV0307
+Firmware group=2 command=4 parameter=51
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Sensor geometry words: 148 148 43808 0
+Firmware group=3 command=1 parameter=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/debase_context" flags=0x0
+Calibration FS command=0x202 result=-1 errno=13
+Calibration callback op=0 counts=0x4020
+Calibration FS command=0x21c result=13 errno=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=5 command=25 parameter=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/jv_normalized_calibration.bin" flags=0x0
+Calibration open jv_normalized_calibration.bin flags=0x0
+Calibration FS command=0x202 result=100 errno=0
+Calibration callback op=0 counts=0x4020
+Calibration fstat size=44024
+Calibration FS command=0x20e result=0 errno=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/jv_normalized_calibration.bin" flags=0x0
+Calibration open jv_normalized_calibration.bin flags=0x0
+GP calibration command=0x0 bytes=44024 error=0
+Calibration callback op=0 counts=0x4020
+Calibration FS command=0x209 result=0 errno=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Algorithm and optical calibration preparation succeeded.
+Firmware group=3 command=14 parameter=941001
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=3 command=13 parameter=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001.db.0" flags=0x0
+GP calibration command=0x0 bytes=1364 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001.db.bak.0" flags=0x0
+GP calibration command=0x0 bytes=1364 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001.db.0" flags=0x0
+GP calibration command=0x0 bytes=1364 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001.db.bak.0" flags=0x0
+GP calibration command=0x0 bytes=1364 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.0" flags=0x0
+GP calibration command=0x0 bytes=516084 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.0" flags=0x0
+GP calibration command=0x0 bytes=153830 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.0" flags=0x0
+GP calibration command=0x0 bytes=0 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.1" flags=0x0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.bak.0" flags=0x0
+GP calibration command=0x0 bytes=516084 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.bak.0" flags=0x0
+GP calibration command=0x0 bytes=153830 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.bak.0" flags=0x0
+GP calibration command=0x0 bytes=0 error=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/droidloom-fingerprint-probe/template_941001_0.bak.1" flags=0x0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/data/vendor_de/0/fpdata/ifaa_fplist" flags=0x242
+Calibration FS command=0x202 result=-1 errno=13
+Calibration callback op=0 counts=0x4020
+Calibration FS command=0x21c result=13 errno=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Isolated template load status=0
+Firmware group=3 command=17 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Isolated template list status=0 count=1
+Isolated template ID=767149
+Firmware group=3 command=6 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=2 command=5 parameter=1
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=3 command=8 parameter=1
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=300 value=0x00000000 response_bytes=320
+Verification extraction status=300
+Firmware group=3 command=10 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=502 value=0x00000000 response_bytes=320
+Verification compare status=502 matched_id=0
+Firmware group=3 command=12 parameter=0
+Calibration callback op=0 counts=0x4020
+Firmware FS open path="/mnt/vendor/persist/jiiov/debase_context" flags=0x242
+Calibration FS command=0x202 result=-1 errno=13
+Calibration callback op=0 counts=0x4020
+Calibration FS command=0x21c result=13 errno=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=3 command=2 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+Firmware group=2 command=2 parameter=0
+sensor sendRequest: ioctl=0 errno=0 result=0
+Sensor status=0 value=0x00000000 response_bytes=320
+unload ancapp64: ioctl=0 errno=0 result=0
+Calibration callback op=65535 counts=0x0
+Calibration callback op=65535 counts=0x0
+Restored brightness=1618

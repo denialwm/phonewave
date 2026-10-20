@@ -1,0 +1,13 @@
+[Unit]
+Description=Pad4 measured shared-memory allocation policy
+After=systemd-sysctl.service
+Before=pad4-denial.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 /usr/local/libexec/pad4-vm-tuning apply
+ExecStop=/usr/bin/python3 /usr/local/libexec/pad4-vm-tuning restore
+
+[Install]
+WantedBy=multi-user.target
