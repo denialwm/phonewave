@@ -1,0 +1,60 @@
+#!/bin/sh
+# Keep the system clock across reboots on a device whose real-time clock keeps
+# counting but cannot be set from Linux. The clock is the RTC count plus an
+# offset saved while the system clock was synchronized.
+set -eu
+
+device=${RTC_OFFSET_DEVICE:-/sys/class/rtc/rtc0}
+state=${STATE_DIRECTORY:-/var/lib/rtc-offset}
+synchronized=${RTC_OFFSET_SYNCHRONIZED:-/run/systemd/timesync/synchronized}
+
+rtc_seconds() {
+    cat "$device/since_epoch"
+}
+
+restore() {
+    if [ ! -f "$state/offset" ]; then
+        echo "No saved offset; leaving the clock alone."
+        return
+    fi
+    offset=$(cat "$state/offset")
+    case ${offset#-} in
+    '' | *[!0-9]*)
+        echo "Ignoring malformed offset '$offset'." >&2
+        return
+        ;;
+    esac
+    target=$(($(rtc_seconds) + offset))
+    now=$(date +%s)
+    # A target behind the clock means the RTC restarted, for example after the
+    # battery ran flat. Never step the clock backwards; NTP corrects it later.
+    if [ "$target" -le "$now" ]; then
+        echo "RTC plus offset gives $(date -u -d "@$target"), not after the current clock; leaving it."
+        return
+    fi
+    date -u -s "@$target" >/dev/null
+    echo "Clock set from $device: $(date -u -d "@$target")."
+}
+
+save() {
+    if [ ! -e "$synchronized" ]; then
+        echo "Clock not synchronized in this boot; keeping the saved offset."
+        return
+    fi
+    offset=$(($(date +%s) - $(rtc_seconds)))
+    mkdir -p "$state"
+    printf '%s\n' "$offset" >"$state/offset.new"
+    sync "$state/offset.new"
+    mv "$state/offset.new" "$state/offset"
+    sync "$state"
+    echo "Saved offset $offset seconds from $device."
+}
+
+case ${1-} in
+restore) restore ;;
+save) save ;;
+*)
+    echo "usage: rtc-offset restore|save" >&2
+    exit 2
+    ;;
+esac

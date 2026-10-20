@@ -1,0 +1,66 @@
+--- a/libfprint/drivers/jiiov.c
++++ b/libfprint/drivers/jiiov.c
+@@ -5,6 +5,7 @@
+  */
+ #define FP_COMPONENT "jiiov"
+ #include "drivers_api.h"
++#include "fp-device-private.h"
+ #include <signal.h>
+ #include <stdio.h>
+ 
+@@ -16,6 +17,7 @@
+   GSource *deadline;
+   gboolean cancelled, failed, result_seen;
+   guint result, identifier, stages;
++  guint power_phase; /* 0 legacy, 1 idle/off, 2 capture/on, 3 cleaned/off */
+ } FpiDeviceJiiov;
+ typedef FpDeviceClass FpiDeviceJiiovClass;
+ GType fpi_device_jiiov_get_type (void);
+@@ -67,6 +69,7 @@
+       error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED, "Fingerprint operation cancelled");
+     }
+   else if (self->failed || !exited || !self->result_seen || self->result > 1 ||
++           (self->power_phase != 0 && self->power_phase != 3) ||
+            (self->result && fpi_device_get_current_action (dev) != FPI_DEVICE_ACTION_VERIFY))
+     {
+       g_clear_error (&error);
+@@ -124,6 +127,7 @@
+ }
+ 
+ static void read_line (GObject *object, GAsyncResult *result, gpointer user_data);
++static void timeout (FpDevice *dev, gpointer unused);
+ 
+ static void
+ read_next (FpDevice *dev)
+@@ -149,7 +153,21 @@
+       g_subprocess_wait_check_async (self->worker, NULL, finished, dev);
+       return;
+     }
+-  if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 progress %u%n", &value, &consumed) == 1 &&
++  if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 power %u%n", &value, &consumed) == 1 &&
++      consumed == (int) length && fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_VERIFY &&
++      ((value == 0 && (self->power_phase == 0 || self->power_phase == 2)) ||
++       (value == 1 && self->power_phase == 1)))
++    {
++      self->power_phase = value == 1 ? 2 : (self->power_phase == 0 ? 1 : 3);
++      /* Waiting for a touchscreen gesture leaves the fingerprint sensor
++       * powered off. Preserve the thermal model for real capture time. */
++      fpi_device_update_temp (dev, value != 0);
++      if (self->deadline)
++        { g_source_destroy (self->deadline); self->deadline = NULL; }
++      if (self->power_phase != 1)
++        self->deadline = fpi_device_add_timeout (dev, 30000, timeout, NULL, NULL);
++    }
++  else if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 progress %u%n", &value, &consumed) == 1 &&
+       consumed == (int) length && value <= 20 && value > self->stages &&
+       fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_ENROLL)
+     {
+@@ -232,7 +250,7 @@
+     }
+   g_assert (operation != NULL);
+   self->cancelled = self->failed = self->result_seen = FALSE;
+-  self->result = self->identifier = self->stages = 0;
++  self->result = self->identifier = self->stages = self->power_phase = 0;
+   self->prints = g_ptr_array_new_with_free_func (g_object_unref);
+   self->worker = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
+                                    "/usr/local/libexec/jiiov-fprint-helper", operation, argument, NULL);

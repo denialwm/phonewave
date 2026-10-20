@@ -1,0 +1,21 @@
+# Motorola Edge 70.
+codename = "roadstr"
+model = "Motorola Edge 70"
+chassis = "handset"
+soc = "eliza"
+dtb = "qcom/eliza-motorola-roadstr.dtb"
+
+[display]
+# Stock firmware ships CSOT VTDR6126A, CSOT NT37706 and BOE NT37706 panels.
+# The mainline device tree describes the CSOT NT37706.
+panel = "csot,nt37706-v3"
+resolution = [1220, 2712]
+refresh_hz = [60, 90, 120]
+
+[touch]
+# Goodix with CSOT panels, FocalTech with BOE panels.
+controller = "goodix,gt9916"
+
+[haptics]
+actuator = "Awinic AW86938 LRA"
+input_name = "aw86927-haptics"

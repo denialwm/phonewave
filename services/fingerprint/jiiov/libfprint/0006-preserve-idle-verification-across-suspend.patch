@@ -1,0 +1,273 @@
+--- a/libfprint/drivers/jiiov.c
++++ b/libfprint/drivers/jiiov.c
+@@ -9,13 +9,19 @@
+ #include <signal.h>
+ #include <stdio.h>
+ 
++#ifndef JIIOV_HELPER
++#define JIIOV_HELPER "/usr/local/libexec/jiiov-fprint-helper"
++#endif
++
+ typedef struct {
+   FpDevice parent;
+   GSubprocess *worker;
+   GDataInputStream *output;
+   GPtrArray *prints;
+   GSource *deadline;
++  GSource *sleep_deadline;
+   gboolean cancelled, failed, result_seen;
++  gboolean suspending, suspended, resuming;
+   guint result, identifier, stages;
+   guint power_phase; /* 0 legacy, 1 idle/off, 2 capture/on, 3 cleaned/off */
+ } FpiDeviceJiiov;
+@@ -23,6 +29,69 @@
+ GType fpi_device_jiiov_get_type (void);
+ G_DEFINE_TYPE (FpiDeviceJiiov, fpi_device_jiiov, FP_TYPE_DEVICE)
+ 
++static void
++sleep_complete (FpDevice *dev, GError *error)
++{
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  if (self->sleep_deadline)
++    { g_source_destroy (self->sleep_deadline); self->sleep_deadline = NULL; }
++  if (self->suspending)
++    {
++      self->suspending = FALSE;
++      self->suspended = error == NULL;
++      fpi_device_suspend_complete (dev, error);
++    }
++  else if (self->resuming)
++    {
++      gboolean failed = error != NULL;
++      self->resuming = self->suspended = FALSE;
++      fpi_device_resume_complete (dev, error);
++      if (failed && self->worker)
++        {
++          self->failed = TRUE;
++          g_subprocess_send_signal (self->worker, SIGTERM);
++        }
++    }
++  else
++    g_clear_error (&error);
++}
++
++static void
++sleep_timeout (FpDevice *dev, gpointer unused)
++{
++  (void) unused;
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  self->sleep_deadline = NULL;
++  sleep_complete (dev, fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
++                                               "Fingerprint suspend handshake timed out"));
++}
++
++static void
++sleep_command (FpDevice *dev, gboolean suspend)
++{
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  g_autoptr(GError) error = NULL;
++  const char *request = suspend ? "suspend\n" : "resume\n";
++  self->suspending = suspend;
++  self->resuming = !suspend;
++  if (fpi_device_get_current_action (dev) != FPI_DEVICE_ACTION_VERIFY ||
++      !self->worker || self->power_phase != 1 ||
++      self->failed || self->cancelled || self->result_seen ||
++      (!suspend && !self->suspended))
++    {
++      sleep_complete (dev, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
++      return;
++    }
++  self->sleep_deadline = fpi_device_add_timeout (dev, 2000, sleep_timeout, NULL, NULL);
++  /* At most one short command is outstanding, so this cannot fill the pipe. */
++  if (!g_output_stream_write_all (g_subprocess_get_stdin_pipe (self->worker),
++                                  request, strlen (request), NULL, NULL, &error))
++    sleep_complete (dev, g_steal_pointer (&error));
++}
++
++static void suspend_device (FpDevice *dev) { sleep_command (dev, TRUE); }
++static void resume_device (FpDevice *dev) { sleep_command (dev, FALSE); }
++
+ static const FpIdEntry id_table[] = {
+   { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
+     .platform_driver = "jiiov_fp", .platform_compatible = "jiiov,fingerprint" },
+@@ -63,6 +132,9 @@
+     { g_source_destroy (self->deadline); self->deadline = NULL; }
+   g_clear_object (&self->output);
+   g_clear_object (&self->worker);
++  if (self->suspending || self->resuming)
++    sleep_complete (dev, fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
++                                                 "Fingerprint worker exited during suspend handshake"));
+   if (self->cancelled)
+     {
+       g_clear_error (&error);
+@@ -160,7 +232,19 @@
+       g_subprocess_wait_check_async (self->worker, NULL, finished, dev);
+       return;
+     }
+-  if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 power %u%n", &value, &consumed) == 1 &&
++  if (!strcmp (line, "JFP1 suspended") && self->suspending && self->power_phase == 1)
++    {
++      g_message ("JIIOV verification retained across suspend; sensor remains off");
++      sleep_complete (dev, NULL);
++    }
++  else if (!strcmp (line, "JFP1 resumed") && self->resuming && self->suspended && self->power_phase == 1)
++    {
++      g_message ("JIIOV verification resumed with original touch listener");
++      sleep_complete (dev, NULL);
++    }
++  else if (!strcmp (line, "JFP1 suspend-busy") && self->suspending)
++    sleep_complete (dev, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
++  else if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 power %u%n", &value, &consumed) == 1 &&
+       consumed == (int) length && fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_VERIFY &&
+       ((value == 0 && (self->power_phase == 0 || self->power_phase == 1 || self->power_phase == 2)) ||
+        (value == 1 && self->power_phase == 1)))
+@@ -257,10 +341,14 @@
+     }
+   g_assert (operation != NULL);
+   self->cancelled = self->failed = self->result_seen = FALSE;
++  self->suspending = self->resuming = self->suspended = FALSE;
+   self->result = self->identifier = self->stages = self->power_phase = 0;
+   self->prints = g_ptr_array_new_with_free_func (g_object_unref);
+-  self->worker = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
+-                                   "/usr/local/libexec/jiiov-fprint-helper", operation, argument, NULL);
++  g_autoptr(GSubprocessLauncher) launcher = g_subprocess_launcher_new (
++    G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDIN_PIPE);
++  g_subprocess_launcher_setenv (launcher, "JIIOV_SUSPEND_PROTOCOL", "1", TRUE);
++  self->worker = g_subprocess_launcher_spawn (launcher, &error,
++                                             JIIOV_HELPER, operation, argument, NULL);
+   if (!self->worker)
+     {
+       g_clear_pointer (&self->prints, g_ptr_array_unref);
+@@ -286,5 +374,7 @@
+   klass->probe = klass->open = klass->enroll = klass->verify = klass->list = klass->delete = start;
+   klass->close = close_device;
+   klass->cancel = cancel;
++  klass->suspend = suspend_device;
++  klass->resume = resume_device;
+   fpi_device_class_auto_initialize_features (klass);
+ }
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -323,6 +323,10 @@
+ 
+ unit_tests_deps = { 'fpi-assembling' : [cairo_dep] }
+ 
++if 'jiiov' in drivers
++    unit_tests += ['jiiov-suspend']
++endif
++
+ foreach test_name: unit_tests
+     if unit_tests_deps.has_key(test_name)
+         missing_deps = false
+--- /dev/null
++++ b/tests/test-jiiov-suspend.c
+@@ -0,0 +1,109 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Real JIIOV callbacks with a pipe worker; no device, input or display access. */
++#include <glib.h>
++#include <glib/gstdio.h>
++static const char *test_helper;
++#define JIIOV_HELPER test_helper
++#include "../libfprint/drivers/jiiov.c"
++
++typedef struct { gboolean done; GError *error; } VerifyResult;
++
++static void
++verified (GObject *object, GAsyncResult *result, gpointer data)
++{
++  VerifyResult *out = data;
++  gboolean match;
++  fp_device_verify_finish (FP_DEVICE (object), result, &match, NULL, &out->error);
++  out->done = TRUE;
++}
++
++static void
++exercise (gconstpointer scenario)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(FpDevice) device = NULL;
++  g_autoptr(FpPrint) print = NULL;
++  g_autoptr(GCancellable) cancellation = g_cancellable_new ();
++  g_autofree gchar *filename = NULL;
++  g_autofree gchar *program = NULL;
++  VerifyResult result = {0};
++  int fd = g_file_open_tmp ("jiiov-suspend-test-XXXXXX", &filename, &error);
++  g_assert_no_error (error);
++  close (fd);
++  program = g_strdup_printf (
++    "#!/usr/bin/python3\nimport sys,time\nscenario='%s'\n"
++    "if sys.argv[1]!='verify':\n print('JFP1 result 0 0',flush=True)\n sys.exit(0)\n"
++    "print('JFP1 power 0',flush=True)\n"
++    "for line in sys.stdin:\n"
++    " if line=='suspend\\n':\n"
++    "  if scenario=='timeout': continue\n"
++    "  print('JFP1 suspend-busy' if scenario=='busy' else 'JFP1 invalid' if scenario=='malformed' else 'JFP1 suspended',flush=True)\n"
++    " elif line=='resume\\n':\n"
++    "  print('JFP1 invalid' if scenario=='resume-error' else 'JFP1 resumed',flush=True)\n",
++    (const char *) scenario);
++  g_assert_true (g_file_set_contents (filename, program, -1, &error));
++  g_assert_no_error (error);
++  g_assert_cmpint (g_chmod (filename, 0700), ==, 0);
++  test_helper = filename;
++  device = g_object_new (fpi_device_jiiov_get_type (), NULL);
++  g_assert_true (fp_device_open_sync (device, NULL, &error));
++  g_assert_no_error (error);
++  print = make_print (device, 42);
++  fp_device_verify (device, print, cancellation, NULL, NULL, NULL, verified, &result);
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) device;
++  while (self->power_phase != 1 && !result.done)
++    g_main_context_iteration (NULL, TRUE);
++  g_assert_false (result.done);
++  g_autofree gchar *original_pid = g_strdup (g_subprocess_get_identifier (self->worker));
++  gboolean normal = !strcmp (scenario, "normal");
++  gboolean resume_error = !strcmp (scenario, "resume-error");
++  for (guint cycle = 0; cycle < (normal ? 3 : 1); cycle++)
++    {
++      gboolean suspended_ok = fp_device_suspend_sync (device, NULL, &error);
++      g_assert_cmpint (suspended_ok, ==, normal || resume_error);
++      if (normal || resume_error)
++        {
++          g_assert_no_error (error);
++          g_assert_false (result.done);
++          g_assert_true (self->suspended);
++          g_assert_cmpstr (g_subprocess_get_identifier (self->worker), ==, original_pid);
++        }
++      else
++        {
++          g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_NOT_SUPPORTED);
++          g_clear_error (&error);
++        }
++      gboolean resumed_ok = fp_device_resume_sync (device, NULL, &error);
++      g_assert_cmpint (resumed_ok, ==, !resume_error);
++      if (resume_error)
++        { g_assert_nonnull (error); g_clear_error (&error); }
++      else
++        g_assert_no_error (error);
++      if (normal)
++        {
++          g_assert_false (result.done);
++          g_assert_false (self->suspended);
++          g_assert_cmpstr (g_subprocess_get_identifier (self->worker), ==, original_pid);
++        }
++    }
++  g_cancellable_cancel (cancellation);
++  while (!result.done)
++    g_main_context_iteration (NULL, TRUE);
++  g_assert_nonnull (result.error);
++  g_clear_error (&result.error);
++  g_assert_null (self->worker);
++  g_assert_true (fp_device_close_sync (device, NULL, &error));
++  g_assert_no_error (error);
++  g_unlink (filename);
++}
++
++int main (int argc, char **argv)
++{
++  g_test_init (&argc, &argv, NULL);
++  g_test_add_data_func ("/jiiov/suspend/retained-session", "normal", exercise);
++  g_test_add_data_func ("/jiiov/suspend/active-contact", "busy", exercise);
++  g_test_add_data_func ("/jiiov/suspend/malformed-ack", "malformed", exercise);
++  g_test_add_data_func ("/jiiov/suspend/missing-ack", "timeout", exercise);
++  g_test_add_data_func ("/jiiov/suspend/failed-resume", "resume-error", exercise);
++  return g_test_run ();
++}

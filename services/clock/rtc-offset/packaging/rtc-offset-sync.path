@@ -1,0 +1,8 @@
+[Unit]
+Description=Save the RTC offset once the clock is synchronized
+
+[Path]
+PathExists=/run/systemd/timesync/synchronized
+
+[Install]
+WantedBy=paths.target

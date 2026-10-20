@@ -1,0 +1,13 @@
+[Unit]
+Description=Roadstr fingerprint module and FOD gesture setup
+After=systemd-modules-load.service moto70-hardware.service
+Requires=moto70-hardware.service
+Before=denial-moto70.service fprintd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/jiiov-platform-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

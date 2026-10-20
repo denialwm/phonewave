@@ -1,0 +1,18 @@
+# OnePlus Ace 3, sold outside China as the OnePlus 12R.
+codename = "aston"
+model = "OnePlus Ace 3"
+chassis = "handset"
+soc = "sm8550"
+dtb = "qcom/sm8550-oneplus-aston.dtb"
+
+[display]
+panel = "oneplus,aston-boe-aa551"
+resolution = [1264, 2780]
+refresh_hz = [90, 120, 165]
+
+[touch]
+controller = "syna,s3910"
+
+[haptics]
+actuator = "PM8550B LRA"
+input_name = "qcom-spmi-haptics"

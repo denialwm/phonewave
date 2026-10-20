@@ -1,0 +1,295 @@
+diff --git a/libfprint/meson.build b/libfprint/meson.build
+index f11533c..21e01b5 100644
+--- a/libfprint/meson.build
++++ b/libfprint/meson.build
+@@ -88,6 +88,7 @@ nbis_sources = [
+ ]
+ 
+ driver_sources = {
++    'jiiov': files('drivers/jiiov.c'),
+     'upekts' : files(
+         'drivers/upekts.c',
+         'drivers/upek_proto.c',
+diff --git a/meson.build b/meson.build
+index ab09dc1..53d7cce 100644
+--- a/meson.build
++++ b/meson.build
+@@ -150,6 +150,7 @@ drivers_info = {
+ 
+     # SPI driver (non-optional if SPI is available)
+     'elanspi': { 'spi': true, 'helper': ['udev'], 'optional': not have_spi },
++    'jiiov': { 'helper': ['udev'], 'optional': true },
+ 
+     # Virtual drivers (test-only, optional)
+     'virtual_image': { 'virtual': true, 'helper': ['virtual'], 'optional': true },
+diff --git a/libfprint/drivers/jiiov.c b/libfprint/drivers/jiiov.c
+new file mode 100644
+index 0000000..8f66604
+--- /dev/null
++++ b/libfprint/drivers/jiiov.c
+@@ -0,0 +1,265 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Experimental native Roadstr/JV0307 driver. The worker isolates blocking
++ * Qualcomm secure calls and owns their complete resource lifetime.
++ * JFP1 is a private, versioned worker interface, not a public libfprint API.
++ */
++#define FP_COMPONENT "jiiov"
++#include "drivers_api.h"
++#include <signal.h>
++#include <stdio.h>
++
++typedef struct {
++  FpDevice parent;
++  GSubprocess *worker;
++  GDataInputStream *output;
++  GPtrArray *prints;
++  GSource *deadline;
++  gboolean cancelled, failed, result_seen;
++  guint result, identifier, stages;
++} FpiDeviceJiiov;
++typedef FpDeviceClass FpiDeviceJiiovClass;
++GType fpi_device_jiiov_get_type (void);
++G_DEFINE_TYPE (FpiDeviceJiiov, fpi_device_jiiov, FP_TYPE_DEVICE)
++
++static const FpIdEntry id_table[] = {
++  { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
++    .platform_driver = "jiiov_fp", .platform_compatible = "jiiov,fingerprint" },
++  { .udev_types = 0 }
++};
++
++static FpPrint *
++make_print (FpDevice *dev, guint identifier)
++{
++  FpPrint *print = fp_print_new (dev);
++  fpi_print_set_type (print, FPI_PRINT_RAW);
++  fpi_print_set_device_stored (print, TRUE);
++  g_object_set (print, "fpi-data", g_variant_new_uint32 (identifier), NULL);
++  return print;
++}
++
++static gboolean
++print_identifier (FpPrint *print, guint *identifier)
++{
++  g_autoptr(GVariant) data = NULL;
++  g_object_get (print, "fpi-data", &data, NULL);
++  if (!data || !g_variant_is_of_type (data, G_VARIANT_TYPE_UINT32))
++    return FALSE;
++  *identifier = g_variant_get_uint32 (data);
++  return *identifier != 0;
++}
++
++static void
++finished (GObject *object, GAsyncResult *result, gpointer user_data)
++{
++  FpDevice *dev = user_data;
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  g_autoptr(GError) error = NULL;
++  gboolean exited = g_subprocess_wait_check_finish (G_SUBPROCESS (object), result, &error);
++  g_autoptr(GPtrArray) prints = g_steal_pointer (&self->prints);
++
++  if (self->deadline)
++    { g_source_destroy (self->deadline); self->deadline = NULL; }
++  g_clear_object (&self->output);
++  g_clear_object (&self->worker);
++  if (self->cancelled)
++    {
++      g_clear_error (&error);
++      error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED, "Fingerprint operation cancelled");
++    }
++  else if (self->failed || !exited || !self->result_seen || self->result > 1 ||
++           (self->result && fpi_device_get_current_action (dev) != FPI_DEVICE_ACTION_VERIFY))
++    {
++      g_clear_error (&error);
++      error = fpi_device_error_new_msg (FP_DEVICE_ERROR_GENERAL, "Native fingerprint worker failed");
++    }
++  if (error)
++    {
++      fpi_device_action_error (dev, g_steal_pointer (&error));
++      return;
++    }
++  switch (fpi_device_get_current_action (dev))
++    {
++    case FPI_DEVICE_ACTION_PROBE:
++      fpi_device_probe_complete (dev, "roadstr-jv0307", "JIIOV JV0307 (native, experimental)", NULL);
++      break;
++    case FPI_DEVICE_ACTION_OPEN:
++      fpi_device_open_complete (dev, NULL);
++      break;
++    case FPI_DEVICE_ACTION_ENROLL:
++      {
++        FpPrint *print;
++        if (!self->identifier || self->result)
++          { fpi_device_action_error (dev, fpi_device_error_new (FP_DEVICE_ERROR_GENERAL)); break; }
++        fpi_device_get_enroll_data (dev, &print);
++        fpi_print_set_type (print, FPI_PRINT_RAW);
++        fpi_print_set_device_stored (print, TRUE);
++        g_object_set (print, "fpi-data", g_variant_new_uint32 (self->identifier), NULL);
++        fpi_device_enroll_complete (dev, g_object_ref (print), NULL);
++        break;
++      }
++    case FPI_DEVICE_ACTION_VERIFY:
++      {
++        FpPrint *expected;
++        guint identifier = 0;
++        fpi_device_get_verify_data (dev, &expected);
++        gboolean match = !self->result && self->identifier &&
++                         print_identifier (expected, &identifier) && identifier == self->identifier;
++        fpi_device_verify_report (dev, match ? FPI_MATCH_SUCCESS : FPI_MATCH_FAIL, NULL, NULL);
++        fpi_device_verify_complete (dev, NULL);
++        break;
++      }
++    case FPI_DEVICE_ACTION_LIST:
++      fpi_device_list_complete (dev, g_steal_pointer (&prints), NULL);
++      break;
++    case FPI_DEVICE_ACTION_DELETE:
++      fpi_device_delete_complete (dev, NULL);
++      break;
++    case FPI_DEVICE_ACTION_NONE:
++    case FPI_DEVICE_ACTION_CLOSE:
++    case FPI_DEVICE_ACTION_IDENTIFY:
++    case FPI_DEVICE_ACTION_CAPTURE:
++    case FPI_DEVICE_ACTION_CLEAR_STORAGE:
++      fpi_device_action_error (dev, fpi_device_error_new (FP_DEVICE_ERROR_GENERAL));
++    }
++}
++
++static void read_line (GObject *object, GAsyncResult *result, gpointer user_data);
++
++static void
++read_next (FpDevice *dev)
++{
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  g_data_input_stream_read_line_async (self->output, G_PRIORITY_DEFAULT, NULL, read_line, dev);
++}
++
++static void
++read_line (GObject *object, GAsyncResult *result, gpointer user_data)
++{
++  FpDevice *dev = user_data;
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  g_autoptr(GError) error = NULL;
++  gsize length;
++  g_autofree gchar *line = g_data_input_stream_read_line_finish (G_DATA_INPUT_STREAM (object), result, &length, &error);
++  guint value = 0, identifier = 0;
++  int consumed = 0;
++
++  if (!line)
++    {
++      if (error) self->result_seen = FALSE;
++      g_subprocess_wait_check_async (self->worker, NULL, finished, dev);
++      return;
++    }
++  if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 progress %u%n", &value, &consumed) == 1 &&
++      consumed == (int) length && value <= 20 && value > self->stages &&
++      fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_ENROLL)
++    {
++      self->stages = value;
++      fpi_device_enroll_progress (dev, value, NULL, NULL);
++    }
++  else if (!self->result_seen && length <= 80 && sscanf (line, "JFP1 item %u%n", &identifier, &consumed) == 1 &&
++           consumed == (int) length && identifier && self->prints && self->prints->len < 5 &&
++           fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_LIST)
++    g_ptr_array_add (self->prints, make_print (dev, identifier));
++  else if (length <= 80 && sscanf (line, "JFP1 result %u %u%n", &value, &identifier, &consumed) == 2 &&
++           consumed == (int) length && !self->result_seen)
++    { self->result = value; self->identifier = identifier; self->result_seen = TRUE; }
++  else
++    {
++      self->failed = TRUE;
++      g_subprocess_send_signal (self->worker, SIGTERM);
++    }
++  read_next (dev);
++}
++
++static void
++cancel (FpDevice *dev)
++{
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  self->cancelled = TRUE;
++  if (self->worker) g_subprocess_send_signal (self->worker, SIGTERM);
++}
++
++static void
++timeout (FpDevice *dev, gpointer unused)
++{
++  (void) unused;
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  self->deadline = NULL;
++  self->failed = TRUE;
++  if (self->worker) g_subprocess_send_signal (self->worker, SIGTERM);
++}
++
++static void
++start (FpDevice *dev)
++{
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) dev;
++  const gchar *operation = NULL;
++  g_autofree gchar *argument = NULL;
++  g_autoptr(GError) error = NULL;
++  switch (fpi_device_get_current_action (dev))
++    {
++    case FPI_DEVICE_ACTION_PROBE: operation = "probe"; break;
++    case FPI_DEVICE_ACTION_OPEN: operation = "open"; break;
++    case FPI_DEVICE_ACTION_ENROLL: operation = "enroll"; break;
++    case FPI_DEVICE_ACTION_VERIFY:
++      {
++        FpPrint *print;
++        guint identifier;
++        fpi_device_get_verify_data (dev, &print);
++        if (!print_identifier (print, &identifier))
++          { fpi_device_action_error (dev, fpi_device_error_new (FP_DEVICE_ERROR_DATA_INVALID)); return; }
++        operation = "verify";
++        break;
++      }
++    case FPI_DEVICE_ACTION_LIST: operation = "list"; break;
++    case FPI_DEVICE_ACTION_DELETE:
++      {
++        FpPrint *print;
++        guint identifier;
++        fpi_device_get_delete_data (dev, &print);
++        if (!print_identifier (print, &identifier))
++          { fpi_device_delete_complete (dev, fpi_device_error_new (FP_DEVICE_ERROR_DATA_INVALID)); return; }
++        operation = "delete";
++        argument = g_strdup_printf ("%u", identifier);
++        break;
++      }
++    case FPI_DEVICE_ACTION_NONE:
++    case FPI_DEVICE_ACTION_CLOSE:
++    case FPI_DEVICE_ACTION_IDENTIFY:
++    case FPI_DEVICE_ACTION_CAPTURE:
++    case FPI_DEVICE_ACTION_CLEAR_STORAGE:
++      g_assert_not_reached ();
++    }
++  g_assert (operation != NULL);
++  self->cancelled = self->failed = self->result_seen = FALSE;
++  self->result = self->identifier = self->stages = 0;
++  self->prints = g_ptr_array_new_with_free_func (g_object_unref);
++  self->worker = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
++                                   "/usr/local/libexec/jiiov-fprint-helper", operation, argument, NULL);
++  if (!self->worker)
++    {
++      g_clear_pointer (&self->prints, g_ptr_array_unref);
++      fpi_device_action_error (dev, g_steal_pointer (&error));
++      return;
++    }
++  self->output = g_data_input_stream_new (g_subprocess_get_stdout_pipe (self->worker));
++  self->deadline = fpi_device_add_timeout (dev, 150000, timeout, NULL, NULL);
++  read_next (dev);
++}
++
++static void close_device (FpDevice *dev) { fpi_device_close_complete (dev, NULL); }
++static void fpi_device_jiiov_init (FpiDeviceJiiov *self) { (void) self; }
++static void
++fpi_device_jiiov_class_init (FpiDeviceJiiovClass *klass)
++{
++  klass->id = "jiiov";
++  klass->full_name = "JIIOV JV0307 native platform sensor (experimental)";
++  klass->type = FP_DEVICE_TYPE_UDEV;
++  klass->id_table = id_table;
++  klass->nr_enroll_stages = 20;
++  klass->scan_type = FP_SCAN_TYPE_PRESS;
++  klass->probe = klass->open = klass->enroll = klass->verify = klass->list = klass->delete = start;
++  klass->close = close_device;
++  klass->cancel = cancel;
++  fpi_device_class_auto_initialize_features (klass);
++}

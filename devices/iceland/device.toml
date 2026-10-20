@@ -1,0 +1,23 @@
+# OnePlus Pad 4 (OPD2514).
+codename = "iceland"
+model = "OnePlus Pad 4"
+chassis = "tablet"
+soc = "kaanapali"
+dtb = "qcom/kaanapali-oneplus-iceland.dtb"
+
+[display]
+panel = "oneplus,iceland-nt36536"
+resolution = [1904, 3040]
+refresh_hz = [60, 120]
+
+[touch]
+controller = "novatek,NVT-ts-spi"
+
+# No haptics actuator is described in the device tree yet.
+
+# The PMIC RTC counts from an arbitrary base and Linux cannot set it: the node
+# has neither allow-set-time nor an nvmem offset cell. rtc-offset keeps time.
+[rtc]
+driver = "rtc-pm8xxx"
+compatible = "qcom,pmk8350-rtc"
+settable = false

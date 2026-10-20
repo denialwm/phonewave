@@ -1,0 +1,242 @@
+--- a/libfprint/drivers/jiiov.c
++++ b/libfprint/drivers/jiiov.c
+@@ -6,6 +6,8 @@
+ #define FP_COMPONENT "jiiov"
+ #include "drivers_api.h"
+ #include "fp-device-private.h"
++#include <gio/gunixoutputstream.h>
++#include <fcntl.h>
+ #include <signal.h>
+ #include <stdio.h>
+ 
+@@ -17,6 +19,7 @@
+   FpDevice parent;
+   GSubprocess *worker;
+   GDataInputStream *output;
++  GOutputStream *control;
+   GPtrArray *prints;
+   GSource *deadline;
+   GSource *sleep_deadline;
+@@ -84,7 +87,7 @@
+     }
+   self->sleep_deadline = fpi_device_add_timeout (dev, 2000, sleep_timeout, NULL, NULL);
+   /* At most one short command is outstanding, so this cannot fill the pipe. */
+-  if (!g_output_stream_write_all (g_subprocess_get_stdin_pipe (self->worker),
++  if (!g_output_stream_write_all (self->control,
+                                   request, strlen (request), NULL, NULL, &error))
+     sleep_complete (dev, g_steal_pointer (&error));
+ }
+@@ -131,6 +134,7 @@
+   if (self->deadline)
+     { g_source_destroy (self->deadline); self->deadline = NULL; }
+   g_clear_object (&self->output);
++  g_clear_object (&self->control);
+   g_clear_object (&self->worker);
+   if (self->suspending || self->resuming)
+     sleep_complete (dev, fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
+@@ -298,6 +302,35 @@
+   if (self->worker) g_subprocess_send_signal (self->worker, SIGTERM);
+ }
+ 
++static GOutputStream *
++open_control (GSubprocessLauncher *launcher, GError **error)
++{
++  int fds[2];
++  if (pipe2 (fds, O_CLOEXEC) < 0)
++    goto failed;
++  /* fprintd's logind inhibitor can release descriptor 0. GLib 2.88's
++   * spawn path substitutes /dev/null when a new stdin pipe already uses
++   * that number. Explicitly map a source above the standard descriptors;
++   * never reserve or replace an fd belonging to the hosting process. */
++  int reader = fcntl (fds[0], F_DUPFD_CLOEXEC, 3);
++  if (reader < 0)
++    {
++      int saved_errno = errno;
++      close (fds[0]);
++      close (fds[1]);
++      errno = saved_errno;
++      goto failed;
++    }
++  close (fds[0]);
++  g_subprocess_launcher_take_stdin_fd (launcher, reader);
++  return g_unix_output_stream_new (fds[1], TRUE);
++
++failed:
++  g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
++               "Cannot create fingerprint control pipe: %s", g_strerror (errno));
++  return NULL;
++}
++
+ static void
+ start (FpDevice *dev)
+ {
+@@ -345,12 +378,15 @@
+   self->result = self->identifier = self->stages = self->power_phase = 0;
+   self->prints = g_ptr_array_new_with_free_func (g_object_unref);
+   g_autoptr(GSubprocessLauncher) launcher = g_subprocess_launcher_new (
+-    G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDIN_PIPE);
++    G_SUBPROCESS_FLAGS_STDOUT_PIPE);
+   g_subprocess_launcher_setenv (launcher, "JIIOV_SUSPEND_PROTOCOL", "1", TRUE);
+-  self->worker = g_subprocess_launcher_spawn (launcher, &error,
++  self->control = open_control (launcher, &error);
++  if (self->control)
++    self->worker = g_subprocess_launcher_spawn (launcher, &error,
+                                              JIIOV_HELPER, operation, argument, NULL);
+   if (!self->worker)
+     {
++      g_clear_object (&self->control);
+       g_clear_pointer (&self->prints, g_ptr_array_unref);
+       fpi_device_action_error (dev, g_steal_pointer (&error));
+       return;
+--- a/tests/test-jiiov-suspend.c
++++ b/tests/test-jiiov-suspend.c
+@@ -6,14 +6,13 @@
+ #define JIIOV_HELPER test_helper
+ #include "../libfprint/drivers/jiiov.c"
+ 
+-typedef struct { gboolean done; GError *error; } VerifyResult;
++typedef struct { gboolean done, match; GError *error; } VerifyResult;
+ 
+ static void
+ verified (GObject *object, GAsyncResult *result, gpointer data)
+ {
+   VerifyResult *out = data;
+-  gboolean match;
+-  fp_device_verify_finish (FP_DEVICE (object), result, &match, NULL, &out->error);
++  fp_device_verify_finish (FP_DEVICE (object), result, &out->match, NULL, &out->error);
+   out->done = TRUE;
+ }
+ 
+@@ -27,6 +26,7 @@
+   g_autofree gchar *filename = NULL;
+   g_autofree gchar *program = NULL;
+   VerifyResult result = {0};
++  int saved_stdin = -1;
+   int fd = g_file_open_tmp ("jiiov-suspend-test-XXXXXX", &filename, &error);
+   g_assert_no_error (error);
+   close (fd);
+@@ -48,6 +48,8 @@
+   device = g_object_new (fpi_device_jiiov_get_type (), NULL);
+   g_assert_true (fp_device_open_sync (device, NULL, &error));
+   g_assert_no_error (error);
++  if (!strcmp (scenario, "closed-stdin"))
++    { saved_stdin = dup (0); close (0); }
+   print = make_print (device, 42);
+   fp_device_verify (device, print, cancellation, NULL, NULL, NULL, verified, &result);
+   FpiDeviceJiiov *self = (FpiDeviceJiiov *) device;
+@@ -55,7 +57,7 @@
+     g_main_context_iteration (NULL, TRUE);
+   g_assert_false (result.done);
+   g_autofree gchar *original_pid = g_strdup (g_subprocess_get_identifier (self->worker));
+-  gboolean normal = !strcmp (scenario, "normal");
++  gboolean normal = (!strcmp (scenario, "normal") || !strcmp (scenario, "closed-stdin"));
+   gboolean resume_error = !strcmp (scenario, "resume-error");
+   for (guint cycle = 0; cycle < (normal ? 3 : 1); cycle++)
+     {
+@@ -94,6 +96,98 @@
+   g_assert_null (self->worker);
+   g_assert_true (fp_device_close_sync (device, NULL, &error));
+   g_assert_no_error (error);
++  if (saved_stdin >= 0)
++    { g_assert_cmpint (dup2 (saved_stdin, 0), ==, 0); close (saved_stdin); }
++  g_unlink (filename);
++}
++
++static guint
++fd_count (void)
++{
++  g_autoptr(GDir) dir = g_dir_open ("/proc/self/fd", 0, NULL);
++  guint count = 0;
++  while (g_dir_read_name (dir)) count++;
++  return count;
++}
++
++static void
++retry_sequence (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autofree gchar *filename = NULL;
++  int fd = g_file_open_tmp ("jiiov-retry-test-XXXXXX", &filename, &error);
++  g_assert_no_error (error);
++  close (fd);
++  const char *program =
++    "#!/usr/bin/python3\nimport sys\n"
++    "if sys.argv[1]!='verify':\n print('JFP1 result 0 0',flush=True)\n sys.exit(0)\n"
++    "print('JFP1 power 0',flush=True)\n"
++    "for line in sys.stdin:\n"
++    " if line=='suspend\\n': print('JFP1 suspended',flush=True)\n"
++    " elif line=='resume\\n': print('JFP1 resumed',flush=True)\n"
++    " elif line.startswith('finish '):\n"
++    "  code=int(line.split()[1])\n"
++    "  print('JFP1 power 1\\nJFP1 power 0',flush=True)\n"
++    "  print(f'JFP1 result {code} {42 if code==0 else 0}',flush=True)\n"
++    "  sys.exit(0)\n"
++    "sys.exit(9)\n";
++  g_assert_true (g_file_set_contents (filename, program, -1, &error));
++  g_assert_no_error (error);
++  g_assert_cmpint (g_chmod (filename, 0700), ==, 0);
++  test_helper = filename;
++  g_autoptr(FpDevice) device = g_object_new (fpi_device_jiiov_get_type (), NULL);
++  g_assert_true (fp_device_open_sync (device, NULL, &error));
++  g_assert_no_error (error);
++  g_autoptr(FpPrint) print = make_print (device, 42);
++  FpiDeviceJiiov *self = (FpiDeviceJiiov *) device;
++  int saved_stdin = dup (0);
++  close (0);
++  guint before_fds = fd_count ();
++  const guint codes[] = {1, 3, 0, 1, 3, 0};
++  for (guint attempt = 0; attempt < G_N_ELEMENTS (codes); attempt++)
++    {
++      VerifyResult result = {0};
++      fp_device_verify (device, print, NULL, NULL, NULL, NULL, verified, &result);
++      while (self->power_phase != 1 && !result.done)
++        g_main_context_iteration (NULL, TRUE);
++      g_assert_false (result.done);
++      g_assert_true (fp_device_suspend_sync (device, NULL, &error));
++      g_assert_no_error (error);
++      g_assert_true (fp_device_resume_sync (device, NULL, &error));
++      g_assert_no_error (error);
++      g_autofree gchar *finish = g_strdup_printf ("finish %u\n", codes[attempt]);
++      g_assert_true (g_output_stream_write_all (self->control, finish,
++                                                strlen (finish), NULL, NULL, &error));
++      g_assert_no_error (error);
++      while (!result.done) g_main_context_iteration (NULL, TRUE);
++      if (codes[attempt] == 3)
++        {
++          g_assert_error (result.error, FP_DEVICE_RETRY, FP_DEVICE_RETRY_TOO_SHORT);
++          g_clear_error (&result.error);
++        }
++      else
++        {
++          g_assert_no_error (result.error);
++          g_assert_cmpint (result.match, ==, codes[attempt] == 0);
++        }
++      g_assert_null (self->worker);
++      g_assert_null (self->control);
++      /* fprintd retries an early lift in-place; Denial releases and claims
++       * again following a terminal match or rejection. Exercise both. */
++      if (codes[attempt] != 3)
++        {
++          g_assert_true (fp_device_close_sync (device, NULL, &error));
++          g_assert_no_error (error);
++          g_assert_true (fp_device_open_sync (device, NULL, &error));
++          g_assert_no_error (error);
++        }
++    }
++  g_assert_true (fp_device_close_sync (device, NULL, &error));
++  g_assert_no_error (error);
++  while (g_main_context_iteration (NULL, FALSE));
++  g_assert_cmpuint (fd_count (), ==, before_fds);
++  if (saved_stdin >= 0)
++    { g_assert_cmpint (dup2 (saved_stdin, 0), ==, 0); close (saved_stdin); }
+   g_unlink (filename);
+ }
+ 
+@@ -105,5 +199,7 @@
+   g_test_add_data_func ("/jiiov/suspend/malformed-ack", "malformed", exercise);
+   g_test_add_data_func ("/jiiov/suspend/missing-ack", "timeout", exercise);
+   g_test_add_data_func ("/jiiov/suspend/failed-resume", "resume-error", exercise);
++  g_test_add_data_func ("/jiiov/suspend/closed-stdin", "closed-stdin", exercise);
++  g_test_add_func ("/jiiov/suspend/retry-sequence", retry_sequence);
+   return g_test_run ();
+ }

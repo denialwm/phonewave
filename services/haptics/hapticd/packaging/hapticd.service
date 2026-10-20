@@ -1,0 +1,24 @@
+[Unit]
+Description=Linux haptics service
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.hapticd
+ExecStart=/usr/bin/hapticd
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

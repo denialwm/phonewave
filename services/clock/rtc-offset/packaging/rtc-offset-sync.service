@@ -1,0 +1,10 @@
+[Unit]
+Description=Save the offset between the synchronized clock and the RTC
+After=rtc-offset.service
+
+[Service]
+Type=oneshot
+# Stay active so the path unit saves once per boot instead of retriggering.
+RemainAfterExit=yes
+StateDirectory=rtc-offset
+ExecStart=/usr/bin/rtc-offset save

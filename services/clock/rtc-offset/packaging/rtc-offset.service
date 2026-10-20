@@ -1,0 +1,17 @@
+[Unit]
+Description=Set the system clock from the RTC and the saved offset
+DefaultDependencies=no
+After=local-fs.target
+Before=systemd-timesyncd.service time-set.target sysinit.target shutdown.target
+Wants=time-set.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StateDirectory=rtc-offset
+ExecStart=/usr/bin/rtc-offset restore
+ExecStop=/usr/bin/rtc-offset save
+
+[Install]
+WantedBy=sysinit.target

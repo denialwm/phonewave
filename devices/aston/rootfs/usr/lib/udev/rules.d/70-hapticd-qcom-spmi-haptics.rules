@@ -1,0 +1,2 @@
+# Let hapticd drive the haptics of the Qualcomm PMIC (PM8550B on the Ace 3).
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="qcom-spmi-haptics", ENV{HAPTICD_DEVICE}="1", ENV{HAPTICD_ID}="builtin"

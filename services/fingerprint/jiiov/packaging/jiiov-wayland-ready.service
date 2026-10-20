@@ -1,0 +1,20 @@
+[Unit]
+Description=Current Moto compositor Wayland socket gate for fprintd
+Requisite=denial-moto70.service
+After=denial-moto70.service
+Before=fprintd.service
+PartOf=denial-moto70.service
+
+[Service]
+Type=oneshot
+User=root
+RemainAfterExit=no
+ExecStart=/usr/bin/python3 /usr/local/libexec/jiiov-wayland-ready --timeout 10
+TimeoutStartSec=12
+Restart=no
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+DevicePolicy=closed

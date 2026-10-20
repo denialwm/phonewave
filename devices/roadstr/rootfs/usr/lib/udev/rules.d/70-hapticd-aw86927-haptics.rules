@@ -1,0 +1,2 @@
+# Let hapticd drive the Awinic AW86938 LRA on the Edge 70 (aw86927 driver).
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="aw86927-haptics", ENV{HAPTICD_DEVICE}="1", ENV{HAPTICD_ID}="builtin"
