@@ -48,6 +48,7 @@ Apps and their libraries are not part of Phonewave; they live in
 |---|---|---|---|
 | haptics | [`hapticd`](services/haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
 | clock | [`rtc-offset`](services/clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
+| memory | [`zram-swap`](services/memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
 | fingerprint | [`jiiov`](services/fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | fingerprint | [`uff`](services/fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | modem | [`qmi-tools`](services/modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
@@ -60,7 +61,13 @@ Device files:
 sudo make install-device DEVICE=aston
 ```
 
-Each service builds from its own directory; see each README.
+This installs the services every device runs (`zram-swap`), then the
+device's rootfs/, whose links enable them. `DESTDIR` installs into a mounted
+root filesystem instead. A new device gets the same: its
+`rootfs/usr/lib/systemd/system/swap.target.wants/zram-swap.service` links to
+`../zram-swap.service`.
+
+Each other service builds from its own directory; see each README.
 
 Stock firmware, partition backups, firmware blobs and the boot images a
 release is packed on are not public. The scripts read them from

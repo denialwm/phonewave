@@ -1,0 +1,85 @@
+#!/bin/sh
+# Compressed swap in RAM. "start" sets up one zram device sized from the
+# installed memory, with the VM tuning that suits swap in RAM; "stop" takes
+# it down again.
+set -eu
+
+percent=${ZRAM_SWAP_PERCENT:-50}
+algorithm=${ZRAM_SWAP_ALGORITHM:-zstd}
+sys=${ZRAM_SWAP_SYSFS:-/sys}
+proc=${ZRAM_SWAP_PROC:-/proc}
+dev=${ZRAM_SWAP_DEV:-/dev}
+
+# zram swap devices in use, one per line.
+active() {
+    awk 'NR > 1 && $1 ~ /\/zram[0-9]+$/ { print $1 }' "$proc/swaps"
+}
+
+# A zram device nobody has set up yet: zram0 if it is free, else a new one.
+free_device() {
+    if [ ! -d "$sys/class/zram-control" ]; then
+        modprobe zram
+    fi
+    if [ "$(cat "$sys/block/zram0/initstate")" = 0 ]; then
+        echo zram0
+    else
+        echo "zram$(cat "$sys/class/zram-control/hot_add")"
+    fi
+}
+
+start() {
+    on=$(active)
+    if [ -n "$on" ]; then
+        echo "zram swap already on: $on"
+        return
+    fi
+    case $percent in
+    '' | *[!0-9]*)
+        echo "ZRAM_SWAP_PERCENT must be a whole number, not '$percent'." >&2
+        exit 1
+        ;;
+    esac
+    if [ "$percent" -lt 1 ] || [ "$percent" -gt 200 ]; then
+        echo "ZRAM_SWAP_PERCENT must be between 1 and 200, not $percent." >&2
+        exit 1
+    fi
+    name=$(free_device)
+    block=$sys/block/$name
+    # The algorithm has to be chosen before the size.
+    if grep -qw -- "$algorithm" "$block/comp_algorithm"; then
+        echo "$algorithm" >"$block/comp_algorithm"
+    else
+        echo "$name has no $algorithm; keeping $(cat "$block/comp_algorithm")." >&2
+    fi
+    memory=$(awk '$1 == "MemTotal:" { print $2 }' "$proc/meminfo")
+    size=$((memory * percent / 100))
+    echo "${size}K" >"$block/disksize"
+    mkswap -U clear "$dev/$name" >/dev/null
+    swapon --discard --priority 100 "$dev/$name"
+
+    # Swap in RAM is cheap to reach: prefer it to dropping file cache, read
+    # one page at a time, and wake kswapd earlier instead of boosting
+    # watermarks after fragmentation.
+    echo 180 >"$proc/sys/vm/swappiness"
+    echo 0 >"$proc/sys/vm/page-cluster"
+    echo 0 >"$proc/sys/vm/watermark_boost_factor"
+    echo 125 >"$proc/sys/vm/watermark_scale_factor"
+    echo "zram swap on $dev/$name: $((size / 1024)) MiB, $percent% of memory."
+}
+
+stop() {
+    for path in $(active); do
+        swapoff "$path"
+        echo 1 >"$sys/block/${path##*/}/reset"
+        echo "zram swap off: $path"
+    done
+}
+
+case ${1-} in
+start) start ;;
+stop) stop ;;
+*)
+    echo "usage: zram-swap start|stop" >&2
+    exit 2
+    ;;
+esac

@@ -52,3 +52,10 @@ transient units, so `modem-setup` never starts a second rmtfs next to them.
 
 Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
 colour emoji font the native apps draw emoji with.
+
+Memory: zram-swap (services/memory/zram-swap) gives 7.3 GB of zstd swap, half
+of memory; rootfs/ enables it with a swap.target.wants link and keeps GPU
+buffers out of swap with `aston-msm-gpu-eviction.conf`, as on the Pad 4.
+Since devices40 the kernel backs GPU buffers with huge pages
+(`msm.transparent_hugepage`, on by default); `dmesg` says "Using Transparent
+Hugepage".

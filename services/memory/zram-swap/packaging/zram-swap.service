@@ -1,0 +1,14 @@
+[Unit]
+Description=Compressed swap in RAM (zram)
+DefaultDependencies=no
+Before=swap.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/zram-swap start
+ExecStop=/usr/bin/zram-swap stop
+
+[Install]
+WantedBy=swap.target
