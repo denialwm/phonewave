@@ -772,7 +772,31 @@ impl Life {
             network::SERVING_SYSTEM | network::SYSTEM_INFO_IND => {
                 self.refresh_network(d, props).await;
             }
+            network::SELECTION_PREFERENCE => self.hold_voice_preference().await,
             _ => {}
+        }
+    }
+
+    /// The carrier profile loads once the SIM opens and sets VoLTE preferred
+    /// again: see DESIGN.md, Boot, step 4.
+    async fn hold_voice_preference(&self) {
+        let nas = &self.m.nas;
+        match network::voice_preference(nas).await {
+            Ok((Some(network::DATA_CENTRIC), Some(network::VOICE_CS_PREFERRED))) => {}
+            Ok((usage, voice)) => {
+                log(format!(
+                    "voice preference changed (usage {usage:?}, voice domain {voice:?}), setting data-centric again"
+                ));
+                let set = network::set_voice_preference(
+                    nas,
+                    network::DATA_CENTRIC,
+                    network::VOICE_CS_PREFERRED,
+                );
+                if let Err(e) = set.await {
+                    log(format!("voice preference: {e}"));
+                }
+            }
+            Err(e) => log(format!("voice preference: {e}")),
         }
     }
 

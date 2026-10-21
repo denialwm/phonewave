@@ -8,7 +8,7 @@ const REGISTER_INDICATIONS: u16 = 0x03;
 pub const SERVING_SYSTEM: u16 = 0x24;
 const GET_HOME_NETWORK: u16 = 0x25;
 const SET_SELECTION_PREFERENCE: u16 = 0x33;
-const GET_SELECTION_PREFERENCE: u16 = 0x34;
+pub const SELECTION_PREFERENCE: u16 = 0x34;
 const SYSTEM_INFO: u16 = 0x4d;
 pub const SYSTEM_INFO_IND: u16 = 0x4e;
 pub const SIGNAL_INFO: u16 = 0x4f;
@@ -148,7 +148,7 @@ const UNTIL_POWER_CYCLE: u8 = 0;
 /// Usage (voice or data centric) and voice domain preference.
 pub async fn voice_preference(nas: &Client) -> Result<(Option<u32>, Option<u32>), Error> {
     let reply = nas
-        .call(Message::request(GET_SELECTION_PREFERENCE), TIMEOUT)
+        .call(Message::request(SELECTION_PREFERENCE), TIMEOUT)
         .await?;
     let word = |t| match reply.tlv(t) {
         Some(&[a, b, c, d]) => Some(u32::from_le_bytes([a, b, c, d])),
@@ -218,10 +218,11 @@ pub async fn report_rejects(nas: &Client) -> Result<(), Error> {
     nas.call(msg, TIMEOUT).await.map(drop)
 }
 
-/// Asks for indications on registration changes, signal crossing a
-/// threshold and network rejects.
+/// Asks for indications on selection preference changes, registration
+/// changes, signal crossing a threshold and network rejects.
 pub async fn report_changes(nas: &Client) -> Result<(), Error> {
     let msg = Message::request(REGISTER_INDICATIONS)
+        .with(0x10, [1])
         .with(0x13, [1])
         .with(0x19, [1])
         .with(0x21, [1, 0]);

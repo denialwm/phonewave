@@ -50,8 +50,13 @@ needs it, the rmnet link needs CAP_NET_ADMIN, and it opens QRTR sockets.
    restarts. The carrier profile the modem picks (Iliad's VoLTE one on aston)
    makes it voice-centric with VoLTE preferred. While IMS is not running, the
    network then rejects packet service with cause 7 about a minute after each
-   LTE attach. Data-centric it stays attached (aston, 2026-10-21). Once dmail
-   runs IMS, it sets VoLTE back.
+   LTE attach. Data-centric it stays attached (aston, 2026-10-21). The profile
+   loads only once the SIM opens, after the PIN, and sets VoLTE preferred
+   again, so dmail follows NAS selection preference indications and sets
+   data-centric whenever the modem changes it. With the profile's setting a
+   circuit-switched call's return to LTE drew cause 7 45 s later; data-centric
+   it did not, and the call rang after 4 s instead of 12 (aston, 2026-10-21).
+   Once dmail runs IMS, it sets VoLTE back.
 5. UIM: open the primary provisioning session on the chosen slot's SIM
    (`Modem1.SimSlot`, see Dual SIM). If PIN1 is enabled and not verified,
    State is `locked` until `UnlockPin`. One attempt per call, retries
