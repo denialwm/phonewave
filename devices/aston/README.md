@@ -38,3 +38,17 @@ snapshot on the phone in /opt/libfprint-uff) and install_fprintd.py (selects it,
 restarts fprintd). stage_compositor.py stages the deniald named by the cached
 compositor-build.json; activate_compositor.py selects it through
 denial.service.d/zz-fingerprint.conf and restarts the graphical session.
+
+Modem: dmail (services/modem/dmail) owns it. rootfs/ carries
+`/usr/lib/dmail/modem-setup`, the `aston-modem-rmtfs` and
+`aston-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
+`aston-dmail.conf`, which puts logix in the `dmail` group. The EFS copy never
+enters this repo: on the phone `/var/lib/aston-modem/efs` links to the copy
+directory, and `efs.handset` beside it holds the SoC serial, written on the
+phone from `/sys/devices/soc0/serial_number` and never printed. Install dmail
+with its `make install` layout, then run `systemd-sysusers`, reload systemd
+and D-Bus and enable `dmail.service`. The unit names match the cellular kit's
+transient units, so `modem-setup` never starts a second rmtfs next to them.
+
+Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
+colour emoji font the native apps draw emoji with.

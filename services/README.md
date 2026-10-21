@@ -11,6 +11,7 @@ tests, packaging and README.
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
+| [`modem/dmail`](modem/dmail) | Modem service replacing ModemManager: SIM, registration, data, SMS | `aston`, `roadstr` |
 
 A service that works on any device never hard-codes one. It reads
 configuration or discovers hardware through standard interfaces (udev
