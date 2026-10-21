@@ -1,7 +1,7 @@
 # dmail design
 
 MVP on `aston`: SMS, mobile data with a toggle and the network type (2G to
-5G), voice as stubs.
+5G), and calls over 2G/3G.
 
 Approved on 2026-10-21. Sources: the hand-run bring-up on devices23 (QMI
 sequences below) and checks on devices39 on 2026-10-21. "To verify" marks what
@@ -20,7 +20,7 @@ One process, in Rust 2024 with zbus 5 and async-io, like hapticd.
 | `network` | NAS registration, network type, signal, operator |
 | `data` | DPM, WDA, WDS, reconnect, rmnet link, addresses, routes and DNS |
 | `sms` | WMS, PDU codec, multipart, delivery reports, message store |
-| `voice` | stub interface |
+| `voice` | call events, dial, answer, end, DTMF |
 | `bus` | the D-Bus interfaces |
 | `config` | device file, settings |
 
@@ -29,8 +29,8 @@ definitions as the reference, the way `qmi-tools` does it. No libqmi, no
 libqrtr.
 
 Indications drive everything. No polling loops: the modem wakes the SoC only
-for registration changes, signal crossing a threshold, data status, SMS and,
-later, calls. The one exception is the short wait while a modem that just
+for registration changes, signal crossing a threshold, data status, SMS and
+calls. The one exception is the short wait while a modem that just
 started is not ready yet (Boot).
 
 The MVP runs as root under systemd sandboxing: the device's `modem-setup`
@@ -44,7 +44,7 @@ needs it, the rmnet link needs CAP_NET_ADMIN, and it opens QRTR sockets.
    exit within 60 s, sets State to `failed`; its output goes to the journal.
    No script: dmail goes straight on. Aston has one, roadstr has none.
 2. dmail waits for the QRTR services it uses: DMS, UIM, NAS, WDS, WMS, DPM,
-   WDA. Not all of them within 30 s: `failed`.
+   WDA, Voice. Not all of them within 30 s: `failed`.
 3. DMS: operating mode online.
 4. NAS: usage data-centric, voice over 2G/3G preferred, until the modem
    restarts. The carrier profile the modem picks (Iliad's VoLTE one on aston)
@@ -266,9 +266,18 @@ and its retries unchanged.
 
 ## Voice
 
-`org.dmail.Voice1` exists in its final shape. Every method returns
-`org.dmail.Error.NotSupported` and `Calls` is empty. Incoming calls are not
-handled: the caller hears ringing until voicemail.
+dmail follows the modem's All Call Status indications and publishes the calls
+in `Voice1.Calls`; a call that ends or leaves the list goes out as
+`CallEnded`. Dial, Answer and Hangup are the voice service's own requests, by
+the modem's call id. DTMF plays each digit as a continuous tone for 120 ms.
+Data-centric (Boot, step 4), the modem places calls over 2G/3G: on aston a
+call from 4G moved to UMTS and rang after 4 s, with AMR-WB at 16 kHz.
+
+Call audio is not dmail's: the modem hands speech to the ADSP, which plays
+and records it once the host has started its voice graph. Until then calls
+connect silent on both sides (aston, 2026-10-21). DTMF went out without an
+error, but a mobile on the other side heard nothing; to check against a
+menu that answers to tones.
 
 ## D-Bus API
 
@@ -310,8 +319,15 @@ Changes go out as PropertiesChanged.
 | | signal `ConversationDeleted(s peer)` | |
 | | signal `ConversationArchived(s peer, b archived)` | |
 | | signal `BlockedChanged()` | |
-| `org.dmail.Voice1` | `Calls` | empty |
-| | `Dial(s number)`, `Answer()`, `Hangup()` | NotSupported |
+| `org.dmail.Voice1` | `Calls` | `a(ysssx)`: id, number (empty when withheld), direction (`in`, `out`), state, connected time (0 until then) |
+| | `Dial(s number)` | `y`: the call id; digits, `+`, `*` and `#` |
+| | `Answer(y id)` | |
+| | `Hangup(y id)` | ends a call or turns down an incoming one |
+| | `SendDtmf(y id, s digits)` | returns once the digits have sounded |
+| | signal `CallEnded(y id, s number, s direction, x connected)` | `connected` 0: never answered |
+
+Call states: `dialing`, `alerting` (the other phone rings), `incoming`,
+`waiting` (incoming during another call), `active`, `held`, `ending`.
 
 Message states: `sending`, `sent`, `failed`, `delivered`, `undelivered` and
 `expired` going out; `received` coming in. Peers in signals are conversation
@@ -361,7 +377,9 @@ resolved by itself.
   login. It sleeps on D-Bus, wakes on `MessageReceived`, and posts the
   notification through `org.freedesktop.Notifications`. Tapping it opens
   Messages. dmail itself never notifies.
-- Dialer: after the MVP.
+- Calls (denial-apps `apps/calls`) replaces its mocked calls with
+  `org.dmail.Voice1`. Like Messages, a background service rings on an
+  incoming call and posts missed calls from `CallEnded`.
 
 ## Open
 

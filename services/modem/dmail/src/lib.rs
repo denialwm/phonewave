@@ -13,3 +13,4 @@ pub mod qmi;
 pub mod qrtr;
 pub mod sim;
 pub mod sms;
+pub mod voice;

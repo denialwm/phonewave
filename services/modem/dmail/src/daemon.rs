@@ -16,7 +16,7 @@ use async_io::Timer;
 use async_signal::Signals;
 use futures_lite::{StreamExt, future};
 
-use crate::bus::{Bus, Command, DataProps, Error, ModemProps, Reply, now};
+use crate::bus::{self, Bus, Command, DataProps, Error, ModemProps, Reply, now};
 use crate::config::{self, Device, Settings};
 use crate::netlink::{self, Netlink};
 use crate::qmi::{self, Client, Message, service};
@@ -24,12 +24,12 @@ use crate::qrtr::{Addr, Event as QrtrEvent, Lookup, Service};
 use crate::sim::{self, Pin};
 use crate::sms::store::Store;
 use crate::sms::{pdu, wms};
-use crate::{apn, data, modem, network};
+use crate::{apn, data, modem, network, voice};
 
 const SETUP: &str = "/usr/lib/dmail/modem-setup";
 const SETUP_TIMEOUT: Duration = Duration::from_secs(60);
 const SERVICES_TIMEOUT: Duration = Duration::from_secs(30);
-const NEEDED: [u32; 7] = [
+const NEEDED: [u32; 8] = [
     service::DMS,
     service::UIM,
     service::NAS,
@@ -37,6 +37,7 @@ const NEEDED: [u32; 7] = [
     service::WMS,
     service::DPM,
     service::WDA,
+    service::VOICE,
 ];
 /// Right after its services appear the modem answers some requests with
 /// "not ready" for a moment: dmail asks again this often, for this long.
@@ -80,6 +81,7 @@ enum Event {
     Nas(Message),
     Wds(Message),
     Wms(Message),
+    Voice(Message),
     Command(Command),
     ModemGone,
     Retry,
@@ -186,6 +188,14 @@ impl Daemon<'_> {
                     self.set_delivery_reports(enabled, reply).await;
                 }
                 Command::Send(id) => fail_send(&self.bus, &self.store, id).await,
+                Command::Dial(_, reply) => {
+                    let _ = reply.try_send(Err(Error::NotReady("the modem failed".into())));
+                }
+                Command::Answer(_, reply)
+                | Command::Hangup(_, reply)
+                | Command::SendDtmf(_, _, reply) => {
+                    let _ = reply.try_send(Err(Error::NotReady("the modem failed".into())));
+                }
             }
         }
     }
@@ -247,6 +257,7 @@ impl Daemon<'_> {
             wms: client(service::WMS)?,
             dpm: client(service::DPM)?,
             wda: client(service::WDA)?,
+            voice: client(service::VOICE)?,
         };
         // Watched from here on: the modem can go away while it comes up.
         let (tx, rx) = async_channel::unbounded();
@@ -269,7 +280,8 @@ impl Daemon<'_> {
             forward(self.ex, m.uim.clone(), Event::Uim, tx.clone()),
             forward(self.ex, m.nas.clone(), Event::Nas, tx.clone()),
             forward(self.ex, m.wds.clone(), Event::Wds, tx.clone()),
-            forward(self.ex, m.wms.clone(), Event::Wms, tx),
+            forward(self.ex, m.wms.clone(), Event::Wms, tx.clone()),
+            forward(self.ex, m.voice.clone(), Event::Voice, tx),
             watch,
         ];
         let mut life = Life {
@@ -284,6 +296,7 @@ impl Daemon<'_> {
             retry: FIRST_RETRY,
             retry_at: None,
             refused: false,
+            calls: Vec::new(),
             _tasks: tasks,
         };
 
@@ -297,6 +310,11 @@ impl Daemon<'_> {
             life.import_stored(self).await;
         }
         life.connect(self).await;
+        // Calls already running when dmail started.
+        match voice::calls(&life.m.voice).await {
+            Ok(calls) => life.update_calls(self, calls).await,
+            Err(e) => log(format!("calls: {e}")),
+        }
 
         let end = loop {
             let commands = &self.commands;
@@ -326,6 +344,7 @@ impl Daemon<'_> {
                 Event::Nas(msg) => life.on_nas(self, &mut props, msg).await,
                 Event::Wds(msg) => life.on_wds(self, msg).await,
                 Event::Wms(msg) => life.on_wms(self, msg).await,
+                Event::Voice(msg) => life.on_voice(self, msg).await,
                 Event::Command(c) => life.on_command(self, &mut props, c).await,
                 Event::Retry => {
                     life.retry_at = None;
@@ -336,6 +355,8 @@ impl Daemon<'_> {
             }
         };
         life.end_session().await;
+        // The modem's calls went with it.
+        life.update_calls(self, Vec::new()).await;
         self.publish_data(
             if self.settings.data_enabled {
                 "connecting"
@@ -406,6 +427,9 @@ async fn configure(m: &Modem) -> Result<(), (&'static str, qmi::Error)> {
     network::report_changes(&m.nas)
         .await
         .map_err(|e| ("NAS indications", e))?;
+    voice::report_calls(&m.voice)
+        .await
+        .map_err(|e| ("call events", e))?;
     wms::report_new_messages(&m.wms)
         .await
         .map_err(|e| ("SMS events", e))?;
@@ -421,6 +445,21 @@ fn sim_state(usim: &sim::App) -> Option<Sim> {
         Pin::Required | Pin::Blocked | Pin::PermanentlyBlocked => Some(Sim::Locked),
         _ => Some(Sim::Ready),
     }
+}
+
+fn bus_call((call, connected): &(voice::Call, i64)) -> bus::Call {
+    let direction = if call.incoming { "in" } else { "out" };
+    (
+        call.id,
+        call.number.clone(),
+        direction.into(),
+        call.state.as_str().into(),
+        *connected,
+    )
+}
+
+fn call_error(e: qmi::Error) -> Error {
+    Error::Failed(format!("the modem refused: {e}"))
 }
 
 async fn fail_send(bus: &Bus, store: &Mutex<Store>, id: u64) {
@@ -580,6 +619,7 @@ struct Modem {
     wms: Rc<Client>,
     dpm: Rc<Client>,
     wda: Rc<Client>,
+    voice: Rc<Client>,
 }
 
 /// What dmail holds for one life of the modem.
@@ -599,6 +639,8 @@ struct Life {
     retry_at: Option<Instant>,
     /// The network refused packet service: no retries until it attaches again.
     refused: bool,
+    /// The modem's calls, each with when it connected (0 until then).
+    calls: Vec<(voice::Call, i64)>,
     _tasks: Vec<Task<()>>,
 }
 
@@ -800,6 +842,54 @@ impl Life {
         }
     }
 
+    async fn on_voice(&mut self, d: &Daemon<'_>, msg: Message) {
+        if msg.id == voice::ALL_CALL_STATUS_IND {
+            self.update_calls(d, voice::parse_status(&msg)).await;
+        }
+    }
+
+    /// Takes the modem's list of calls: publishes Voice1.Calls, and CallEnded
+    /// for each call that ended or left the list.
+    async fn update_calls(&mut self, d: &Daemon<'_>, listed: Vec<voice::Call>) {
+        let mut kept = Vec::new();
+        let mut ended = Vec::new();
+        for mut call in listed {
+            let was = self.calls.iter().find(|(c, _)| c.id == call.id);
+            if call.number.is_empty() {
+                call.number = was.map(|(c, _)| c.number.clone()).unwrap_or_default();
+            }
+            let mut connected = was.map_or(0, |&(_, t)| t);
+            if connected == 0 && call.state == voice::State::Active {
+                connected = now();
+            }
+            if was.map(|(c, _)| c.state) != Some(call.state) {
+                log(format!("call {}: {}", call.id, call.state.as_str()));
+            }
+            match call.state {
+                voice::State::Ended if was.is_some() => ended.push((call, connected)),
+                voice::State::Ended => {}
+                _ => kept.push((call, connected)),
+            }
+        }
+        for (call, connected) in &self.calls {
+            let gone = |list: &[(voice::Call, i64)]| list.iter().all(|(c, _)| c.id != call.id);
+            if gone(&kept) && gone(&ended) {
+                log(format!("call {}: ended", call.id));
+                ended.push((call.clone(), *connected));
+            }
+        }
+        self.calls = kept;
+        let calls = self.calls.iter().map(bus_call).collect();
+        if let Err(e) = d.bus.publish_calls(calls).await {
+            log(format!("publishing Voice1: {e}"));
+        }
+        for call in &ended {
+            if let Err(e) = d.bus.call_ended(&bus_call(call)).await {
+                log(format!("publishing CallEnded: {e}"));
+            }
+        }
+    }
+
     async fn on_wds(&mut self, d: &Daemon<'_>, msg: Message) {
         if msg.id != data::WDS_PACKET_SERVICE_STATUS || self.session.is_none() {
             return;
@@ -992,6 +1082,26 @@ impl Life {
             }
             Command::SetDeliveryReports(enabled, reply) => {
                 d.set_delivery_reports(enabled, reply).await;
+            }
+            Command::Dial(number, reply) => {
+                let id = voice::dial(&self.m.voice, &number).await;
+                let _ = reply.try_send(id.map_err(call_error));
+            }
+            Command::Answer(id, reply) => {
+                let done = voice::answer(&self.m.voice, id).await;
+                let _ = reply.try_send(done.map_err(call_error));
+            }
+            Command::Hangup(id, reply) => {
+                let done = voice::end(&self.m.voice, id).await;
+                let _ = reply.try_send(done.map_err(call_error));
+            }
+            Command::SendDtmf(id, digits, reply) => {
+                let client = self.m.voice.clone();
+                d.ex.spawn(async move {
+                    let done = voice::dtmf(&client, id, &digits).await;
+                    let _ = reply.try_send(done.map_err(call_error));
+                })
+                .detach();
             }
             Command::Send(id) => {
                 let report = d.settings.delivery_reports;

@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 
 use async_channel::Sender;
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::OwnedObjectPath;
 use zbus::{Connection, interface};
 
 use crate::config::{SIM_SLOTS, Settings};
@@ -37,10 +36,17 @@ pub enum Command {
     SetDeliveryReports(bool, Reply),
     /// Send the stored outgoing message with this id.
     Send(u64),
+    Dial(String, Sender<Result<u8, Error>>),
+    Answer(u8, Reply),
+    Hangup(u8, Reply),
+    SendDtmf(u8, String, Reply),
 }
 
 /// Sends a command to the core and waits for its answer.
-async fn ask(commands: &Sender<Command>, make: impl FnOnce(Reply) -> Command) -> Result<(), Error> {
+async fn ask<T>(
+    commands: &Sender<Command>,
+    make: impl FnOnce(Sender<Result<T, Error>>) -> Command,
+) -> Result<T, Error> {
     let (tx, rx) = async_channel::bounded(1);
     let gone = || Error::Failed("dmail is stopping".into());
     commands.send(make(tx)).await.map_err(|_| gone())?;
@@ -409,28 +415,61 @@ impl Messages {
     async fn blocked_changed(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
 }
 
-/// Calls are not handled yet: the interface has its final shape and every
-/// method says so.
-pub struct Voice;
+/// Id, number (empty when withheld), direction (`in` or `out`), state, and
+/// when it connected (0 until then).
+pub type Call = (u8, String, String, String, i64);
+
+pub struct Voice {
+    calls: Vec<Call>,
+    commands: Sender<Command>,
+}
 
 #[interface(name = "org.dmail.Voice1")]
 impl Voice {
+    /// States: dialing, alerting, incoming, waiting, active, held, ending.
+    /// Ended calls leave the list.
     #[zbus(property)]
-    fn calls(&self) -> Vec<OwnedObjectPath> {
-        Vec::new()
+    fn calls(&self) -> Vec<Call> {
+        self.calls.clone()
     }
 
-    fn dial(&self, _number: String) -> Result<(), Error> {
-        Err(Error::NotSupported("calls are not supported yet".into()))
+    /// Returns the new call's id.
+    async fn dial(&self, number: String) -> Result<u8, Error> {
+        let dialable = |b: u8| b.is_ascii_digit() || b"+*#".contains(&b);
+        if number.is_empty() || !number.bytes().all(dialable) {
+            return Err(Error::InvalidArgs("a number is digits, +, * and #".into()));
+        }
+        ask(&self.commands, |reply| Command::Dial(number, reply)).await
     }
 
-    fn answer(&self) -> Result<(), Error> {
-        Err(Error::NotSupported("calls are not supported yet".into()))
+    async fn answer(&self, id: u8) -> Result<(), Error> {
+        ask(&self.commands, |reply| Command::Answer(id, reply)).await
     }
 
-    fn hangup(&self) -> Result<(), Error> {
-        Err(Error::NotSupported("calls are not supported yet".into()))
+    /// Ends a call, or turns down an incoming one.
+    async fn hangup(&self, id: u8) -> Result<(), Error> {
+        ask(&self.commands, |reply| Command::Hangup(id, reply)).await
     }
+
+    /// Plays the digits to the other side; returns once they have sounded.
+    async fn send_dtmf(&self, id: u8, digits: String) -> Result<(), Error> {
+        let tone = |b: u8| b.is_ascii_digit() || b"*#".contains(&b);
+        if digits.is_empty() || !digits.bytes().all(tone) {
+            return Err(Error::InvalidArgs("DTMF digits are 0 to 9, * and #".into()));
+        }
+        ask(&self.commands, |reply| Command::SendDtmf(id, digits, reply)).await
+    }
+
+    /// A call left the list. `connected` is 0 for a call never answered: an
+    /// incoming one was missed or turned down.
+    #[zbus(signal)]
+    pub async fn call_ended(
+        emitter: &SignalEmitter<'_>,
+        id: u8,
+        number: &str,
+        direction: &str,
+        connected: i64,
+    ) -> zbus::Result<()>;
 }
 
 pub fn now() -> i64 {
@@ -480,11 +519,17 @@ impl Bus {
                 PATH,
                 Messages {
                     store,
-                    commands,
+                    commands: commands.clone(),
                     delivery_reports: settings.delivery_reports,
                 },
             )?
-            .serve_at(PATH, Voice)?
+            .serve_at(
+                PATH,
+                Voice {
+                    calls: Vec::new(),
+                    commands,
+                },
+            )?
             .name(NAME)?
             .build()
             .await?;
@@ -572,5 +617,21 @@ impl Bus {
     pub async fn message_changed(&self, id: u64, state: &str) -> zbus::Result<()> {
         let e = SignalEmitter::new(&self.conn, PATH)?;
         Messages::message_changed(&e, id, state).await
+    }
+
+    /// Sets Voice1.Calls, announcing a change.
+    pub async fn publish_calls(&self, calls: Vec<Call>) -> zbus::Result<()> {
+        let iface = self.conn.object_server().interface::<_, Voice>(PATH).await?;
+        let mut v = iface.get_mut().await;
+        if v.calls != calls {
+            v.calls = calls;
+            v.calls_changed(iface.signal_emitter()).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn call_ended(&self, c: &Call) -> zbus::Result<()> {
+        let e = SignalEmitter::new(&self.conn, PATH)?;
+        Voice::call_ended(&e, c.0, &c.1, &c.2, c.4).await
     }
 }
