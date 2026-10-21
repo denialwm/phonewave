@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.dmail
+Exec=/usr/bin/dmail
+User=root
+SystemdService=dmail.service

@@ -1,0 +1,27 @@
+[Unit]
+Description=Modem service
+After=dbus.service
+Conflicts=ModemManager.service
+
+[Service]
+Type=dbus
+BusName=org.dmail
+ExecStart=/usr/bin/dmail
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+StateDirectory=dmail
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_QIPCRTR
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
