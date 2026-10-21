@@ -2,7 +2,7 @@
 """Reassemble the acquired UFF split ELF without changing signed segments."""
 import hashlib,json,os,struct
 from pathlib import Path
-VAULT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/device-vault'))/'aston'
+VAULT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston'
 BUILD=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave/aston/fingerprint/build'
 
 def assemble(directory,name):

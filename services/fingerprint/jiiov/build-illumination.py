@@ -9,9 +9,9 @@ import subprocess
 PW = Path(__file__).resolve().parent
 CACHE = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'phonewave'
 OUT = CACHE / 'roadstr/fingerprint-native2'
-SYSROOT = Path('/mnt/development/cross/sysroot')
+SYSROOT = Path('/mnt/development/denial-os/cross/sysroot')
 XML = Path('/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml')
-INSETS = Path('/home/logix/denial/compositor/protocol/denial-insets-v1.xml')
+INSETS = Path('/mnt/development/denial-os/denial/compositor/protocol/denial-insets-v1.xml')
 
 
 def main():

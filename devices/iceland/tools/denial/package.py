@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib, json, os, shutil, subprocess
 
 HERE = Path(__file__).resolve().parent
-VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/device-vault')) / 'iceland'
+VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
 OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/pad4-buffer-return-20261016'
 CANDIDATE = OUT / 'candidate'
 COMPOSED = OUT / 'composed'
@@ -34,7 +34,7 @@ shutil.copy2(CANDIDATE / 'source-manifest.json', payload / 'build-source-manifes
 shutil.copy2(COMPOSED / 'manifest.json', payload / 'composition-manifest.json')
 shutil.copy2(VAULT / 'denial/abi-probe/pad4-denial-abi-probe', payload / 'abi-probe')
 deployment = {
-    'id': ID, 'source_root': '/home/logix/denial', 'source_mode': 'local development including uncommitted changes',
+    'id': ID, 'source_root': '/mnt/development/denial-os/denial', 'source_mode': 'local development including uncommitted changes',
     'classification': 'release-mode engine and AOT; DEVELOPMENT build, not release-audited',
     'source_head': json.loads((CANDIDATE / 'source-manifest.json').read_text())['head'],
     'flutter': manifest['flutter'], 'skia': manifest['skia'], 'lock_divergence': manifest['lock_divergence'],

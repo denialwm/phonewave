@@ -11,7 +11,7 @@ from pathlib import Path
 import hashlib, json, os, select, shlex, subprocess, sys, tarfile, time
 
 HERE = Path(__file__).resolve().parent
-OUT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/device-vault')) / f'iceland/boot/devices{sys.argv[1]}'
+OUT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / f'iceland/boot/devices{sys.argv[1]}'
 CACHE = Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / f'phonewave/iceland/devices{sys.argv[1]}'
 M = json.loads((OUT / 'manifest.json').read_text())
 NEW, OLD = M['release'], M['previous_release']

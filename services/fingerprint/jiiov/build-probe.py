@@ -28,7 +28,7 @@ def main():
     if revision != REVISION:
         raise SystemExit(f'Expected Qualcomm minkipc {REVISION}; found {revision}')
     run(['git', '-C', str(MINK), 'diff', '--exit-code', 'HEAD', '--', 'listeners/libfsservice'])
-    includes = [Path('/mnt/development/baseline-kernels/roadstr/moto-6.6/vendor-qcom-opensource-securemsm-kernel/include/uapi/linux')]
+    includes = [Path('/mnt/development/denial-os/baseline-kernels/roadstr/moto-6.6/vendor-qcom-opensource-securemsm-kernel/include/uapi/linux')]
     includes += [MINK / f'listeners/libfsservice/{d}' for d in ('fs', 'gpfs', 'cmn')]
     flags = ['-pthread', '-std=c11', '-D_GNU_SOURCE', '-Wall', '-Wextra', '-Werror']
     for directory in includes:

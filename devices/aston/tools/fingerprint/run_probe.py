@@ -3,7 +3,7 @@
 import argparse,hashlib,json,os,shlex,subprocess,time
 from pathlib import Path
 STATE=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave/aston/fingerprint'
-VAULT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/device-vault'))/'aston'
+VAULT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston'
 SRC=Path(__file__).resolve().parents[4]/'services/fingerprint/uff'
 SSH=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','aston']
 STATE.mkdir(parents=True,exist_ok=True)

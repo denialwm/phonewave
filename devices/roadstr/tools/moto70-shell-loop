@@ -19,7 +19,7 @@
 # Nothing here rolls back automatically; `activate OLD_ID` is the manual path.
 set -euo pipefail
 
-DENIAL=${DENIAL:-/home/logix/denial}
+DENIAL=${DENIAL:-/mnt/development/denial-os/denial}
 FLUTTER=${DENIAL_FLUTTER_SOURCE_ROOT:-/mnt/exty/denial-flutter-fork-3.44.7}
 LOOP=${MOTO70_SHELL_LOOP:-${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/roadstr/shell-loop}
 ARM=${MOTO70_ARM_ENGINE:-$HOME/.cache/denial/flutter-engine/build-arm64/out/denial_linux_arm64_release}

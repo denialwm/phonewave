@@ -7,7 +7,7 @@
 # Usage: build-init-boot.sh NAME   (writes the vault's boot/init_boot-NAME.img)
 set -eu -o pipefail
 N=${1:?name}
-V=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr
+V=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr
 I=$V/boot
 umask 022
 R=$(mktemp -d)

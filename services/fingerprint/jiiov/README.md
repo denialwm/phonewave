@@ -8,7 +8,7 @@ Validated on the Moto's 6.6 vendor kernel with the vendor `anc_fps_mmi.ko`
 control module: enrollment, persistent templates, match, rejection, deletion,
 screen-off unlock through Denial and deep-suspend retention. The kernel side is
 not in linux-perpetua yet, so this does not run on it; the vendor sources are in
-`/mnt/development/baseline-kernels/roadstr/moto-6.6/`:
+`/mnt/development/denial-os/baseline-kernels/roadstr/moto-6.6/`:
 `motorola-kernel-modules/drivers/input/misc/anc_fps_mmi` (`/dev/jiiov_fp`),
 `kernel-devicetree/qcom/kera-roadstr-fingerprint-overlay.dtsi` and
 `vendor-qcom-opensource-securemsm-kernel` (`/dev/smcinvoke`).
@@ -37,7 +37,7 @@ Outputs go to `${XDG_CACHE_HOME:-~/.cache}/phonewave/roadstr/`.
   ASan and UBSan. On first use it clones Qualcomm `minkipc` at `bb99356` into
   `~/.cache/phonewave/src/minkipc`.
 - `build-presentation.py` and `build-illumination.py` build the Wayland clients
-  against `/mnt/development/cross/sysroot`.
+  against `/mnt/development/denial-os/cross/sysroot`.
 - `assemble-firmware.py` joins the split `ancapp64` trusted app from the
   vault's `roadstr/firmware/jiiov/` into the `ancapp64.elf` the worker loads.
 

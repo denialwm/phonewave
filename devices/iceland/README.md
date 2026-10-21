@@ -10,7 +10,7 @@ Two SSH aliases reach the tablet: `ssh iceland` over Wi-Fi as logix, whose sudo 
 needs no password, and `ssh iceland-usb` as root over the USB gadget network.
 
 Private inputs live in the vault,
-`${PHONEWAVE_VAULT:-/mnt/development/device-vault}/iceland`: boot/devicesN holds each packaged release with its images, audits and rollback
+`${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/iceland`: boot/devicesN holds each packaged release with its images, audits and rollback
 copies; stock/ the OPD2514 stock images and OTA; backups/ partition copies;
 firmware/ the unpackaged firmware at its install path; private-rootfs/ the SSH
 keys and sudoers; denial/ the Denial composition template, ABI probe and runtime.
@@ -32,7 +32,7 @@ Only boot_b and init_boot_b are ever written. Never set_active, erase, format, G
 edits or EDL. Tablet #1 was bricked that way.
 
 Deploying Denial: tools/denial/build-recipe.py builds a candidate from
-/home/logix/denial, build-composed-shell.py composes the shell from the vault
+/mnt/development/denial-os/denial, build-composed-shell.py composes the shell from the vault
 template, and package.py packs payload.tar.zst; all three write under
 ~/.cache/phonewave/iceland/denial. Copy the archive, archive.sha256, stage.py and
 activate.py to the tablet's ~/.cache/pad4-deploy-buffer-return-20261016, then run

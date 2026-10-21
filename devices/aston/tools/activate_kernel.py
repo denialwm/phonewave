@@ -6,7 +6,7 @@ match; the updater backs up boot_b and verifies a complete readback.
 """
 import argparse,hashlib,json,os,shlex,subprocess
 from pathlib import Path
-ROOT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/device-vault'))/'aston/boot'
+ROOT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston/boot'
 SSH=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','aston']
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--generation',type=int,default=27)

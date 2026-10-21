@@ -2,7 +2,7 @@
 """Verify the candidate and backup, then normally reboot the authorized phone."""
 import argparse,hashlib,json,os,shlex,subprocess
 from pathlib import Path
-ROOT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/device-vault'))/'aston/boot'
+ROOT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston/boot'
 STATE=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave/aston/kernel'
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--generation',type=int,required=True)
 GEN=parser.parse_args().generation;assert GEN>=27

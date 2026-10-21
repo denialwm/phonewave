@@ -9,9 +9,9 @@ import subprocess
 PW = Path(__file__).resolve().parent
 CACHE = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'phonewave'
 OUT = CACHE / 'roadstr/denial-fingerprint1/presentation'
-SYSROOT = Path('/mnt/development/cross/sysroot')
+SYSROOT = Path('/mnt/development/denial-os/cross/sysroot')
 PROTOCOLS = {
-    'denial-fingerprint': Path('/home/logix/denial/compositor/protocol/denial-fingerprint-v1.xml'),
+    'denial-fingerprint': Path('/mnt/development/denial-os/denial/compositor/protocol/denial-fingerprint-v1.xml'),
     'linux-dmabuf': Path('/usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml'),
 }
 

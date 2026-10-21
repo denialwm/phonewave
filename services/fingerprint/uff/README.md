@@ -33,7 +33,7 @@ The scripts in `build/` cross-build from this directory and write only to
   minkipc at the commits it pins into `~/.cache/phonewave/src/`, applies
   `deps/<name>/*.patch` on top, and builds `libqcomtee.a` and `libqcbor.a`.
 - `build_presentation.py` builds the presentation client against the cross
-  sysroot `/mnt/development/cross/sysroot` and Denial's protocol XML.
+  sysroot `/mnt/development/denial-os/cross/sysroot` and Denial's protocol XML.
 - `assemble_firmware.py` assembles `uff_gx.elf` and `uff_spi.elf` from the
   factory `odm_b` blobs in the device vault (`aston/firmware/factory/`).
 - `snapshot_libfprint.py` makes the libfprint source archive: upstream

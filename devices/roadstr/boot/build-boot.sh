@@ -6,9 +6,9 @@
 set -eu -o pipefail
 N=${1:?number}
 shift
-P=/mnt/development/linux-perpetua-build
-V=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr
-K=/mnt/development/linux-perpetua
+P=/mnt/development/denial-os/linux-perpetua-build
+V=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr
+K=/mnt/development/denial-os/linux-perpetua
 # The factory boot image is the template of the header and AVB footer.
 TEMPLATE=$V/stock/firmware-W1WR36.39-115/boot.img
 OUT=$P/releases/devices-$N-roadstr

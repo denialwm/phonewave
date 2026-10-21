@@ -4,12 +4,12 @@ from pathlib import Path
 import hashlib,json,os,shutil,subprocess
 R=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave/aston/fingerprint';OUT=R/'build/presentation';OUT.mkdir(parents=True,exist_ok=True)
 SRC=Path(__file__).resolve().parents[1]
-SYS=Path('/mnt/development/cross/sysroot')
-K=Path('/mnt/development/linux-perpetua')
+SYS=Path('/mnt/development/denial-os/cross/sysroot')
+K=Path('/mnt/development/denial-os/linux-perpetua')
 header=K/'include/uapi/linux/aston_fp_illumination.h'
 (R/'build/include/linux').mkdir(parents=True,exist_ok=True)
 shutil.copyfile(header,R/'build/include/linux/aston_fp_illumination.h')
-protocols={'denial-fingerprint':Path('/home/logix/denial/compositor/protocol/denial-fingerprint-v1.xml'),'linux-dmabuf':Path('/usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml')}
+protocols={'denial-fingerprint':Path('/mnt/development/denial-os/denial/compositor/protocol/denial-fingerprint-v1.xml'),'linux-dmabuf':Path('/usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml')}
 inputs=[Path(__file__).resolve(),SRC/'uff-denial-presentation.c',SRC/'uff-contact.h',header]
 for name,xml in protocols.items():
  inputs.append(xml)

@@ -17,8 +17,8 @@ sys.dont_write_bytecode = True  # nothing is written next to the sources
 import rescue_helpers as b
 
 HERE = Path(__file__).resolve().parent
-VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/device-vault')) / 'iceland'
-RELEASES = Path('/mnt/development/linux-perpetua-build/releases')
+VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
+RELEASES = Path('/mnt/development/denial-os/linux-perpetua-build/releases')
 
 
 def devices(n):
@@ -36,7 +36,7 @@ BASE = VAULT / f'boot/devices{PREV}'
 OLD_MODULES = OLD_KBUILD / 'modules-root/lib/modules' / OLD
 OBJ = Path('/mnt/exty/linux-perpetua/build/iceland')
 # The boot chain's image writer in the fixed kernel source (devices/README).
-ANDROID_GKI = Path('/mnt/development/linux-perpetua/devices/boot/android-gki')
+ANDROID_GKI = Path('/mnt/development/denial-os/linux-perpetua/devices/boot/android-gki')
 OUT = VAULT / f'boot/devices{N}'
 ART = OUT / 'artifacts'
 GCC = ['aarch64-linux-gnu-gcc', '-static', '-Os', '-s', '-Wall', '-Wextra', '-Werror']

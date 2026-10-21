@@ -8,8 +8,8 @@
 pkgname=linux-moto70-mainline
 _n=${MOTO70_KERNEL_SUFFIX:?set MOTO70_KERNEL_SUFFIX to the devices release number, e.g. 1}
 _kernelrel=7.3.0-rc7-devices${_n}-roadstr
-_out=/mnt/development/linux-perpetua-build/releases/devices-${_n}-roadstr
-_image=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr/boot/boot-${_n}.img
+_out=/mnt/development/denial-os/linux-perpetua-build/releases/devices-${_n}-roadstr
+_image=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr/boot/boot-${_n}.img
 pkgver=7.3.0rc7.devices${_n}
 pkgrel=1
 pkgdesc='Mainline Linux 7.3 modules for the Motorola Edge 70 (kernel flashed to boot_b)'

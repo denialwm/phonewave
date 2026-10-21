@@ -3,7 +3,7 @@
 import hashlib,json,os,shutil,subprocess
 from pathlib import Path
 SRC=Path(__file__).resolve().parents[1]
-KERNEL=Path('/mnt/development/linux-perpetua')
+KERNEL=Path('/mnt/development/denial-os/linux-perpetua')
 CACHE=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave'
 BUILD=CACHE/'aston/fingerprint/build'
 # Upstream pins; patches in deps/<name>/ apply on top.

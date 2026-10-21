@@ -8,7 +8,7 @@ own files at their install path, byte for byte as on the phone; packaging/ the
 pacman packages; boot/ the boot image scripts; tools/ runs on the host.
 `ssh roadstr` reaches the phone as root over USB, `ssh roadstr-wifi` over Wi-Fi.
 
-Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr`:
+Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr`:
 stock/ the W1WR36.39-115 firmware, whose boot.img is the boot header template;
 boot/ the built images, the initramfs busybox and dropbear, and rollback-6.6/;
 firmware/ the GPU, Wi-Fi, Bluetooth and fingerprint firmware and the static
@@ -32,7 +32,7 @@ modules are still installed and vendor_boot_b and dtbo_b were never changed.
 
 Deploying Denial: the phone runs denial-mainline.service from a set under
 /var/lib/moto70-denial chosen by the mainline-current symlink.
-`tools/moto70-build-denial` builds an AArch64 candidate from /home/logix/denial,
+`tools/moto70-build-denial` builds an AArch64 candidate from /mnt/development/denial-os/denial,
 and `DENIAL_CANDIDATE=DIR tools/moto70-deploy-denial` stages it beside the running
 set, selects it and restarts the service. `tools/moto70-shell-loop` rebuilds and
 reloads Dart-only shell changes in place. Neither rolls back by itself; both

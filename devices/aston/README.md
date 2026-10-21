@@ -5,7 +5,7 @@ the files installed for this device, at their install path and byte for byte as
 on the phone. boot/ packages a kernel release; tools/ runs on the host, reaches
 the phone as root through `ssh aston` and writes to ~/.cache/phonewave/aston.
 
-Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/device-vault}/aston`:
+Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/aston`:
 boot/ the installed and rollback boot images with the evidence each package
 chains on, and the init_boot image; backups/ partition copies, among them the
 stock slot-B partitions (aston-survey-20261018) and the modem EFS; firmware/

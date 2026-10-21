@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 
-ROOT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/device-vault')) / 'aston/firmware'
+ROOT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'aston/firmware'
 SSH = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', 'aston']
 REMOTE = r'''
 from pathlib import Path

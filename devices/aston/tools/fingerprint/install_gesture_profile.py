@@ -3,7 +3,7 @@
 from pathlib import Path
 import hashlib,json,shlex,subprocess
 from run_probe import SSH,STATE as R
-profile=Path('/home/logix/denial/docs/hardware/aston-wake-gesture.json').read_text()
+profile=Path('/mnt/development/denial-os/denial/docs/hardware/aston-wake-gesture.json').read_text()
 assert json.loads(profile)==dict(input_name='synaptics_tcm_gesture',key_code=143,output='DSI-1')
 rule='ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="synaptics_tcm_gesture", ENV{LIBINPUT_IGNORE_DEVICE}="1"\n'
 code='''from pathlib import Path

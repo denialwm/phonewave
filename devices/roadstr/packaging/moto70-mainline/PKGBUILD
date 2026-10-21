@@ -10,7 +10,7 @@ depends=(systemd pipewire networkmanager)
 makedepends=(python)
 optdepends=('hapticd: haptic feedback' 'bluez: Bluetooth')
 options=(!strip !debug)
-_fw=${PHONEWAVE_VAULT:-/mnt/development/device-vault}/roadstr/firmware
+_fw=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr/firmware
 _files=$startdir/files
 
 package() {

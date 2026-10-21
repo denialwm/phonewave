@@ -64,7 +64,7 @@ Each service builds from its own directory; see each README.
 
 Stock firmware, partition backups, firmware blobs and the boot images a
 release is packed on are not public. The scripts read them from
-`$PHONEWAVE_VAULT/<codename>` (default `/mnt/development/device-vault`).
+`$PHONEWAVE_VAULT/<codename>` (default `/mnt/development/denial-os/device-vault`).
 
 hapticd is a `git subtree`; pull updates with
 `--prefix=services/haptics/hapticd`.

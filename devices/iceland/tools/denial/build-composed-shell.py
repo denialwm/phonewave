@@ -8,11 +8,11 @@ from pathlib import Path
 import hashlib, json, re, shutil, subprocess, os, sys
 
 HERE = Path(__file__).resolve().parent
-VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/device-vault')) / 'iceland'
+VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
 OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/pad4-buffer-return-20261016'
 CANDIDATE = OUT / 'candidate'
 TEMPLATE = VAULT / 'denial/composition-template'
-TASKBAR = Path('/home/logix/denial-plugins/plugins/denial_taskbar')
+TASKBAR = Path('/mnt/development/denial-os/denial-plugins/plugins/denial_taskbar')
 FLUTTER = Path('/mnt/exty/denial-flutter-fork-3.44.7')
 ARM = 'denial_linux_arm64_release'
 HOST = 'denial_host_release'
