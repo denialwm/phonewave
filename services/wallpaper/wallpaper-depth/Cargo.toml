@@ -1,0 +1,17 @@
+[package]
+name = "wallpaper-depth"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+bytemuck = "1.25.1"
+half = "2.7.1"
+image = { version = "0.25.9", default-features = false, features = ["jpeg", "png"] }
+libc = "0.2.191"
+pollster = "0.4.0"
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+
+[profile.release]
+debug = "line-tables-only"

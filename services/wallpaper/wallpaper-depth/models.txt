@@ -1,0 +1,3 @@
+# The models, pinned to their Hugging Face revisions: name, SHA-256, source.
+birefnet_lite.onnx 5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333 https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model.onnx
+depth_anything_v2_small.onnx afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/4472b7362082ad9968fee890ca0f1e5aca36b93d/onnx/model.onnx

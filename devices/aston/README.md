@@ -50,6 +50,10 @@ with its `make install` layout, then run `systemd-sysusers`, reload systemd
 and D-Bus and enable `dmail.service`. The unit names match the cellular kit's
 transient units, so `modem-setup` never starts a second rmtfs next to them.
 
+Lock screen: wallpaper-depth (services/wallpaper/wallpaper-depth) is installed
+with float16 weights, cross-built as its README says; Denial runs it when
+the wallpaper picker closes. Removing it turns the cut off.
+
 Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
 colour emoji font the native apps draw emoji with.
 

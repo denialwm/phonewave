@@ -49,6 +49,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | haptics | [`hapticd`](services/haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
 | clock | [`rtc-offset`](services/clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | memory | [`zram-swap`](services/memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
+| wallpaper | [`wallpaper-depth`](services/wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | fingerprint | [`jiiov`](services/fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | fingerprint | [`uff`](services/fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | modem | [`qmi-tools`](services/modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
