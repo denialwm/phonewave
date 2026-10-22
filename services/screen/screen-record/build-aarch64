@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Cross-build pad4-capture for the tablet against the Denial AArch64 sysroot.
+# Cross-build screen-record for the phones and tablets against the Denial
+# AArch64 sysroot.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 sysroot=/mnt/development/denial-os/cross/sysroot
-export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/iceland/pad4-capture/target"
+export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/screen-record/target"
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-L native=$sysroot/usr/lib -C link-arg=-Wl,--allow-shlib-undefined -C link-arg=-Wl,-rpath-link,$sysroot/usr/lib"
 cargo +1.98.0 build --release --offline --target aarch64-unknown-linux-gnu \
-    --jobs "$(( $(nproc) > 8 ? 6 : 1 ))" --manifest-path "$here/Cargo.toml" "$@"
-echo "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/pad4-capture"
+    --jobs "$(( $(nproc) > 8 ? $(nproc) - 2 : 1 ))" --manifest-path "$here/Cargo.toml" "$@"
+echo "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/screen-record"

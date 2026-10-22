@@ -16,14 +16,15 @@ start)
     fi
     mkdir -p "$DIR"
     file="$DIR/${2:-screen}-$(date +%Y%m%d-%H%M%S).mkv"
-    # pad4-capture scales on the GPU and feeds ffmpeg. SIGINT reaches only
-    # pad4-capture (KillMode=mixed); it closes the pipe and waits for ffmpeg
-    # to finish the file. While the screen is off it records black. One x264
+    # screen-record capture (Phonewave services/screen/screen-record) scales
+    # on the GPU and feeds ffmpeg. SIGINT reaches only screen-record
+    # (KillMode=mixed); it closes the pipe and waits for ffmpeg to finish
+    # the file. While the screen is off it records black. One x264
     # thread: its own threading tripled the CPU cost on this tablet for no
     # throughput gain.
     systemd-run --user --quiet --collect --unit="$UNIT" -p KillSignal=SIGINT -p KillMode=mixed \
         --setenv=WAYLAND_DISPLAY=wayland-1 \
-        "$HOME/.local/bin/pad4-capture" --size 720 --fps 60 -- \
+        /usr/bin/screen-record capture --size 720 --fps 60 -- \
         -c:v libx264 -preset ultrafast -crf 20 -threads 1 -pix_fmt yuv420p -y "$file"
     echo "$file" > "$CURRENT"
     echo "$file"

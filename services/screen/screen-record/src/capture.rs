@@ -1,11 +1,11 @@
-//! Records a Denial output without reading full-resolution frames on the CPU.
+//! Captures a Denial output into ffmpeg without reading full-resolution
+//! frames on the CPU.
 //!
 //! Frames arrive through `ext-image-copy-capture-v1` in DMA-BUFs, so Denial
 //! only blits on the GPU. Each frame is box-filtered down to the target size
 //! on the GPU, read back at that size and piped to ffmpeg as constant-rate
 //! raw video timed by Denial's presentation timestamps.
 //!
-//! Usage: pad4-capture [--size N] [--fps N] -- <ffmpeg output arguments>
 //! `--size` is the shorter side of the recording, so 720 means 720p on a
 //! landscape or portrait output.
 //! SIGINT or SIGTERM stops capture; ffmpeg then finishes the file.
@@ -83,19 +83,19 @@ struct State {
     frame: Option<FrameResult>,
 }
 
-struct Options {
-    size: u32,
-    fps: u32,
-    ffmpeg: Vec<String>,
+pub struct Options {
+    pub size: u32,
+    pub fps: u32,
+    pub ffmpeg: Vec<String>,
 }
 
-fn parse_options() -> Result<Options, Box<dyn Error>> {
+/// `[--size N] [--fps N] -- <ffmpeg output arguments>`.
+pub fn parse_options(mut args: impl Iterator<Item = String>) -> Result<Options, Box<dyn Error>> {
     let mut options = Options {
         size: 720,
         fps: 60,
         ffmpeg: Vec::new(),
     };
-    let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--size" => options.size = args.next().ok_or("--size needs a value")?.parse()?,
@@ -108,7 +108,9 @@ fn parse_options() -> Result<Options, Box<dyn Error>> {
         }
     }
     if options.ffmpeg.is_empty() || options.fps == 0 || options.size < 2 {
-        return Err("usage: pad4-capture [--size N] [--fps N] -- <ffmpeg output arguments>".into());
+        return Err(
+            "usage: screen-record capture [--size N] [--fps N] -- <ffmpeg output arguments>".into(),
+        );
     }
     Ok(options)
 }
@@ -371,7 +373,7 @@ impl Gpu {
             }
             texture
         };
-        eprintln!("pad4-capture: capture buffer {width}x{height} modifier {modifier:#x}");
+        eprintln!("screen-record: capture buffer {width}x{height} modifier {modifier:#x}");
         Ok(CaptureBuffer {
             wl_buffer,
             image,
@@ -548,15 +550,8 @@ fn wait_readable(fd: libc::c_int, timeout: Duration) -> bool {
     unsafe { libc::poll(&mut poll, 1, timeout.as_millis().clamp(1, 100) as i32) > 0 }
 }
 
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("pad4-capture: {error}");
-        std::process::exit(1);
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    let options = parse_options()?;
+/// Captures until SIGINT or SIGTERM, then waits for ffmpeg to finish.
+pub fn run(options: Options) -> Result<(), Box<dyn Error>> {
     // SAFETY: the handler only stores to an atomic.
     unsafe {
         let handler = request_stop as extern "C" fn(libc::c_int) as libc::sighandler_t;
@@ -595,7 +590,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         if state.stopped {
             if !std::mem::replace(&mut announced, true) {
-                eprintln!("pad4-capture: waiting for the output to power on");
+                eprintln!("screen-record: waiting for the output to power on");
             }
             state.stopped = false;
             session.take().expect("capture session").destroy();
@@ -612,7 +607,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let scaled = |side: u32| ((side as u64 * options.size as u64 / shorter) as u32 + 1) & !1;
     let (width, height) = (scaled(source_width), scaled(source_height));
     eprintln!(
-        "pad4-capture: {source_width}x{source_height} -> {width}x{height} at {} fps",
+        "screen-record: {source_width}x{source_height} -> {width}x{height} at {} fps",
         options.fps
     );
 
@@ -720,7 +715,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             encoder.show(black);
             retry_ns = monotonic_ns() + RETRY.as_nanos() as u64;
             if !std::mem::replace(&mut dark, true) {
-                eprintln!("pad4-capture: output off, recording black");
+                eprintln!("screen-record: output off, recording black");
             }
         }
         if session.is_none() {
@@ -760,7 +755,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             FrameResult::Ready(presented) => {
                 captured += 1;
                 if std::mem::take(&mut dark) {
-                    eprintln!("pad4-capture: output on, recording again");
+                    eprintln!("screen-record: output on, recording again");
                 }
                 let time = presented.unwrap_or_else(monotonic_ns);
                 let ready_lag = monotonic_ns().saturating_sub(time);
@@ -780,7 +775,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             FrameResult::Failed(reason) => {
                 failed += 1;
                 if failed % 60 == 1 {
-                    eprintln!("pad4-capture: frame failed: {reason:?}");
+                    eprintln!("screen-record: frame failed: {reason:?}");
                 }
             }
         }
@@ -804,11 +799,11 @@ fn run() -> Result<(), Box<dyn Error>> {
     let written = encoder.finish();
     let status = ffmpeg.wait()?;
     eprintln!(
-        "pad4-capture: {captured} captured ({skipped} early), {} written ({} repeated), {failed} failed",
+        "screen-record: {captured} captured ({skipped} early), {} written ({} repeated), {failed} failed",
         rate.emitted, rate.repeated
     );
     eprintln!(
-        "pad4-capture: ready {:.1} ms after refresh (max {:.1}), {late} late requests",
+        "screen-record: ready {:.1} ms after refresh (max {:.1}), {late} late requests",
         ready_lag_ns as f64 / captured.max(1) as f64 / 1e6,
         ready_lag_max_ns as f64 / 1e6
     );

@@ -10,6 +10,7 @@ tests, packaging and README.
 | [`clock/rtc-offset`](clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | [`memory/zram-swap`](memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
 | [`wallpaper/wallpaper-depth`](wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
+| [`screen/screen-record`](screen/screen-record) | Records the screen; Denial's shade starts and stops it | any with GBM and EGL |
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |

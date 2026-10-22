@@ -1,8 +1,8 @@
 [package]
-name = "pad4-capture"
+name = "screen-record"
 version = "0.1.0"
 edition = "2024"
-description = "GPU-scaled screen capture from Denial into ffmpeg"
+description = "Records the screen of a Denial phone or tablet"
 publish = false
 
 [dependencies]
