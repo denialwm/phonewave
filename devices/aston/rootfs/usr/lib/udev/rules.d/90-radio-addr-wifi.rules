@@ -1,0 +1,3 @@
+# The WCN7850's firmware reports Qualcomm's shared default MAC; give wlan0 the
+# phone's own before NetworkManager takes it.
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*", DRIVERS=="ath12k_wifi7_pci", RUN+="/usr/bin/radio-addr wifi $name"

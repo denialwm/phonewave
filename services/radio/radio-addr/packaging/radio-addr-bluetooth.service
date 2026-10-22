@@ -1,0 +1,18 @@
+[Unit]
+Description=Give Bluetooth controllers without an address the device's own
+Before=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/radio-addr bluetooth
+Restart=on-failure
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_BLUETOOTH AF_UNIX
+
+[Install]
+WantedBy=bluetooth.target
