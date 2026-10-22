@@ -86,8 +86,16 @@ tfa987x. "Voice Call Volume" takes the stock HAL's six levels (5 loudest,
 the default); "TX_AIF1 Capture Switch" mutes the microphone.
 
 Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
-colour emoji font the native apps draw emoji with, and `bluez bluez-utils`,
-with `systemctl enable bluetooth`.
+colour emoji font the native apps draw emoji with, `noto-fonts-cjk` for
+Chinese, and `bluez bluez-utils`, with `systemctl enable bluetooth`.
+`/etc/locale.gen` enables `en_US.UTF-8` and `zh_CN.UTF-8`, then
+`locale-gen`: the languages Settings offers. rootfs/ carries
+`48-phone-settings.rules`, which lets Settings set the clock, its time zone
+and the language without a password.
+
+Screen recording: screen-record (services/screen/screen-record), installed
+in /usr/bin, gives the shade its Screen recording tile; it uses the image's
+`ffmpeg`. Videos go to `~/Videos/Screen recordings`.
 
 Radio addresses: the ABL passes no Wi-Fi or Bluetooth address, so the
 WCN7850 reports its firmware's shared default MAC and its Bluetooth
