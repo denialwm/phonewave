@@ -32,6 +32,8 @@ typedef FpDeviceClass FpiDeviceUffClass;
 GType fpi_device_uff_get_type (void);
 G_DEFINE_TYPE (FpiDeviceUff, fpi_device_uff, FP_TYPE_DEVICE)
 
+static gboolean matching (FpDevice *dev);
+
 static void
 sleep_complete (FpDevice *dev, GError *error)
 {
@@ -77,7 +79,7 @@ sleep_command (FpDevice *dev, gboolean suspend)
   const char *request = suspend ? "suspend\n" : "resume\n";
   self->suspending = suspend;
   self->resuming = !suspend;
-  if (fpi_device_get_current_action (dev) != FPI_DEVICE_ACTION_VERIFY ||
+  if (!matching (dev) ||
       !self->worker || self->power_phase != 1 ||
       self->failed || self->cancelled || self->result_seen ||
       (!suspend && !self->suspended))
@@ -100,6 +102,15 @@ static const FpIdEntry id_table[] = {
     .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint" },
   { .udev_types = 0 }
 };
+
+/* The secure side matches a touch against every template and says which:
+ * verify checks it is the expected print, identify finds it in the gallery. */
+static gboolean
+matching (FpDevice *dev)
+{
+  FpiDeviceAction action = fpi_device_get_current_action (dev);
+  return action == FPI_DEVICE_ACTION_VERIFY || action == FPI_DEVICE_ACTION_IDENTIFY;
+}
 
 static FpPrint *
 make_print (FpDevice *dev, guint identifier)
@@ -146,7 +157,7 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
     }
   else if (self->failed || !exited || !self->result_seen || (self->result > 1 && self->result != 3) ||
            (self->power_phase != 0 && self->power_phase != 3) ||
-           (self->result && fpi_device_get_current_action (dev) != FPI_DEVICE_ACTION_VERIFY))
+           (self->result && !matching (dev)))
     {
       g_clear_error (&error);
       error = fpi_device_error_new_msg (FP_DEVICE_ERROR_GENERAL, "Native fingerprint worker failed");
@@ -194,6 +205,27 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
         fpi_device_verify_complete (dev, NULL);
         break;
       }
+    case FPI_DEVICE_ACTION_IDENTIFY:
+      {
+        GPtrArray *gallery;
+        FpPrint *found = NULL;
+        guint identifier = 0;
+        if (self->result == 3)
+          {
+            fpi_device_identify_report (dev, NULL, NULL,
+                                       fpi_device_retry_new (FP_DEVICE_RETRY_TOO_SHORT));
+            fpi_device_identify_complete (dev, NULL);
+            break;
+          }
+        fpi_device_get_identify_data (dev, &gallery);
+        for (guint i = 0; !self->result && self->identifier && !found && i < gallery->len; i++)
+          if (print_identifier (g_ptr_array_index (gallery, i), &identifier) &&
+              identifier == self->identifier)
+            found = g_ptr_array_index (gallery, i);
+        fpi_device_identify_report (dev, found, NULL, NULL);
+        fpi_device_identify_complete (dev, NULL);
+        break;
+      }
     case FPI_DEVICE_ACTION_LIST:
       fpi_device_list_complete (dev, g_steal_pointer (&prints), NULL);
       break;
@@ -202,7 +234,6 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
       break;
     case FPI_DEVICE_ACTION_NONE:
     case FPI_DEVICE_ACTION_CLOSE:
-    case FPI_DEVICE_ACTION_IDENTIFY:
     case FPI_DEVICE_ACTION_CAPTURE:
     case FPI_DEVICE_ACTION_CLEAR_STORAGE:
       fpi_device_action_error (dev, fpi_device_error_new (FP_DEVICE_ERROR_GENERAL));
@@ -249,7 +280,7 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
   else if (!strcmp (line, "UFF1 suspend-busy") && self->suspending)
     sleep_complete (dev, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
   else if (!self->result_seen && length <= 80 && sscanf (line, "UFF1 power %u%n", &value, &consumed) == 1 &&
-      consumed == (int) length && fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_VERIFY &&
+      consumed == (int) length && matching (dev) &&
       ((value == 0 && (self->power_phase == 0 || self->power_phase == 1 || self->power_phase == 2)) ||
        (value == 1 && self->power_phase == 1) ||
        (value == 2 && (self->power_phase == 0 || self->power_phase == 2))))
@@ -366,6 +397,7 @@ start (FpDevice *dev)
         operation = "verify";
         break;
       }
+    case FPI_DEVICE_ACTION_IDENTIFY: operation = "verify"; break;
     case FPI_DEVICE_ACTION_LIST: operation = "list"; break;
     case FPI_DEVICE_ACTION_DELETE:
       {
@@ -380,7 +412,6 @@ start (FpDevice *dev)
       }
     case FPI_DEVICE_ACTION_NONE:
     case FPI_DEVICE_ACTION_CLOSE:
-    case FPI_DEVICE_ACTION_IDENTIFY:
     case FPI_DEVICE_ACTION_CAPTURE:
     case FPI_DEVICE_ACTION_CLEAR_STORAGE:
       g_assert_not_reached ();
@@ -420,7 +451,8 @@ fpi_device_uff_class_init (FpiDeviceUffClass *klass)
   klass->id_table = id_table;
   klass->nr_enroll_stages = 20;
   klass->scan_type = FP_SCAN_TYPE_PRESS;
-  klass->probe = klass->open = klass->enroll = klass->verify = klass->list = klass->delete = start;
+  klass->probe = klass->open = klass->enroll = klass->verify = klass->identify = klass->list =
+    klass->delete = start;
   klass->close = close_device;
   klass->cancel = cancel;
   klass->suspend = suspend_device;
