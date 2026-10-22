@@ -1,0 +1,14 @@
+[Unit]
+Description=Call audio: the sound card follows the modem's calls
+After=pipewire.service wireplumber.service
+Wants=wireplumber.service
+
+[Service]
+Type=dbus
+BusName=org.callaudio
+ExecStart=/usr/bin/callaudio
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

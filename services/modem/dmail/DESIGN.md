@@ -275,7 +275,10 @@ call from 4G moved to UMTS and rang after 4 s, with AMR-WB at 16 kHz.
 
 Call audio is not dmail's: the modem hands speech to the ADSP, which plays
 and records it once the host has started its voice graph. Until then calls
-connect silent on both sides (aston, 2026-10-21). DTMF went out without an
+connect silent on both sides (aston, 2026-10-21). callaudio
+(services/audio/callaudio) follows `Calls` and puts the sound card on its
+voice call profile, which starts the graphs. The first call with speech
+both ways, to a mobile, did the same by hand (aston, 2026-10-21). DTMF went out without an
 error, but a mobile on the other side heard nothing; to check against a
 menu that answers to tones.
 

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.callaudio
+Exec=/usr/bin/callaudio
+SystemdService=callaudio.service

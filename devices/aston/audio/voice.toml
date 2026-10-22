@@ -1,0 +1,47 @@
+# Aston's voice call profile, qcom/sm8550/aston-voice.bin: what
+# services/audio/voicegen asks of the stock ACDB, and the host-side settings
+# it adds. The kernel's q6apm voice session runs the result.
+
+# In the vault: the stock odm_b partition's calibration (Aston_20240124_V14_master)
+acdb = "aston/reference/stock-audio-b/odm_b/etc/acdbdata/acdb_cal.acdb"
+firmware = "qcom/sm8550/aston-voice.bin"
+vsid = 0x11C05000  # VOICEMMODE1
+
+[rx]
+keys = [
+  [0xA1000000, 0xA1000010],  # STREAMRX: VOICE_CALL_RX
+  [0xA2000000, 0xA2000001],  # DEVICERX: SPEAKER
+  [0xAC000000, 0xAC000005],  # DEVICEPP_RX: VOICE_DEFAULT
+  [0xAF000000, 0xAF000001],  # STREAMPP_RX: DEFAULT
+  [0xB3000000, 0xB3000001],  # VSID: DEFAULT
+]
+# Speaker protection (libtfadsp_sb4_0_rx.so) and nonlinear compensation
+# (nlc_bgth.so) are dynamic modules the stock ADSP loads from the vendor
+# partition. Linux serves no such files, and the kernel drives the TFA9873
+# amplifiers without DSP protection: the voice path goes around them.
+drop = [0x460f, 0x440e]
+join = [0x4012, 1, 0x418e, 2]  # output instance and port, input instance and port
+# Media format converters set to what the endpoint plays
+converters = [0x448d, 0x41cb]
+# Secondary MI2S, both amplifiers: 48 kHz, 16 bit, two channels, as the
+# kernel's backend link runs it. LPAIF, secondary interface, data line 2,
+# word select from the DSP.
+endpoint = 0x41d3
+format = [48000, 16, 2]
+i2s = [0, 1, 2, 1]
+
+[tx]
+keys = [
+  [0xB1000000, 0xB1000007],  # STREAMTX: VOICE_CALL_TX
+  [0xA3000000, 0xA3000004],  # DEVICETX: HANDSETMIC
+  # DEVICEPP_TX: VOICE_FLUENCE_ENDFIRE, the stock choice. SMECNS (0xAD000008)
+  # and NN_SM (0xAD00000F) fail GRAPH_OPEN on this DSP.
+  [0xAD000000, 0xAD000009],
+  [0xB3000000, 0xB3000001],  # VSID: DEFAULT
+]
+# TX_CODEC_DMA_TX_3, the WCD9380 microphones: LPAIF_RXTX, TX3. Rate and
+# width as the backend link; channels as the ACDB gives the endpoint,
+# read from decimator 0 upwards.
+endpoint = 0x43af
+format = [48000, 16]
+codec_dma = [1, 4]

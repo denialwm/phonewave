@@ -1,0 +1,20 @@
+[package]
+name = "callaudio"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Switches the sound card to its voice call profile while the modem has a call"
+license = "MIT"
+
+[dependencies]
+async-io = "2.6"
+async-signal = "0.2"
+futures-lite = "2.6"
+zbus = "5.18"
+
+[build-dependencies]
+cc = "1"
+
+[profile.release]
+lto = "thin"
+strip = true
