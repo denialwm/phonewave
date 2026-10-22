@@ -1,0 +1,200 @@
+From 1829c091f5e8db256960d0a2f23848b026d86081 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 22:27:34 +0200
+Subject: [PATCH] ipa: simple: Constrain white balance to an illuminant locus
+
+Grey world neutralises the scene average, so a room under coloured light
+or a frame full of foliage loses its colour. Let the tuning file give the
+camera R/G and B/G of a grey surface under reference illuminants, and move
+the grey-world estimate to the nearest point on that locus. The colour
+temperature for the colour correction then follows the locus instead of an
+sRGB estimate from raw camera values.
+
+Give the IMX890 the stock AWB reference points of its QTech module for the
+blackbody and daylight illuminants.
+---
+ src/ipa/simple/algorithms/awb.cpp | 88 ++++++++++++++++++++++++++++++-
+ src/ipa/simple/algorithms/awb.h   | 14 +++++
+ src/ipa/simple/data/imx890.yaml   |  9 ++++
+ 3 files changed, 110 insertions(+), 1 deletion(-)
+
+diff --git a/src/ipa/simple/algorithms/awb.cpp b/src/ipa/simple/algorithms/awb.cpp
+index 05155c8..911fd71 100644
+--- a/src/ipa/simple/algorithms/awb.cpp
++++ b/src/ipa/simple/algorithms/awb.cpp
+@@ -7,6 +7,9 @@
+ 
+ #include "awb.h"
+ 
++#include <algorithm>
++#include <errno.h>
++#include <limits>
+ #include <numeric>
+ #include <stdint.h>
+ 
+@@ -23,6 +26,66 @@ LOG_DEFINE_CATEGORY(IPASoftAwb)
+ 
+ namespace ipa::soft::algorithms {
+ 
++/*
++ * The optional locus lists the camera R/G and B/G ratios of a grey surface
++ * under reference illuminants, ordered by colour temperature. When it is
++ * present, the grey-world estimate is moved to the nearest point on the
++ * locus. The part of the scene average that no illuminant explains, such as
++ * a room's coloured light or a frame full of foliage, is then kept instead
++ * of being neutralised, and the colour temperature follows the locus.
++ */
++int Awb::init([[maybe_unused]] IPAContext &context, const ValueNode &tuningData)
++{
++	for (const auto &p : tuningData["locus"].asList()) {
++		auto ct = p["ct"].get<double>();
++		auto rg = p["rg"].get<double>();
++		auto bg = p["bg"].get<double>();
++		if (!ct || !rg || !bg || *ct <= 0 || *rg <= 0 || *bg <= 0) {
++			LOG(IPASoftAwb, Error) << "Invalid locus point";
++			return -EINVAL;
++		}
++		locus_.push_back({ 1e6 / *ct, *rg, *bg });
++	}
++
++	std::sort(locus_.begin(), locus_.end(),
++		  [](const LocusPoint &a, const LocusPoint &b) { return a.mired < b.mired; });
++
++	return 0;
++}
++
++void Awb::projectOnLocus(double &rg, double &bg, double &mired) const
++{
++	double best = std::numeric_limits<double>::max();
++	const double qr = rg;
++	const double qb = bg;
++
++	if (locus_.size() == 1) {
++		rg = locus_[0].rg;
++		bg = locus_[0].bg;
++		mired = locus_[0].mired;
++		return;
++	}
++
++	for (size_t i = 0; i + 1 < locus_.size(); i++) {
++		const LocusPoint &a = locus_[i];
++		const LocusPoint &b = locus_[i + 1];
++		double dr = b.rg - a.rg;
++		double db = b.bg - a.bg;
++		double t = ((qr - a.rg) * dr + (qb - a.bg) * db) / (dr * dr + db * db);
++		t = std::clamp(t, 0.0, 1.0);
++
++		double pr = a.rg + t * dr;
++		double pb = a.bg + t * db;
++		double d = (qr - pr) * (qr - pr) + (qb - pb) * (qb - pb);
++		if (d < best) {
++			best = d;
++			rg = pr;
++			bg = pb;
++			mired = a.mired + t * (b.mired - a.mired);
++		}
++	}
++}
++
+ int Awb::configure(IPAContext &context,
+ 		   [[maybe_unused]] const IPAConfigInfo &configInfo)
+ {
+@@ -73,11 +136,34 @@ void Awb::process(IPAContext &context,
+ 	 */
+ 	const RGB<uint64_t> sum = stats->sum_.max(offset + minValid) - offset;
+ 
++	auto &gains = context.activeState.awb.gains;
++
++	if (!locus_.empty()) {
++		double rg = static_cast<double>(sum.r()) / sum.g();
++		double bg = static_cast<double>(sum.b()) / sum.g();
++		double mired;
++
++		projectOnLocus(rg, bg, mired);
++
++		gains = { { static_cast<float>(1.0 / rg), 1.0f,
++			    static_cast<float>(1.0 / bg) } };
++		context.activeState.awb.temperatureK =
++			static_cast<unsigned int>(1e6 / mired);
++		metadata.set(controls::ColourTemperature,
++			     context.activeState.awb.temperatureK);
++
++		LOG(IPASoftAwb, Debug)
++			<< "grey world R/G " << static_cast<double>(sum.r()) / sum.g()
++			<< " B/G " << static_cast<double>(sum.b()) / sum.g()
++			<< "; locus gain R/B: " << gains << "; temperature: "
++			<< context.activeState.awb.temperatureK;
++		return;
++	}
++
+ 	/*
+ 	 * Calculate red and blue gains for AWB.
+ 	 * Clamp max gain at 4.0, this also avoids 0 division.
+ 	 */
+-	auto &gains = context.activeState.awb.gains;
+ 	gains = { {
+ 		sum.r() <= sum.g() / 4 ? 4.0f : static_cast<float>(sum.g()) / sum.r(),
+ 		1.0,
+diff --git a/src/ipa/simple/algorithms/awb.h b/src/ipa/simple/algorithms/awb.h
+index ad993f3..378b2f9 100644
+--- a/src/ipa/simple/algorithms/awb.h
++++ b/src/ipa/simple/algorithms/awb.h
+@@ -7,6 +7,8 @@
+ 
+ #pragma once
+ 
++#include <vector>
++
+ #include "algorithm.h"
+ 
+ namespace libcamera {
+@@ -19,6 +21,7 @@ public:
+ 	Awb() = default;
+ 	~Awb() = default;
+ 
++	int init(IPAContext &context, const ValueNode &tuningData) override;
+ 	int configure(IPAContext &context, const IPAConfigInfo &configInfo) override;
+ 	void prepare(IPAContext &context,
+ 		     const uint32_t frame,
+@@ -29,6 +32,17 @@ public:
+ 		     IPAFrameContext &frameContext,
+ 		     const SwIspStats *stats,
+ 		     ControlList &metadata) override;
++
++private:
++	struct LocusPoint {
++		double mired;
++		double rg;
++		double bg;
++	};
++
++	void projectOnLocus(double &rg, double &bg, double &mired) const;
++
++	std::vector<LocusPoint> locus_;
+ };
+ 
+ } /* namespace ipa::soft::algorithms */
+diff --git a/src/ipa/simple/data/imx890.yaml b/src/ipa/simple/data/imx890.yaml
+index e0f7a07..be8e144 100644
+--- a/src/ipa/simple/data/imx890.yaml
++++ b/src/ipa/simple/data/imx890.yaml
+@@ -5,7 +5,16 @@ version: 1
+ algorithms:
+   - BlackLevel:
+       blackLevel: 4096
++  # Grey R/G and B/G from the stock AWB reference points of the QTech module
++  # for the blackbody and daylight illuminants, at their nominal temperatures.
++  # The fluorescent points sit off this curve and are left out.
+   - Awb:
++      locus:
++        - { ct: 2300, rg: 1.0038, bg: 0.3092 }   # Horizon
++        - { ct: 2850, rg: 0.8169, bg: 0.3750 }   # Incandescent (A)
++        - { ct: 5000, rg: 0.5400, bg: 0.5852 }   # D50
++        - { ct: 6500, rg: 0.4648, bg: 0.7211 }   # D65
++        - { ct: 7500, rg: 0.4502, bg: 0.7518 }   # D75
+   # Colour correction from the OnePlus Ace 3 stock tuning (QTech module):
+   # the bright, non-flash branch, keyed to the start of each CCT trigger.
+   - Ccm:
+-- 
+2.55.0
+

@@ -1,0 +1,226 @@
+From d4df5596a97a6ad4c2bdb9a81456db2883526eba Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 21:47:43 +0200
+Subject: [PATCH] ipa: simple: Meter exposure on linear mean and highlights
+
+The simple AGC aimed the mean of a five-bin histogram at mid-scale. The
+histogram is linear luminance, so that target sits far above mid-grey
+once the output gamma is applied, and on a sensor with 64x of gain a
+dark room is raised until most of the image clips.
+
+Aim the mean luminance at 18% grey instead, and limit the exposure so
+that no more than 4% of the image sits above 90% of full scale. Apply
+half the logarithmic error per frame, bounded to a 1.6x step, with an
+8% dead band. The tuning file can set the targets as targetMean,
+highlightQuantile and highlightMax.
+---
+ src/ipa/simple/algorithms/agc.cpp | 125 +++++++++++++-----------------
+ src/ipa/simple/algorithms/agc.h   |   8 +-
+ 2 files changed, 63 insertions(+), 70 deletions(-)
+
+diff --git a/src/ipa/simple/algorithms/agc.cpp b/src/ipa/simple/algorithms/agc.cpp
+index a13a755..c29def0 100644
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -22,67 +22,51 @@ LOG_DEFINE_CATEGORY(IPASoftExposure)
+ namespace ipa::soft::algorithms {
+ 
+ /*
+- * The number of bins to use for the optimal exposure calculations.
++ * Defaults for the tuning values. The histogram is linear luminance, so its
++ * mean is aimed at 18% grey, which the output gamma takes to mid-scale. At
++ * most 4% of the image may sit above 90% of full scale, so a lit subject in a
++ * dark room keeps its detail instead of the room being raised to mid-grey.
+  */
+-static constexpr unsigned int kExposureBinsCount = 5;
++static constexpr double kDefaultTargetMean = 0.18;
++static constexpr double kDefaultHighlightQuantile = 0.96;
++static constexpr double kDefaultHighlightMax = 0.9;
+ 
+ /*
+- * The exposure is optimal when the mean sample value of the histogram is
+- * in the middle of the range.
++ * Correction applied per frame, as a power of the measured ratio. Half the
++ * logarithmic error per frame converges in a few frames without overshoot.
+  */
+-static constexpr float kExposureOptimal = kExposureBinsCount / 2.0;
++static constexpr double kDamping = 0.5;
++static constexpr double kMaxStep = 1.6;
+ 
+-/*
+- * This implements the hysteresis for the exposure adjustment.
+- * It is small enough to have the exposure close to the optimal, and is big
+- * enough to prevent the exposure from wobbling around the optimal value.
+- */
+-static constexpr float kExposureSatisfactory = 0.2;
+-
+-/*
+- * Proportional gain for exposure/gain adjustment. Maps the MSV error to a
+- * multiplicative correction factor:
+- *
+- *   factor = 1.0 + kExpProportionalGain * error
+- *
+- * With kExpProportionalGain = 0.04:
+- *   - max error ~2.5 -> factor 1.10 (~10% step, same as before)
+- *   - error 1.0      -> factor 1.04 (~4% step)
+- *   - error 0.3      -> factor 1.012 (~1.2% step)
+- *
+- * This replaces the fixed 10% bang-bang step with a proportional correction
+- * that converges smoothly and avoids overshooting near the target.
+- */
+-static constexpr float kExpProportionalGain = 0.04;
+-
+-/*
+- * Maximum multiplicative step per frame, to bound the correction when the
+- * scene changes dramatically.
+- */
+-static constexpr float kExpMaxStep = 0.15;
++/* Ratios within 8% of the target leave the exposure alone. */
++static constexpr double kHysteresis = 0.08;
+ 
+ Agc::Agc()
++	: targetMean_(kDefaultTargetMean),
++	  highlightQuantile_(kDefaultHighlightQuantile),
++	  highlightMax_(kDefaultHighlightMax)
+ {
+ }
+ 
+-void Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext, double exposureMSV)
++int Agc::init([[maybe_unused]] IPAContext &context, const ValueNode &tuningData)
++{
++	targetMean_ = tuningData["targetMean"].get<double>(kDefaultTargetMean);
++	highlightQuantile_ =
++		tuningData["highlightQuantile"].get<double>(kDefaultHighlightQuantile);
++	highlightMax_ = tuningData["highlightMax"].get<double>(kDefaultHighlightMax);
++	return 0;
++}
++
++void Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext, double ratio)
+ {
+ 	int32_t &exposure = frameContext.sensor.exposure;
+ 	double &again = frameContext.sensor.gain;
+ 
+-	double error = kExposureOptimal - exposureMSV;
+-
+-	if (std::abs(error) <= kExposureSatisfactory)
++	if (std::abs(std::log(ratio)) <= std::log1p(kHysteresis))
+ 		return;
+ 
+-	/*
+-	 * Compute a proportional correction factor. The sign of the error
+-	 * determines the direction: positive error means too dark (increase),
+-	 * negative means too bright (decrease).
+-	 */
+-	float step = std::clamp(static_cast<float>(error) * kExpProportionalGain,
+-				-kExpMaxStep, kExpMaxStep);
+-	float factor = 1.0f + step;
++	double factor = std::clamp(std::pow(ratio, kDamping),
++				   1.0 / kMaxStep, kMaxStep);
+ 
+ 	if (factor > 1.0f) {
+ 		/* Scene too dark: increase exposure first, then gain. */
+@@ -119,8 +103,7 @@ void Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext, dou
+ 	context.activeState.agc.again = again;
+ 
+ 	LOG(IPASoftExposure, Debug)
+-		<< "exposureMSV " << exposureMSV
+-		<< " error " << error << " factor " << factor
++		<< "ratio " << ratio << " factor " << factor
+ 		<< " exp " << exposure << " again " << again;
+ }
+ 
+@@ -156,40 +139,44 @@ void Agc::process(IPAContext &context,
+ 	}
+ 
+ 	/*
+-	 * Calculate Mean Sample Value (MSV) according to formula from:
+-	 * https://www.araa.asn.au/acra/acra2007/papers/paper84final.pdf
++	 * Mean and highlight quantile of the black-subtracted luminance,
++	 * normalised to full scale, with each bin taken at its centre.
+ 	 */
+ 	const auto &histogram = stats->yHistogram;
+ 	const unsigned int blackLevelHistIdx =
+ 		context.activeState.blc.level / (256 / SwIspStats::kYHistogramSize);
+ 	const unsigned int histogramSize =
+ 		SwIspStats::kYHistogramSize - blackLevelHistIdx;
+-	const unsigned int yHistValsPerBin = histogramSize / kExposureBinsCount;
+-	const unsigned int yHistValsPerBinMod =
+-		histogramSize / (histogramSize % kExposureBinsCount + 1);
+-	int exposureBins[kExposureBinsCount] = {};
+-	unsigned int denom = 0;
+-	unsigned int num = 0;
+-
+-	if (yHistValsPerBin == 0) {
+-		LOG(IPASoftExposure, Debug)
+-			<< "Not adjusting exposure due to insufficient histogram data";
+-		return;
+-	}
++	uint64_t total = 0;
++	double sum = 0.0;
+ 
+ 	for (unsigned int i = 0; i < histogramSize; i++) {
+-		unsigned int idx = (i - (i / yHistValsPerBinMod)) / yHistValsPerBin;
+-		exposureBins[idx] += histogram[blackLevelHistIdx + i];
++		total += histogram[blackLevelHistIdx + i];
++		sum += histogram[blackLevelHistIdx + i] * (i + 0.5);
+ 	}
+ 
+-	for (unsigned int i = 0; i < kExposureBinsCount; i++) {
+-		LOG(IPASoftExposure, Debug) << i << ": " << exposureBins[i];
+-		denom += exposureBins[i];
+-		num += exposureBins[i] * (i + 1);
++	if (total == 0)
++		return;
++
++	double mean = sum / total / histogramSize;
++
++	uint64_t below = 0;
++	unsigned int top = 0;
++	while (top < histogramSize - 1) {
++		below += histogram[blackLevelHistIdx + top];
++		if (below >= highlightQuantile_ * total)
++			break;
++		top++;
+ 	}
++	double highlight = (top + 0.5) / histogramSize;
++
++	double ratio = std::min(targetMean_ / std::max(mean, 1e-3),
++				highlightMax_ / highlight);
++
++	LOG(IPASoftExposure, Debug)
++		<< "mean " << mean << " highlight " << highlight;
+ 
+-	float exposureMSV = (denom == 0 ? 0 : static_cast<float>(num) / denom);
+-	updateExposure(context, frameContext, exposureMSV);
++	updateExposure(context, frameContext, ratio);
+ }
+ 
+ REGISTER_IPA_ALGORITHM(Agc, "Agc")
+diff --git a/src/ipa/simple/algorithms/agc.h b/src/ipa/simple/algorithms/agc.h
+index 112d9f5..97fb13b 100644
+--- a/src/ipa/simple/algorithms/agc.h
++++ b/src/ipa/simple/algorithms/agc.h
+@@ -19,13 +19,19 @@ public:
+ 	Agc();
+ 	~Agc() = default;
+ 
++	int init(IPAContext &context, const ValueNode &tuningData) override;
++
+ 	void process(IPAContext &context, const uint32_t frame,
+ 		     IPAFrameContext &frameContext,
+ 		     const SwIspStats *stats,
+ 		     ControlList &metadata) override;
+ 
+ private:
+-	void updateExposure(IPAContext &context, IPAFrameContext &frameContext, double exposureMSV);
++	void updateExposure(IPAContext &context, IPAFrameContext &frameContext, double ratio);
++
++	double targetMean_;
++	double highlightQuantile_;
++	double highlightMax_;
+ };
+ 
+ } /* namespace ipa::soft::algorithms */
+-- 
+2.55.0
+

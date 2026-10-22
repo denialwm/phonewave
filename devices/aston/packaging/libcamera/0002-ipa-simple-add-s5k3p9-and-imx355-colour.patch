@@ -1,0 +1,152 @@
+From cdf1d959fbd01338b923f853ace954cc10c8f85b Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 21:00:55 +0200
+Subject: [PATCH] ipa: simple: Add Samsung S5K3P9 and IMX355 colour tuning
+
+Add the Samsung S5K3P9 sensor helper (black level 64 at 10 bits,
+measured; gain = code / 32), its sensor properties and a simple-IPA
+tuning file. Give the IMX355 tuning file the colour correction matrices
+of the OnePlus Ace 3 stock tuning for its Sunny module.
+---
+ src/ipa/libipa/camera_sensor_helper.cpp       | 13 ++++++
+ src/ipa/simple/data/imx355.yaml               | 40 +++++++++++++++++++
+ src/ipa/simple/data/meson.build               |  1 +
+ src/ipa/simple/data/s5k3p9.yaml               | 11 +++++
+ .../sensor/camera_sensor_properties.cpp       | 16 ++++++++
+ 5 files changed, 81 insertions(+)
+ create mode 100644 src/ipa/simple/data/s5k3p9.yaml
+
+diff --git a/src/ipa/libipa/camera_sensor_helper.cpp b/src/ipa/libipa/camera_sensor_helper.cpp
+index bb95700..bccafc6 100644
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -629,6 +629,19 @@ public:
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx355", CameraSensorHelperImx355)
+ 
++class CameraSensorHelperS5k3p9 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperS5k3p9()
++	{
++		/* Measured: 64 at 10bits. */
++		blackLevel_ = 4096;
++		/* Stock module: gain = code / 32. */
++		gain_ = AnalogueGainLinear{ 1, 0, 0, 32 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("s5k3p9", CameraSensorHelperS5k3p9)
++
+ class CameraSensorHelperImx415 : public CameraSensorHelper
+ {
+ public:
+diff --git a/src/ipa/simple/data/imx355.yaml b/src/ipa/simple/data/imx355.yaml
+index e903d96..d08e6d8 100644
+--- a/src/ipa/simple/data/imx355.yaml
++++ b/src/ipa/simple/data/imx355.yaml
+@@ -6,6 +6,46 @@ algorithms:
+   - BlackLevel:
+       blackLevel: 4096
+   - Awb:
++  # Colour correction from the OnePlus Ace 3 stock tuning (Sunny module):
++  # the bright, non-flash branch, keyed to the start of each CCT trigger.
++  - Ccm:
++      ccms:
++        - ct: 2500
++          ccm: [  1.46, -0.47,  0.01,
++                 -0.35,  1.28,  0.07,
++                 -0.14, -0.63,  1.77 ]
++        - ct: 2700
++          ccm: [  1.51, -0.58,  0.07,
++                 -0.35,  1.31,  0.04,
++                 -0.02, -0.76,  1.78 ]
++        - ct: 3800
++          ccm: [  1.74, -0.69, -0.05,
++                 -0.15,  1.30, -0.15,
++                  0.08, -0.81,  1.73 ]
++        - ct: 4400
++          ccm: [  1.60, -0.52, -0.08,
++                 -0.19,  1.35, -0.16,
++                  0.01, -0.60,  1.59 ]
++        - ct: 4800
++          ccm: [  1.60, -0.58, -0.02,
++                 -0.17,  1.35, -0.18,
++                 -0.01, -0.57,  1.58 ]
++        - ct: 5800
++          ccm: [  1.58, -0.52, -0.06,
++                 -0.17,  1.35, -0.18,
++                  0.02, -0.55,  1.53 ]
++        - ct: 6400
++          ccm: [  1.68, -0.60, -0.08,
++                 -0.25,  1.40, -0.15,
++                 -0.02, -0.64,  1.66 ]
++        - ct: 6600
++          ccm: [  1.77, -0.80,  0.03,
++                 -0.17,  1.28, -0.11,
++                 -0.03, -0.64,  1.67 ]
++        - ct: 7400
++          ccm: [  1.77, -0.80,  0.03,
++                 -0.18,  1.28, -0.10,
++                 -0.05, -0.66,  1.71 ]
+   - Adjust:
+   - Agc:
+ ...
+diff --git a/src/ipa/simple/data/meson.build b/src/ipa/simple/data/meson.build
+index 6e690f8..38cea55 100644
+--- a/src/ipa/simple/data/meson.build
++++ b/src/ipa/simple/data/meson.build
+@@ -2,6 +2,7 @@
+ 
+ conf_files = files([
+     'imx355.yaml',
++    's5k3p9.yaml',
+     'uncalibrated.yaml',
+ ])
+ 
+diff --git a/src/ipa/simple/data/s5k3p9.yaml b/src/ipa/simple/data/s5k3p9.yaml
+new file mode 100644
+index 0000000..e903d96
+--- /dev/null
++++ b/src/ipa/simple/data/s5k3p9.yaml
+@@ -0,0 +1,11 @@
++# SPDX-License-Identifier: CC0-1.0
++%YAML 1.1
++---
++version: 1
++algorithms:
++  - BlackLevel:
++      blackLevel: 4096
++  - Awb:
++  - Adjust:
++  - Agc:
++...
+diff --git a/src/libcamera/sensor/camera_sensor_properties.cpp b/src/libcamera/sensor/camera_sensor_properties.cpp
+index fa9a2c8..d15817d 100644
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -519,6 +519,22 @@ const CameraSensorProperties *CameraSensorProperties::get(const std::string &sen
+ 			},
+ 			.sensorDelays = { },
+ 		} },
++		{ "s5k3p9", {
++			.unitCellSize = { 1000, 1000 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 3 },
++				{ controls::draft::TestPatternModePn9, 4 },
++			},
++			.sensorDelays = {
++				.exposureDelay = 2,
++				.gainDelay = 2,
++				.vblankDelay = 2,
++				.hblankDelay = 2
++			},
++		} },
+ 		{ "vd55g1", {
+ 			.unitCellSize = { 2160, 2160 },
+ 			.testPatternModes = {
+-- 
+2.55.0
+

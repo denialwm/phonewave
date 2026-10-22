@@ -1,0 +1,101 @@
+From 94d694ad7cd5436beebbcc326ebdd81288c23266 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 20:50:09 +0200
+Subject: [PATCH] ipa: simple: Add Sony IMX355 sensor helper, properties and
+ tuning
+
+Backport of the upstream IMX355 camera sensor helper (black level 64 at
+10 bits, gain = 1024 / (1024 - code)) and sensor properties to v0.7.2.
+The test pattern indices follow the kernel imx355 driver's menu
+(1 solid colour, 2 colour bars). The simple IPA tuning file sets the
+black level and keeps the uncalibrated algorithms.
+---
+ src/ipa/libipa/camera_sensor_helper.cpp          | 12 ++++++++++++
+ src/ipa/simple/data/imx355.yaml                  | 11 +++++++++++
+ src/ipa/simple/data/meson.build                  |  1 +
+ .../sensor/camera_sensor_properties.cpp          | 16 ++++++++++++++++
+ 4 files changed, 40 insertions(+)
+ create mode 100644 src/ipa/simple/data/imx355.yaml
+
+diff --git a/src/ipa/libipa/camera_sensor_helper.cpp b/src/ipa/libipa/camera_sensor_helper.cpp
+index 9457d62..bb95700 100644
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -617,6 +617,18 @@ public:
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx335", CameraSensorHelperImx335)
+ 
++class CameraSensorHelperImx355 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperImx355()
++	{
++		/* From datasheet: 64 at 10bits. */
++		blackLevel_ = 4096;
++		gain_ = AnalogueGainLinear{ 0, 1024, -1, 1024 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("imx355", CameraSensorHelperImx355)
++
+ class CameraSensorHelperImx415 : public CameraSensorHelper
+ {
+ public:
+diff --git a/src/ipa/simple/data/imx355.yaml b/src/ipa/simple/data/imx355.yaml
+new file mode 100644
+index 0000000..e903d96
+--- /dev/null
++++ b/src/ipa/simple/data/imx355.yaml
+@@ -0,0 +1,11 @@
++# SPDX-License-Identifier: CC0-1.0
++%YAML 1.1
++---
++version: 1
++algorithms:
++  - BlackLevel:
++      blackLevel: 4096
++  - Awb:
++  - Adjust:
++  - Agc:
++...
+diff --git a/src/ipa/simple/data/meson.build b/src/ipa/simple/data/meson.build
+index 92795ee..6e690f8 100644
+--- a/src/ipa/simple/data/meson.build
++++ b/src/ipa/simple/data/meson.build
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: CC0-1.0
+ 
+ conf_files = files([
++    'imx355.yaml',
+     'uncalibrated.yaml',
+ ])
+ 
+diff --git a/src/libcamera/sensor/camera_sensor_properties.cpp b/src/libcamera/sensor/camera_sensor_properties.cpp
+index 2804315..fa9a2c8 100644
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -261,6 +261,22 @@ const CameraSensorProperties *CameraSensorProperties::get(const std::string &sen
+ 			.testPatternModes = {},
+ 			.sensorDelays = { },
+ 		} },
++		{ "imx355", {
++			.unitCellSize = { 1120, 1120 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 3 },
++				{ controls::draft::TestPatternModePn9, 4 },
++			},
++			.sensorDelays = {
++				.exposureDelay = 2,
++				.gainDelay = 2,
++				.vblankDelay = 2,
++				.hblankDelay = 2
++			},
++		} },
+ 		{ "imx415", {
+ 			.unitCellSize = { 1450, 1450 },
+ 			.testPatternModes = {},
+-- 
+2.55.0
+

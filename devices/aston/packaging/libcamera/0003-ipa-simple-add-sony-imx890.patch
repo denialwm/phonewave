@@ -1,0 +1,99 @@
+From d79b63dd8265704b5b913231b629020a08fdf5b3 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 21:33:50 +0200
+Subject: [PATCH] ipa: simple: Add Sony IMX890 sensor helper, properties and
+ tuning
+
+Add the Sony IMX890 sensor helper (black level 64 at 10 bits, measured;
+gain = 16384 / (16384 - code)), its sensor properties and a simple-IPA
+tuning file.
+---
+ src/ipa/libipa/camera_sensor_helper.cpp          | 12 ++++++++++++
+ src/ipa/simple/data/imx890.yaml                  | 11 +++++++++++
+ src/ipa/simple/data/meson.build                  |  1 +
+ .../sensor/camera_sensor_properties.cpp          | 16 ++++++++++++++++
+ 4 files changed, 40 insertions(+)
+ create mode 100644 src/ipa/simple/data/imx890.yaml
+
+diff --git a/src/ipa/libipa/camera_sensor_helper.cpp b/src/ipa/libipa/camera_sensor_helper.cpp
+index bccafc6..01fee4c 100644
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -690,6 +690,18 @@ public:
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx708", CameraSensorHelperImx708)
+ 
++class CameraSensorHelperImx890 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperImx890()
++	{
++		/* Measured: 64 at 10bits. */
++		blackLevel_ = 4096;
++		gain_ = AnalogueGainLinear{ 0, 16384, -1, 16384 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("imx890", CameraSensorHelperImx890)
++
+ class CameraSensorHelperOv01a10 : public CameraSensorHelper
+ {
+ public:
+diff --git a/src/ipa/simple/data/imx890.yaml b/src/ipa/simple/data/imx890.yaml
+new file mode 100644
+index 0000000..e903d96
+--- /dev/null
++++ b/src/ipa/simple/data/imx890.yaml
+@@ -0,0 +1,11 @@
++# SPDX-License-Identifier: CC0-1.0
++%YAML 1.1
++---
++version: 1
++algorithms:
++  - BlackLevel:
++      blackLevel: 4096
++  - Awb:
++  - Adjust:
++  - Agc:
++...
+diff --git a/src/ipa/simple/data/meson.build b/src/ipa/simple/data/meson.build
+index 38cea55..8b53918 100644
+--- a/src/ipa/simple/data/meson.build
++++ b/src/ipa/simple/data/meson.build
+@@ -2,6 +2,7 @@
+ 
+ conf_files = files([
+     'imx355.yaml',
++    'imx890.yaml',
+     's5k3p9.yaml',
+     'uncalibrated.yaml',
+ ])
+diff --git a/src/libcamera/sensor/camera_sensor_properties.cpp b/src/libcamera/sensor/camera_sensor_properties.cpp
+index d15817d..b7d094f 100644
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -351,6 +351,22 @@ const CameraSensorProperties *CameraSensorProperties::get(const std::string &sen
+ 				.hblankDelay = 3
+ 			},
+ 		} },
++		{ "imx890", {
++			.unitCellSize = { 1000, 1000 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 3 },
++				{ controls::draft::TestPatternModePn9, 4 },
++			},
++			.sensorDelays = {
++				.exposureDelay = 2,
++				.gainDelay = 2,
++				.vblankDelay = 2,
++				.hblankDelay = 2
++			},
++		} },
+ 		{ "ov2685", {
+ 			.unitCellSize = { 1750, 1750 },
+ 			.testPatternModes = {
+-- 
+2.55.0
+

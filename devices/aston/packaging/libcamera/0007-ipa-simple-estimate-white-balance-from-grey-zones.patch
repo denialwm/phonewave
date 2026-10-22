@@ -1,0 +1,479 @@
+From 3752b7de22b5a1e8af16f9c45b69e548fc2da2b2 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 21 Oct 2026 22:34:14 +0200
+Subject: [PATCH] ipa: simple: Estimate white balance from grey zones
+
+The software ISP only reports whole-frame colour sums, so a large coloured
+area moves the white balance: under a cool lamp, a green aquarium filling
+the frame left a white wall blue.
+
+Add a 16x12 grid of colour sums to the software statistics, leaving out
+samples with a saturated channel. When the tuning file gives an illuminant
+locus, estimate the illuminant only from the zones whose colour lies close
+to it, and fall back to the whole-frame average when none does.
+
+Extend the IMX890 locus with the stock High CCT point, assumed at 10000 K.
+---
+ .../internal/software_isp/swisp_stats.h       | 21 +++++
+ .../internal/software_isp/swstats_cpu.h       | 21 +++--
+ src/ipa/simple/algorithms/awb.cpp             | 62 ++++++++++---
+ src/ipa/simple/algorithms/awb.h               |  2 +-
+ src/ipa/simple/data/imx890.yaml               |  4 +-
+ src/libcamera/software_isp/swstats_cpu.cpp    | 92 ++++++++++++-------
+ 6 files changed, 146 insertions(+), 56 deletions(-)
+
+diff --git a/include/libcamera/internal/software_isp/swisp_stats.h b/include/libcamera/internal/software_isp/swisp_stats.h
+index d9d0d9b..cf790e7 100644
+--- a/include/libcamera/internal/software_isp/swisp_stats.h
++++ b/include/libcamera/internal/software_isp/swisp_stats.h
+@@ -43,6 +43,27 @@ struct SwIspStats {
+ 	 * \brief A histogram of luminance values of all the sampled pixels
+ 	 */
+ 	Histogram yHistogram;
++	/**
++	 * \brief Number of colour statistics zones across the window
++	 */
++	static constexpr unsigned int kAwbZonesX = 16;
++	/**
++	 * \brief Number of colour statistics zones down the window
++	 */
++	static constexpr unsigned int kAwbZonesY = 12;
++	/**
++	 * \brief Number of colour statistics zones
++	 */
++	static constexpr unsigned int kAwbZones = kAwbZonesX * kAwbZonesY;
++	/**
++	 * \brief Sums of colour channels per zone, in raster order, of the
++	 * sampled pixels that have no saturated channel
++	 */
++	std::array<RGB<uint64_t>, kAwbZones> awbZoneSum;
++	/**
++	 * \brief Number of pixels summed in each zone of awbZoneSum
++	 */
++	std::array<uint32_t, kAwbZones> awbZoneCount;
+ };
+ 
+ } /* namespace libcamera */
+diff --git a/include/libcamera/internal/software_isp/swstats_cpu.h b/include/libcamera/internal/software_isp/swstats_cpu.h
+index 5518709..b194c70 100644
+--- a/include/libcamera/internal/software_isp/swstats_cpu.h
++++ b/include/libcamera/internal/software_isp/swstats_cpu.h
+@@ -67,7 +67,7 @@ public:
+ 		    y >= (window_.y + window_.height))
+ 			return;
+ 
+-		(this->*stats0_)(src, stats_[statsBufferIndex]);
++		(this->*stats0_)(src, y - window_.y, stats_[statsBufferIndex]);
+ 	}
+ 
+ 	void processLine2(uint32_t frame, unsigned int y, const uint8_t *src[], unsigned int statsBufferIndex = 0)
+@@ -79,28 +79,29 @@ public:
+ 		    y >= (window_.y + window_.height))
+ 			return;
+ 
+-		(this->*stats2_)(src, stats_[statsBufferIndex]);
++		(this->*stats2_)(src, y - window_.y, stats_[statsBufferIndex]);
+ 	}
+ 
+ 	Signal<uint32_t, uint32_t> statsReady;
+ 
+ private:
+-	using statsProcessFn = void (SwStatsCpu::*)(const uint8_t *src[], SwIspStats &stats);
++	using statsProcessFn = void (SwStatsCpu::*)(const uint8_t *src[], unsigned int y,
++						   SwIspStats &stats);
+ 	using processFrameFn = void (SwStatsCpu::*)(MappedFrameBuffer &in);
+ 
+ 	int setupStandardBayerOrder(BayerFormat::Order order);
+ 	/* Bayer 8 bpp unpacked */
+-	void statsBGGR8Line0(const uint8_t *src[], SwIspStats &stats);
++	void statsBGGR8Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
+ 	/* Bayer 10 bpp unpacked */
+-	void statsBGGR10Line0(const uint8_t *src[], SwIspStats &stats);
++	void statsBGGR10Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
+ 	/* Bayer 12 bpp unpacked */
+-	void statsBGGR12Line0(const uint8_t *src[], SwIspStats &stats);
++	void statsBGGR12Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
+ 	/* Bayer 10 bpp packed */
+-	void statsBGGR10PLine0(const uint8_t *src[], SwIspStats &stats);
+-	void statsGBRG10PLine0(const uint8_t *src[], SwIspStats &stats);
++	void statsBGGR10PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
++	void statsGBRG10PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
+ 	/* Bayer 12 bpp packed */
+-	void statsBGGR12PLine0(const uint8_t *src[], SwIspStats &stats);
+-	void statsGBRG12PLine0(const uint8_t *src[], SwIspStats &stats);
++	void statsBGGR12PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
++	void statsGBRG12PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats);
+ 
+ 	void processBayerFrame2(MappedFrameBuffer &in);
+ 
+diff --git a/src/ipa/simple/algorithms/awb.cpp b/src/ipa/simple/algorithms/awb.cpp
+index 911fd71..21664a4 100644
+--- a/src/ipa/simple/algorithms/awb.cpp
++++ b/src/ipa/simple/algorithms/awb.cpp
+@@ -8,6 +8,7 @@
+ #include "awb.h"
+ 
+ #include <algorithm>
++#include <cmath>
+ #include <errno.h>
+ #include <limits>
+ #include <numeric>
+@@ -29,11 +30,17 @@ namespace ipa::soft::algorithms {
+ /*
+  * The optional locus lists the camera R/G and B/G ratios of a grey surface
+  * under reference illuminants, ordered by colour temperature. When it is
+- * present, the grey-world estimate is moved to the nearest point on the
+- * locus. The part of the scene average that no illuminant explains, such as
+- * a room's coloured light or a frame full of foliage, is then kept instead
+- * of being neutralised, and the colour temperature follows the locus.
++ * present, the illuminant is estimated only from the statistics zones whose
++ * colour lies within kGreyZoneBand of the locus, so that coloured surfaces,
++ * such as a frame full of foliage, do not pull the estimate. The estimate is
++ * then moved onto the locus, which also gives the colour temperature. With
++ * no zone close enough, the whole-frame average is used instead.
+  */
++static constexpr double kGreyZoneBand = 0.06;
++
++/* Zones darker than this, at 8 bits after black level, are too noisy. */
++static constexpr double kGreyZoneMinLevel = 4.0;
++
+ int Awb::init([[maybe_unused]] IPAContext &context, const ValueNode &tuningData)
+ {
+ 	for (const auto &p : tuningData["locus"].asList()) {
+@@ -53,17 +60,18 @@ int Awb::init([[maybe_unused]] IPAContext &context, const ValueNode &tuningData)
+ 	return 0;
+ }
+ 
+-void Awb::projectOnLocus(double &rg, double &bg, double &mired) const
++double Awb::projectOnLocus(double &rg, double &bg, double &mired) const
+ {
+ 	double best = std::numeric_limits<double>::max();
+ 	const double qr = rg;
+ 	const double qb = bg;
+ 
+ 	if (locus_.size() == 1) {
++		best = std::hypot(qr - locus_[0].rg, qb - locus_[0].bg);
+ 		rg = locus_[0].rg;
+ 		bg = locus_[0].bg;
+ 		mired = locus_[0].mired;
+-		return;
++		return best;
+ 	}
+ 
+ 	for (size_t i = 0; i + 1 < locus_.size(); i++) {
+@@ -84,6 +92,8 @@ void Awb::projectOnLocus(double &rg, double &bg, double &mired) const
+ 			mired = a.mired + t * (b.mired - a.mired);
+ 		}
+ 	}
++
++	return std::sqrt(best);
+ }
+ 
+ int Awb::configure(IPAContext &context,
+@@ -139,9 +149,39 @@ void Awb::process(IPAContext &context,
+ 	auto &gains = context.activeState.awb.gains;
+ 
+ 	if (!locus_.empty()) {
+-		double rg = static_cast<double>(sum.r()) / sum.g();
+-		double bg = static_cast<double>(sum.b()) / sum.g();
+-		double mired;
++		RGB<double> grey{ { 0.0, 0.0, 0.0 } };
++		unsigned int zones = 0;
++		double rg, bg, mired;
++
++		for (unsigned int i = 0; i < SwIspStats::kAwbZones; i++) {
++			const uint32_t count = stats->awbZoneCount[i];
++			if (!count)
++				continue;
++
++			RGB<double> zone{ { static_cast<double>(stats->awbZoneSum[i].r()),
++					    static_cast<double>(stats->awbZoneSum[i].g()),
++					    static_cast<double>(stats->awbZoneSum[i].b()) } };
++			zone -= static_cast<double>(blackLevel) * count;
++			if (zone.g() < kGreyZoneMinLevel * count ||
++			    zone.r() <= 0 || zone.b() <= 0)
++				continue;
++
++			rg = zone.r() / zone.g();
++			bg = zone.b() / zone.g();
++			if (projectOnLocus(rg, bg, mired) > kGreyZoneBand)
++				continue;
++
++			grey += zone;
++			zones++;
++		}
++
++		if (zones) {
++			rg = grey.r() / grey.g();
++			bg = grey.b() / grey.g();
++		} else {
++			rg = static_cast<double>(sum.r()) / sum.g();
++			bg = static_cast<double>(sum.b()) / sum.g();
++		}
+ 
+ 		projectOnLocus(rg, bg, mired);
+ 
+@@ -153,9 +193,7 @@ void Awb::process(IPAContext &context,
+ 			     context.activeState.awb.temperatureK);
+ 
+ 		LOG(IPASoftAwb, Debug)
+-			<< "grey world R/G " << static_cast<double>(sum.r()) / sum.g()
+-			<< " B/G " << static_cast<double>(sum.b()) / sum.g()
+-			<< "; locus gain R/B: " << gains << "; temperature: "
++			<< zones << " grey zones; locus gain R/B: " << gains << "; temperature: "
+ 			<< context.activeState.awb.temperatureK;
+ 		return;
+ 	}
+diff --git a/src/ipa/simple/algorithms/awb.h b/src/ipa/simple/algorithms/awb.h
+index 378b2f9..52a30fd 100644
+--- a/src/ipa/simple/algorithms/awb.h
++++ b/src/ipa/simple/algorithms/awb.h
+@@ -40,7 +40,7 @@ private:
+ 		double bg;
+ 	};
+ 
+-	void projectOnLocus(double &rg, double &bg, double &mired) const;
++	double projectOnLocus(double &rg, double &bg, double &mired) const;
+ 
+ 	std::vector<LocusPoint> locus_;
+ };
+diff --git a/src/ipa/simple/data/imx890.yaml b/src/ipa/simple/data/imx890.yaml
+index be8e144..385f108 100644
+--- a/src/ipa/simple/data/imx890.yaml
++++ b/src/ipa/simple/data/imx890.yaml
+@@ -7,7 +7,8 @@ algorithms:
+       blackLevel: 4096
+   # Grey R/G and B/G from the stock AWB reference points of the QTech module
+   # for the blackbody and daylight illuminants, at their nominal temperatures.
+-  # The fluorescent points sit off this curve and are left out.
++  # The stock "High CCT" point stores no temperature; 10000 K is assumed. The
++  # fluorescent points sit off this curve and are left out.
+   - Awb:
+       locus:
+         - { ct: 2300, rg: 1.0038, bg: 0.3092 }   # Horizon
+@@ -15,6 +16,7 @@ algorithms:
+         - { ct: 5000, rg: 0.5400, bg: 0.5852 }   # D50
+         - { ct: 6500, rg: 0.4648, bg: 0.7211 }   # D65
+         - { ct: 7500, rg: 0.4502, bg: 0.7518 }   # D75
++        - { ct: 10000, rg: 0.2455, bg: 1.1379 }  # High CCT
+   # Colour correction from the OnePlus Ace 3 stock tuning (QTech module):
+   # the bright, non-flash branch, keyed to the start of each CCT trigger.
+   - Ccm:
+diff --git a/src/libcamera/software_isp/swstats_cpu.cpp b/src/libcamera/software_isp/swstats_cpu.cpp
+index 7fb77ce..647251e 100644
+--- a/src/libcamera/software_isp/swstats_cpu.cpp
++++ b/src/libcamera/software_isp/swstats_cpu.cpp
+@@ -171,35 +171,53 @@ static constexpr unsigned int kRedYMul = 77; /* 0.299 * 256 */
+ static constexpr unsigned int kGreenYMul = 150; /* 0.587 * 256 */
+ static constexpr unsigned int kBlueYMul = 29; /* 0.114 * 256 */
+ 
+-#define SWSTATS_START_LINE_STATS(pixel_t) \
+-	pixel_t r, g, g2, b;              \
+-	uint64_t yVal;                    \
+-                                          \
+-	uint64_t sumR = 0;                \
+-	uint64_t sumG = 0;                \
+-	uint64_t sumB = 0;
+-
+-#define SWSTATS_ACCUMULATE_LINE_STATS(div) \
+-	sumR += r;                         \
+-	sumG += g;                         \
+-	sumB += b;                         \
+-                                           \
+-	yVal = r * kRedYMul;               \
+-	yVal += g * kGreenYMul;            \
+-	yVal += b * kBlueYMul;             \
+-	stats.yHistogram[yVal * SwIspStats::kYHistogramSize / (256 * 256 * (div))]++;
++/*
++ * Samples with a channel at or above this level, at 8 bits, are left out of the
++ * zone sums: a clipped channel would skew the zone's colour.
++ */
++static constexpr unsigned int kAwbSaturation = 250;
++
++#define SWSTATS_START_LINE_STATS(pixel_t, xEnd)                          \
++	pixel_t r, g, g2, b;                                              \
++	uint64_t yVal;                                                    \
++                                                                          \
++	uint64_t sumR = 0;                                                \
++	uint64_t sumG = 0;                                                \
++	uint64_t sumB = 0;                                                \
++                                                                          \
++	const unsigned int zoneEnd = (xEnd);                              \
++	const unsigned int zoneSat = kAwbSaturation << sumShift_;         \
++	const unsigned int zoneRow = y * SwIspStats::kAwbZonesY /         \
++				     window_.height * SwIspStats::kAwbZonesX;
++
++#define SWSTATS_ACCUMULATE_LINE_STATS(div)                                \
++	sumR += r;                                                        \
++	sumG += g;                                                        \
++	sumB += b;                                                        \
++                                                                          \
++	yVal = r * kRedYMul;                                              \
++	yVal += g * kGreenYMul;                                           \
++	yVal += b * kBlueYMul;                                            \
++	stats.yHistogram[yVal * SwIspStats::kYHistogramSize / (256 * 256 * (div))]++; \
++                                                                          \
++	if (r < zoneSat && g < zoneSat && b < zoneSat) {                  \
++		unsigned int zone = zoneRow +                             \
++			x * SwIspStats::kAwbZonesX / zoneEnd;             \
++		stats.awbZoneSum[zone] += RGB<uint64_t>({ r, g, b });     \
++		stats.awbZoneCount[zone]++;                               \
++	}
+ 
+ #define SWSTATS_FINISH_LINE_STATS() \
+ 	stats.sum_.r() += sumR;     \
+ 	stats.sum_.g() += sumG;     \
+ 	stats.sum_.b() += sumB;
+ 
+-void SwStatsCpu::statsBGGR8Line0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsBGGR8Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint8_t *src0 = src[1] + window_.x;
+ 	const uint8_t *src1 = src[2] + window_.x;
+ 
+-	SWSTATS_START_LINE_STATS(uint8_t)
++	SWSTATS_START_LINE_STATS(uint8_t, window_.width)
+ 
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+@@ -219,12 +237,12 @@ void SwStatsCpu::statsBGGR8Line0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsBGGR10Line0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsBGGR10Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint16_t *src0 = (const uint16_t *)src[1] + window_.x;
+ 	const uint16_t *src1 = (const uint16_t *)src[2] + window_.x;
+ 
+-	SWSTATS_START_LINE_STATS(uint16_t)
++	SWSTATS_START_LINE_STATS(uint16_t, window_.width)
+ 
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+@@ -245,12 +263,12 @@ void SwStatsCpu::statsBGGR10Line0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsBGGR12Line0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsBGGR12Line0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint16_t *src0 = (const uint16_t *)src[1] + window_.x;
+ 	const uint16_t *src1 = (const uint16_t *)src[2] + window_.x;
+ 
+-	SWSTATS_START_LINE_STATS(uint16_t)
++	SWSTATS_START_LINE_STATS(uint16_t, window_.width)
+ 
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+@@ -271,7 +289,7 @@ void SwStatsCpu::statsBGGR12Line0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsBGGR10PLine0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsBGGR10PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint8_t *src0 = src[1] + window_.x * 5 / 4;
+ 	const uint8_t *src1 = src[2] + window_.x * 5 / 4;
+@@ -280,7 +298,7 @@ void SwStatsCpu::statsBGGR10PLine0(const uint8_t *src[], SwIspStats &stats)
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+ 
+-	SWSTATS_START_LINE_STATS(uint8_t)
++	SWSTATS_START_LINE_STATS(uint8_t, widthInBytes)
+ 
+ 	/* x += 5 sample every other 2x2 block */
+ 	for (unsigned int x = 0; x < widthInBytes; x += 5) {
+@@ -297,7 +315,7 @@ void SwStatsCpu::statsBGGR10PLine0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsGBRG10PLine0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsGBRG10PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint8_t *src0 = src[1] + window_.x * 5 / 4;
+ 	const uint8_t *src1 = src[2] + window_.x * 5 / 4;
+@@ -306,7 +324,7 @@ void SwStatsCpu::statsGBRG10PLine0(const uint8_t *src[], SwIspStats &stats)
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+ 
+-	SWSTATS_START_LINE_STATS(uint8_t)
++	SWSTATS_START_LINE_STATS(uint8_t, widthInBytes)
+ 
+ 	/* x += 5 sample every other 2x2 block */
+ 	for (unsigned int x = 0; x < widthInBytes; x += 5) {
+@@ -323,13 +341,13 @@ void SwStatsCpu::statsGBRG10PLine0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsBGGR12PLine0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsBGGR12PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint8_t *src0 = src[1] + window_.x * 3 / 2;
+ 	const uint8_t *src1 = src[2] + window_.x * 3 / 2;
+ 	const unsigned int widthInBytes = window_.width * 3 / 2;
+ 
+-	SWSTATS_START_LINE_STATS(uint8_t)
++	SWSTATS_START_LINE_STATS(uint8_t, widthInBytes)
+ 
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+@@ -349,13 +367,13 @@ void SwStatsCpu::statsBGGR12PLine0(const uint8_t *src[], SwIspStats &stats)
+ 	SWSTATS_FINISH_LINE_STATS()
+ }
+ 
+-void SwStatsCpu::statsGBRG12PLine0(const uint8_t *src[], SwIspStats &stats)
++void SwStatsCpu::statsGBRG12PLine0(const uint8_t *src[], unsigned int y, SwIspStats &stats)
+ {
+ 	const uint8_t *src0 = src[1] + window_.x * 3 / 2;
+ 	const uint8_t *src1 = src[2] + window_.x * 3 / 2;
+ 	const unsigned int widthInBytes = window_.width * 3 / 2;
+ 
+-	SWSTATS_START_LINE_STATS(uint8_t)
++	SWSTATS_START_LINE_STATS(uint8_t, widthInBytes)
+ 
+ 	if (swapLines_)
+ 		std::swap(src0, src1);
+@@ -392,6 +410,8 @@ void SwStatsCpu::startFrame(uint32_t frame)
+ 	for (auto &s : stats_) {
+ 		s.sum_ = RGB<uint64_t>({ 0, 0, 0 });
+ 		s.yHistogram.fill(0);
++		s.awbZoneSum.fill(RGB<uint64_t>({ 0, 0, 0 }));
++		s.awbZoneCount.fill(0);
+ 	}
+ }
+ 
+@@ -409,13 +429,21 @@ void SwStatsCpu::finishFrame(uint32_t frame, uint32_t bufferId)
+ 	if (valid) {
+ 		sharedStats_->sum_ = RGB<uint64_t>({ 0, 0, 0 });
+ 		sharedStats_->yHistogram.fill(0);
++		sharedStats_->awbZoneSum.fill(RGB<uint64_t>({ 0, 0, 0 }));
++		sharedStats_->awbZoneCount.fill(0);
+ 		for (const auto &s : stats_) {
+ 			sharedStats_->sum_ += s.sum_;
+ 			for (unsigned int j = 0; j < SwIspStats::kYHistogramSize; j++)
+ 				sharedStats_->yHistogram[j] += s.yHistogram[j];
++			for (unsigned int j = 0; j < SwIspStats::kAwbZones; j++) {
++				sharedStats_->awbZoneSum[j] += s.awbZoneSum[j];
++				sharedStats_->awbZoneCount[j] += s.awbZoneCount[j];
++			}
+ 		}
+ 
+ 		sharedStats_->sum_ >>= sumShift_;
++		for (auto &zone : sharedStats_->awbZoneSum)
++			zone >>= sumShift_;
+ 	}
+ 
+ 	sharedStats_->valid = valid;
+@@ -589,7 +617,7 @@ void SwStatsCpu::processBayerFrame2(MappedFrameBuffer &in)
+ 		/* linePointers[0] is not used by any stats0_ functions */
+ 		linePointers[1] = src;
+ 		linePointers[2] = src + stride_;
+-		(this->*stats0_)(linePointers, stats_[0]);
++		(this->*stats0_)(linePointers, y, stats_[0]);
+ 		src += stride_ * 2;
+ 	}
+ }
+-- 
+2.55.0
+
