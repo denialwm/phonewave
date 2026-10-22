@@ -49,10 +49,13 @@ Apps and their libraries are not part of Phonewave; they live in
 | haptics | [`hapticd`](services/haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
 | clock | [`rtc-offset`](services/clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | memory | [`zram-swap`](services/memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
+| radio | [`radio-addr`](services/radio/radio-addr) | Wi-Fi and Bluetooth addresses from the SoC serial, for bootloaders that pass none | `aston` |
 | wallpaper | [`wallpaper-depth`](services/wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | fingerprint | [`jiiov`](services/fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | fingerprint | [`uff`](services/fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | modem | [`qmi-tools`](services/modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
+| audio | [`callaudio`](services/audio/callaudio) | Puts the sound card on its voice call profile while the modem has a call; call volume and mute | any with a `Voice Call` UCM verb |
+| audio | [`voicegen`](services/audio/voicegen) | Builds a voice call profile for the kernel from the stock ACDB, on the workstation | Qualcomm AudioReach |
 
 ## Install
 

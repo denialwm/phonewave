@@ -54,8 +54,48 @@ Lock screen: wallpaper-depth (services/wallpaper/wallpaper-depth) is installed
 with float16 weights, cross-built as its README says; Denial runs it when
 the wallpaper picker closes. Removing it turns the cut off.
 
+Speakers: since devices41 two TFA9873 amplifiers (top 0x34, bottom 0x35 on
+I2C6) play Secondary MI2S, left and right; the kernel's tfa987x driver sets
+them up without speaker protection. rootfs/ carries the UCM profile
+(`conf.d/sm8550/astonsnd.conf`, HiFi verb, Speaker device on MultiMedia1)
+and `51-aston-audio.conf`, which gives PipeWire software volume because the
+DSP volume control's dB metadata is invalid, as on the Pad 4.
+
+Microphones: the WCD9380 takes AMIC1 on ADC1 (TX SMIC SWR_MIC0) and AMIC5
+on ADC4, input INP5 (SWR_MIC1), the handset pair of the stock
+mixer_paths.xml. ADC1/2 and ADC3/4 share one SoundWire master port, so one
+mic records at a time: UCM devices Mic1 and Mic2 conflict, and PipeWire
+offers them as the profiles "HiFi (Mic1, Speaker)" (default) and
+"HiFi (Mic2, Speaker)". The capture PCM is stereo only; both decimators take
+the chosen mic. AMIC1 is much less sensitive than AMIC5: Mic1 uses the
+stock recorder gain (oprec-mic, ADC 14 = +21 dB), Mic2 the handset gain
+(ADC 6 = +9 dB); both decimators stay at 84 (0 dB).
+
+Calls: the ADSP carries call speech between the modem and the hardware once
+the kernel's q6apm voice session (devices51 on) has started its two graphs.
+They come from `/lib/firmware/qcom/sm8550/aston-voice.bin`, which
+services/audio/voicegen builds on the host from the stock ACDB as
+`audio/voice.toml` describes; the vault keeps it, with its provenance, under
+`firmware/usr/lib/firmware/qcom/sm8550/`. The UCM verb "Voice Call" puts
+Speaker and Mic on the policy PCM 13; its Mic device routes AMIC5 to
+decimator 0, as the stock handset path, and asks the kernel to start the
+graphs. callaudio (services/audio/callaudio, a user unit enabled from
+rootfs/) switches the card to that verb while dmail has a call. Speech plays
+on both amplifiers; the earpiece alone needs per-amplifier switches in
+tfa987x. "Voice Call Volume" takes the stock HAL's six levels (5 loudest,
+the default); "TX_AIF1 Capture Switch" mutes the microphone.
+
 Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
-colour emoji font the native apps draw emoji with.
+colour emoji font the native apps draw emoji with, and `bluez bluez-utils`,
+with `systemctl enable bluetooth`.
+
+Radio addresses: the ABL passes no Wi-Fi or Bluetooth address, so the
+WCN7850 reports its firmware's shared default MAC and its Bluetooth
+controller stays unconfigured. radio-addr (services/radio/radio-addr),
+installed with its `make install`, derives both from the SoC serial.
+rootfs/ carries `90-radio-addr-wifi.rules`, which sets wlan0's MAC before
+NetworkManager sees it, and the `bluetooth.target.wants` link that runs
+`radio-addr-bluetooth.service`.
 
 Memory: zram-swap (services/memory/zram-swap) gives 7.3 GB of zstd swap, half
 of memory; rootfs/ enables it with a swap.target.wants link and keeps GPU
