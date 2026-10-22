@@ -305,6 +305,9 @@ impl Daemon<'_> {
         if let Err(e) = life.open_sim(self, &mut props).await {
             log(e);
         }
+        if life.sim == Sim::Ready {
+            life.read_number(&mut props).await;
+        }
         life.refresh_network(self, &mut props).await;
         if life.sim == Sim::Ready {
             life.import_stored(self).await;
@@ -726,6 +729,7 @@ impl Life {
         if now == Sim::Ready {
             self.sim_ready(d, props).await;
         } else {
+            props.number.clear();
             self.end_session().await;
             self.refresh_network(d, props).await;
             self.connect(d).await;
@@ -734,9 +738,21 @@ impl Life {
 
     /// What follows the SIM becoming usable.
     async fn sim_ready(&mut self, d: &Daemon<'_>, props: &mut ModemProps) {
+        self.read_number(props).await;
         self.refresh_network(d, props).await;
         self.import_stored(d).await;
         self.connect(d).await;
+    }
+
+    /// The open SIM's own number, for Modem1.Number.
+    async fn read_number(&self, props: &mut ModemProps) {
+        props.number = match modem::msisdn(&self.m.dms).await {
+            Ok(number) => number.unwrap_or_default(),
+            Err(e) => {
+                log(format!("own number: {e}"));
+                String::new()
+            }
+        };
     }
 
     /// Reads registration, and the signal when the radio changed; publishes
@@ -1123,6 +1139,7 @@ impl Life {
         self.end_session().await;
         self.apn = None;
         self.sim = Sim::Missing;
+        props.number.clear();
         if let Err(e) = self.open_sim(d, props).await {
             log(e);
         }

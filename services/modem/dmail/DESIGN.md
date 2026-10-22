@@ -296,6 +296,7 @@ Changes go out as PropertiesChanged.
 | | `Roaming` | `b` |
 | | `PinRetries` | `u` |
 | | `SimSlot` | `y`: 1 or 2, the SIM for SMS and data |
+| | `Number` | `s`: the SIM's own number as it holds it, empty if none |
 | | `UnlockPin(s pin)` | |
 | | `SetSimSlot(y slot)` | saved, applied at once |
 | `org.dmail.Data1` | `Enabled` | `b` |

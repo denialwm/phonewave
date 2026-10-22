@@ -62,6 +62,7 @@ pub struct ModemProps {
     pub roaming: bool,
     pub pin_retries: u32,
     pub sim_slot: u8,
+    pub number: String,
 }
 
 impl ModemProps {
@@ -75,6 +76,7 @@ impl ModemProps {
             roaming: false,
             pin_retries: 0,
             sim_slot,
+            number: String::new(),
         }
     }
 }
@@ -123,6 +125,13 @@ impl Modem {
     #[zbus(property)]
     fn sim_slot(&self) -> u8 {
         self.props.sim_slot
+    }
+
+    /// The SIM's own number as the SIM holds it; empty when it holds none
+    /// or is not open.
+    #[zbus(property)]
+    fn number(&self) -> String {
+        self.props.number.clone()
     }
 
     /// One attempt. The PIN is never stored.
@@ -569,6 +578,9 @@ impl Bus {
         }
         if old.sim_slot != p.sim_slot {
             m.sim_slot_changed(e).await?;
+        }
+        if old.number != p.number {
+            m.number_changed(e).await?;
         }
         Ok(())
     }
