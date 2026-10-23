@@ -25,3 +25,5 @@ when the device is next reinstalled from here.
 
 A new device needs only `device.toml`. Add `rootfs/` when it has files to
 install.
+
+USB standby and connector-driver gaps are documented in [usb-standby.md](usb-standby.md).

@@ -39,6 +39,38 @@ restarts fprintd). stage_compositor.py stages the deniald named by the cached
 compositor-build.json; activate_compositor.py selects it through
 denial.service.d/zz-fingerprint.conf and restarts the graphical session.
 
+Charging: since devices59 the kernel's `sc8517-charger` owns the SuperVOOC
+PHY, the PM8550B USB switches and negotiation. It loads from the device tree;
+no charging service or live-node/autostart module is needed. Since devices61 it
+requests up to 5.2 A with the tested adapter (model 0x4b), staying below a 50 W
+ceiling throughout the permitted input-voltage range. Other models retain a
+3 A ceiling. The higher tier requires 20 to 35 degrees C, less than 75% charge
+and less than 8.648 V pack voltage. It derates to 3 A at 35 degrees C and 2 A
+at 40 degrees C, and keeps the lower limit for the rest of the cable session.
+The battery-current cutoff is 6 A, below the vendor's 9.5 A limit.
+
+Above 80% it still requests up to 2 A (roughly 17 to 18 W), tapering to 1.2 A
+(roughly 10 to 11 W) at 85%. Voltage and temperature can taper it earlier.
+At 90% the PMIC buck path takes over and ordinary charging continues. Battery
+power is lower than these adapter-side estimates because of losses and phone
+consumption. Fast charging also stops below 12 degrees C, at 43 degrees C, or
+at a 9.088 V pack voltage. Hardware V1X overvoltage protection stays at the
+vendor's 4.725 V threshold; V2X protection is enabled at 9.5 V. Both are checked
+before connecting the battery. A communication timeout, gauge failure or hardware
+fault opens the direct path and restores the PMIC buck input. The driver holds
+a wakeup source while negotiating and charging, and stops before shutdown.
+
+`/sys/class/power_supply/sc8517-charger` reports `online=1` and
+`charge_type=Fast` after negotiation. Check the BQ28Z610 supply's voltage,
+current and temperature for the actual battery state: the PMIC's battery
+endpoint is a placeholder, and its USB current measures the buck path. The
+OnePlus SM8550 GLINK dialect reads the cable classification from USB_ADAP_TYPE;
+USB_TYPE describes the firmware's supply class. The advertised current alone
+does not identify an adapter. The kernel requires SuperVOOC identification
+before enabling the direct path and leaves USB data ports on the PMIC path.
+After manually unbinding or reloading the PHY driver with the charger attached,
+reconnect the cable to let the PMIC classify the charger again.
+
 Modem: dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `aston-modem-rmtfs` and
 `aston-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
@@ -111,3 +143,16 @@ buffers out of swap with `aston-msm-gpu-eviction.conf`, as on the Pad 4.
 Since devices40 the kernel backs GPU buffers with huge pages
 (`msm.transparent_hugepage`, on by default); `dmesg` says "Using Transparent
 Hugepage".
+
+Standby: devices62 disabled the unused QCE crypto accelerator on the board;
+since devices63 the SM8550 description supplies that default for every board,
+as do the shared Kaanapali and Eliza descriptions. QCE's driver is marked
+BROKEN; leaving its device-tree node enabled kept two
+interconnect providers waiting for a driver and retained the maximum boot
+bandwidth floor, pinning DDR at 4224 MHz even with the display and GPU off.
+Disabling it lets all 15 providers synchronize and memory frequency follow
+actual requests. The separate UFS inline crypto engine stays enabled.
+
+USB standby: [the shared USB notes](../usb-standby.md) describe the controller
+policy and the missing firmware cable events. The investigation's Aston udev
+rule was removed before devices63 validation and is not installed in rootfs/.
