@@ -1,20 +1,21 @@
-"""Activate the staged buffer-return Denial on denialpad4 (root): back up the launcher and plugin selection, stop
+"""Usage: activate.py ID. Activate the staged Denial /opt/denial/ID on denialpad4 (root): back up the launcher and plugin selection, stop
 pad4-denial.service, point the launcher at the new installation (bundle and Settings) and select its composed shell,
 start, verify. The launcher carries no composition flags; layered and native window composition stay built-in
 defaults. Stopping Denial ends the graphical session, which also restarts the Android cell. Refuses to stop
 Denial while anything but a stoppable ttyGS0 agetty holds the /dev/console flock (PID 1 deadlock, 2026-10-16). No automatic rollback: on failure the new
 selection stays and the backup path is printed."""
 from pathlib import Path
-import hashlib, json, os, shutil, subprocess, time
+import hashlib, json, os, re, shutil, subprocess, sys, time
 
 assert os.geteuid() == 0 and Path('/etc/pad4-root-id').read_text().strip() == '59b8e7b3:archroot-v1'
 BOOT = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
-target = Path('/opt/denial/pad4-buffer-return-20261016')
-previous = Path('/opt/denial/pad4-apply-late-20261016')
+target = Path('/opt/denial') / sys.argv[1]
+launcher = Path('/usr/local/bin/pad4-denial-login')
+previous = Path(re.search(r'^bundle=(/opt/denial/[^/\n]+)$', launcher.read_text(), re.M).group(1))
+assert previous != target
 old_settings = str(previous / 'settings/denial-settings')
 new_settings = str(target / 'settings/denial-settings')
-launcher = Path('/usr/local/bin/pad4-denial-login')
 FLAGS = ['export DENIAL_NATIVE_WINDOW_COMPOSITION=1\n', 'export DENIAL_LAYERED_COMPOSITION=1\n']
 selection = Path('/home/logix/.config/denial/plugin-composition.json')
 plugin = target / 'plugin-bundle'
@@ -31,7 +32,7 @@ native_sha = sha(target / 'native/deniald')
 
 old_pid = int(subprocess.check_output(['systemctl', 'show', 'pad4-denial.service', '-p', 'MainPID', '--value']))
 assert old_pid and Path(f'/proc/{old_pid}/exe').resolve() == previous / 'native/deniald'
-backup = results / ('buffer-return-20261016-attempt-' + str(time.monotonic_ns()))
+backup = results / (target.name + '-attempt-' + str(time.monotonic_ns()))
 backup.mkdir(mode=0o700)
 shutil.copy2(launcher, backup / 'pad4-denial-login')
 shutil.copy2(selection, backup / 'plugin-composition.json')
@@ -40,7 +41,7 @@ shutil.copy2(selection, backup / 'plugin-composition.json')
 
 def atomic(path, text):
     st = path.stat()
-    pending = path.with_name(path.name + '.buffer-return-new')
+    pending = path.with_name(path.name + '.activate-new')
     with pending.open('x') as stream:
         stream.write(text)
         stream.flush()
@@ -108,10 +109,15 @@ try:
     subprocess.run(['runuser', '-u', 'logix', '--', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus',
                     'systemctl', '--user', 'daemon-reload'], check=True, timeout=15)
     os.sync()
-    subprocess.run(['systemctl', 'start', 'pad4-denial.service'], check=True, timeout=30)
+    subprocess.run(['systemctl', 'start', '--no-block', 'pad4-denial.service'], check=True, timeout=10)
     deadline = time.monotonic() + 45
     ui = None
     while time.monotonic() < deadline:
+        # 2026-10-23: the start waited on tty1 in ExecStartPre until something closed tty1 again;
+        # an open and close of tty1 wakes systemd's wait for the terminal.
+        if subprocess.run(['systemctl', 'show', 'pad4-denial.service', '-p', 'SubState', '--value'],
+                          capture_output=True, text=True).stdout.strip() == 'start-pre':
+            os.close(os.open('/dev/tty1', os.O_RDONLY | os.O_NOCTTY))
         pid = int(subprocess.check_output(['systemctl', 'show', 'pad4-denial.service', '-p', 'MainPID', '--value']) or 0)
         if pid and pid != old_pid and Path(f'/proc/{pid}/exe').exists() and sha(f'/proc/{pid}/exe') == native_sha:
             try:

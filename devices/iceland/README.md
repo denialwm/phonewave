@@ -31,10 +31,15 @@ the tablet's own pad4-flash, which checks the image and reads it back.
 Only boot_b and init_boot_b are ever written. Never set_active, erase, format, GPT
 edits or EDL. Tablet #1 was bricked that way.
 
-Deploying Denial: tools/denial/build-recipe.py builds a candidate from
-/mnt/development/denial-os/denial, build-composed-shell.py composes the shell from the vault
-template, and package.py packs payload.tar.zst; all three write under
-~/.cache/phonewave/iceland/denial. Copy the archive, archive.sha256, stage.py and
-activate.py to the tablet's ~/.cache/pad4-deploy-buffer-return-20261016, then run
-stage.py and activate.py there with sudo -n. Activation restarts the graphical
-session. The Denial runtime libraries in /opt are copied from the vault.
+Deploying Denial: every step takes the release name ID, for example
+pad4-smithay-release-20261023, which becomes /opt/denial/ID on the tablet.
+tools/denial/build-recipe.py build --denial SOURCE --candidate
+~/.cache/phonewave/iceland/denial/ID/candidate builds a candidate from a Denial
+checkout or worktree, build-composed-shell.py ID composes the shell from the
+vault template, and package.py ID PREVIOUS packs payload.tar.zst, where PREVIOUS
+is the /opt/denial installation the tablet runs. All three write under
+~/.cache/phonewave/iceland/denial/ID. Copy the archive, archive.sha256, stage.py
+and activate.py to the tablet's ~/.cache/pad4-deploy-ID, then run `sudo -n
+python3 stage.py ID` and `sudo -n python3 activate.py ID` there. Activation
+restarts the graphical session and Droidloom with it. The Denial runtime
+libraries in /opt are copied from the vault.

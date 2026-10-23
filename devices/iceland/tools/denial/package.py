@@ -1,13 +1,15 @@
-"""Pack the latest-code candidate and its composed shell into one matched tablet payload. Never connects."""
+"""Usage: package.py ID PREVIOUS, where PREVIOUS is the /opt/denial installation the tablet runs.
+
+Pack the latest-code candidate and its composed shell into one matched tablet payload. Never connects."""
 from pathlib import Path
-import hashlib, json, os, shutil, subprocess
+import hashlib, json, os, shutil, subprocess, sys
 
 HERE = Path(__file__).resolve().parent
 VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
-OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/pad4-buffer-return-20261016'
+ID, PREVIOUS = sys.argv[1], sys.argv[2]
+OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial' / ID
 CANDIDATE = OUT / 'candidate'
 COMPOSED = OUT / 'composed'
-ID = 'pad4-buffer-return-20261016'
 payload = OUT / 'payload'
 sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
@@ -34,13 +36,13 @@ shutil.copy2(CANDIDATE / 'source-manifest.json', payload / 'build-source-manifes
 shutil.copy2(COMPOSED / 'manifest.json', payload / 'composition-manifest.json')
 shutil.copy2(VAULT / 'denial/abi-probe/pad4-denial-abi-probe', payload / 'abi-probe')
 deployment = {
-    'id': ID, 'source_root': '/mnt/development/denial-os/denial', 'source_mode': 'local development including uncommitted changes',
+    'id': ID, 'source_root': json.loads((CANDIDATE / 'source-manifest.json').read_text()).get('root', '/mnt/development/denial-os/denial'), 'source_mode': 'local development including uncommitted changes',
     'classification': 'release-mode engine and AOT; DEVELOPMENT build, not release-audited',
     'source_head': json.loads((CANDIDATE / 'source-manifest.json').read_text())['head'],
     'flutter': manifest['flutter'], 'skia': manifest['skia'], 'lock_divergence': manifest['lock_divergence'],
     'settings_schema': manifest['settings_schema'], 'engine_sha256': manifest['engine_inputs']['libflutter_engine.so'],
     'plugin_bundle': 'plugin-bundle', 'plugin_bundle_app_sha256': bundle['app_sha256'],
-    'prior_installation': '/opt/denial/pad4-apply-late-20261016',
+    'prior_installation': PREVIOUS,
     'composition': 'layered and native window composition built in; no DENIAL_* composition switches',
 }
 (payload / 'deployment.json').write_text(json.dumps(deployment, indent=2) + '\n')

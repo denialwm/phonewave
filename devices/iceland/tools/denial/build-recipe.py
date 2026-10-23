@@ -256,7 +256,7 @@ def main():
     for root, name in [(a.flutter, 'flutter'), (a.skia, 'skia')]:
         (c / (name + '.patch')).write_bytes(subprocess.check_output(['git', '-C', str(root), 'diff', '--binary', 'HEAD']))
     (c / 'source.patch').write_bytes(subprocess.check_output(['git', '-C', str(a.denial), 'diff', '--binary', 'HEAD']))
-    (c / 'source-manifest.json').write_text(json.dumps(dict(head=text(['git', '-C', a.denial, 'rev-parse', 'HEAD']), source_sha256=inputs, flutter=fstate, skia=sstate), indent=2) + '\n')
+    (c / 'source-manifest.json').write_text(json.dumps(dict(root=str(a.denial), head=text(['git', '-C', a.denial, 'rev-parse', 'HEAD']), source_sha256=inputs, flutter=fstate, skia=sstate), indent=2) + '\n')
     def unchanged():
         if inventory(a.denial) != inputs or any(sha(source / n) != h for n, h in inputs.items()):
             raise RuntimeError('Denial source changed during build; do not package')

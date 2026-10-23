@@ -1,4 +1,6 @@
-"""Build the tablet's plugin composition (clock, desktop, launcher, pets, local taskbar; no top bar) from the
+"""Usage: build-composed-shell.py ID
+
+Build the tablet's plugin composition (clock, desktop, launcher, pets, local taskbar; no top bar) from the
 latest-code candidate's own source snapshot and engine.
 
 The composition files are the plugin manager's output for this selection (surface-occlusion candidate01). The
@@ -9,7 +11,8 @@ import hashlib, json, re, shutil, subprocess, os, sys
 
 HERE = Path(__file__).resolve().parent
 VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
-OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/pad4-buffer-return-20261016'
+ID = sys.argv[1]
+OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial' / ID
 CANDIDATE = OUT / 'candidate'
 TEMPLATE = VAULT / 'denial/composition-template'
 TASKBAR = Path('/mnt/development/denial-os/denial-plugins/plugins/denial_taskbar')
@@ -87,7 +90,7 @@ shutil.copytree(assembly / 'flutter_assets', bundle / 'data/flutter_assets')
 assert 'ARM aarch64' in subprocess.check_output(['file', '-b', str(bundle / 'lib/libapp.so')], text=True)
 abi = re.search(r'FLUTTER_ENGINE_ABI: &str = "([^"]+)"', (source / 'compositor/src/lib.rs').read_text()).group(1)
 metadata = {
-    'schema': 1, 'id': 'pad4-buffer-return-20261016-composed', 'mode': 'release', 'platform': 'linux-arm64',
+    'schema': 1, 'id': ID + '-composed', 'mode': 'release', 'platform': 'linux-arm64',
     'flutter_generation': abi, 'engine_sha256': sha(engine), 'app_sha256': sha(bundle / 'lib/libapp.so'),
     'icu_sha256': sha(icu), 'assets_sha256': tree_digest(bundle / 'data/flutter_assets'),
     'framework_revision': manifest['flutter']['head'],
