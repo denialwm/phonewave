@@ -1,0 +1,7 @@
+# simple_ondemand samples every 50 ms, too late for 120 Hz touch and
+# animation bursts, and a frame that misses its vblank lowers the load it
+# sees. While the user interacts, Denial raises the floor to the highest
+# operating point and restores it after its hold time, so the video group
+# may write it. The idle floor stays the driver's.
+ACTION=="add", SUBSYSTEM=="devfreq", KERNEL=="3d00000.gpu", \
+  RUN+="/usr/bin/chgrp video /sys%p/min_freq", RUN+="/usr/bin/chmod g+w /sys%p/min_freq"
