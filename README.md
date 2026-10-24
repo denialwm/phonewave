@@ -53,9 +53,11 @@ Apps and their libraries are not part of Phonewave; they live in
 | wallpaper | [`wallpaper-depth`](services/wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | fingerprint | [`jiiov`](services/fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | fingerprint | [`uff`](services/fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
+| modem | [`dmail`](services/modem/dmail) | Modem service over QMI: SIM, calls, messages and mobile data, in place of ModemManager | `aston` |
 | modem | [`qmi-tools`](services/modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
 | audio | [`callaudio`](services/audio/callaudio) | Puts the sound card on its voice call profile while the modem has a call; call volume and mute | any with a `Voice Call` UCM verb |
 | audio | [`voicegen`](services/audio/voicegen) | Builds a voice call profile for the kernel from the stock ACDB, on the workstation | Qualcomm AudioReach |
+| screen | [`screen-record`](services/screen/screen-record) | Records the screen through Denial, scaled on the GPU, to H.264 video | any running Denial |
 
 ## Install
 
