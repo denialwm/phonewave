@@ -4,13 +4,14 @@
 # boot_b image produced by ../../boot/build-boot.sh from the
 # Moto's own build of the shared devices kernel (branch devices/v7.3); this
 # package carries its modules and the image's checksum.
-# Build: ../build.sh linux-moto70-mainline N   (release 7.3.0-rc7-devicesN-roadstr)
+# Build: ../build.sh linux-moto70-mainline N   (release <version>-devicesN-roadstr)
 pkgname=linux-moto70-mainline
 _n=${MOTO70_KERNEL_SUFFIX:?set MOTO70_KERNEL_SUFFIX to the devices release number, e.g. 1}
-_kernelrel=7.3.0-rc7-devices${_n}-roadstr
 _out=/mnt/development/denial-os/linux-perpetua-build/releases/devices-${_n}-roadstr
+_kernelrel=$(sed -n 's/^ *"release": "\(.*\)",$/\1/p' "$_out/manifest.json")
 _image=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/roadstr/boot/boot-${_n}.img
-pkgver=7.3.0rc7.devices${_n}
+pkgver=${_kernelrel%-roadstr}
+pkgver=${pkgver//-/.}
 pkgrel=1
 pkgdesc='Mainline Linux 7.3 modules for the Motorola Edge 70 (kernel flashed to boot_b)'
 arch=(aarch64)

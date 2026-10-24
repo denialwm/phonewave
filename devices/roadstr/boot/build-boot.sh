@@ -12,6 +12,8 @@ K=/mnt/development/denial-os/linux-perpetua
 # The factory boot image is the template of the header and AVB footer.
 TEMPLATE=$V/stock/firmware-W1WR36.39-115/boot.img
 OUT=$P/releases/devices-$N-roadstr
+# Vault images are never rewritten: a number is used once.
+[[ ! -e $V/boot/boot-$N.img ]] || { echo "boot-$N.img is already in the vault; take a new number" >&2; exit 1 }
 echo "403a6078b0130b9413a33985f8b3e0648925762b1e565faa1dba07b7089242a4  $TEMPLATE" | sha256sum -c --quiet
 $P/tools/devices-build roadstr $N "$@"
 REL=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["release"])' $OUT/manifest.json)
