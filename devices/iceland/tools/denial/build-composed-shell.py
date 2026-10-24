@@ -61,7 +61,10 @@ assert pubspec.count(top_bar) == 1 and pubspec.count(taskbar_git) == 1, 'checkou
 composed = pubspec.replace(top_bar, '').replace(taskbar_git, '').replace('  flutter:\n    sdk: flutter\ndev_dependencies:\n',
                                                                        '  flutter:\n    sdk: flutter\n' + taskbar_path + 'dev_dependencies:\n')
 strip_comment = lambda text: text.replace('# Source metadata only; signed Git tags supply release/runtime versions.\n', '')
-assert strip_comment(composed) == (TEMPLATE / 'pubspec.yaml').read_text(), 'composition differs from the plugin manager output'
+# Dev dependencies follow the checkout and select no plugin.
+without_dev = lambda text: re.sub(r'^dev_dependencies:\n(?:[ \t].*\n|\n)*', '', text, flags=re.M)
+assert without_dev(strip_comment(composed)) == without_dev((TEMPLATE / 'pubspec.yaml').read_text()), \
+    'composition differs from the plugin manager output'
 (shell / 'pubspec.yaml').write_text(composed)
 for name in ['lib/main.dart', 'lib/composition.g.dart', 'composition-discovery.json']:
     shutil.copy2(TEMPLATE / name, shell / name)
