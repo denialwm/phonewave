@@ -55,7 +55,7 @@ ExecStartPre=+/bin/sh -c 'test -e /var/lib/moto70-mainline/outputs.conf || insta
 # Moto helpers reach the session through this stable link.
 ExecStartPre=+/usr/bin/ln -sfn /run/user/1000 /run/denial-root
 # The deployment is the one /var/lib/moto70-denial/mainline-current names.
-ExecStart=/var/lib/moto70-denial/mainline-current/native/deniald --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /var/lib/moto70-mainline/outputs.conf --wayland --flutter-bundle /var/lib/moto70-denial/mainline-current/shell --flutter-renderer impeller
+ExecStart=/var/lib/moto70-denial/mainline-current/native/deniald --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /var/lib/moto70-mainline/outputs.conf --wayland --flutter-bundle /var/lib/moto70-denial/mainline-current/shell
 AmbientCapabilities=CAP_SYS_NICE
 LimitRTPRIO=10
 Restart=on-failure

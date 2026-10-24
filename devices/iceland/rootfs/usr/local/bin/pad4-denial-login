@@ -20,4 +20,4 @@ systemctl --user import-environment PATH LD_LIBRARY_PATH XDG_CURRENT_DESKTOP XDG
 unset DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE SWAYSOCK I3SOCK
 exec "$bundle/native/deniald" --device /dev/dri/card0 \
     --output-config "$XDG_CONFIG_HOME/denial/outputs.conf" \
-    --wayland --flutter-bundle "$bundle/shell" --flutter-renderer impeller
+    --wayland --flutter-bundle "$bundle/shell"

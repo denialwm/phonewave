@@ -14,7 +14,7 @@ candidate=Path(s['candidate']);assert sha(candidate/'native/deniald')==s['sha256
 old=subprocess.check_output(['systemctl','cat','denial.service'],text=True)
 backup=Path('/var/lib/aston-fingerprint/denial-service-before-'+s['sha256'][:12]+'.txt');assert not backup.exists();backup.write_text(old);backup.chmod(0o600)
 base=s['active']
-data='[Service]\\nExecStart=\\nExecStart='+str(candidate/'native/deniald')+' --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /home/logix/.config/denial/outputs.conf --wayland --flutter-bundle '+base+'/shell --flutter-renderer impeller\\n'
+data='[Service]\\nExecStart=\\nExecStart='+str(candidate/'native/deniald')+' --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /home/logix/.config/denial/outputs.conf --wayland --flutter-bundle '+base+'/shell\\n'
 p=Path('/etc/systemd/system/denial.service.d/zz-fingerprint.conf');assert p.is_file()
 tmp=p.with_suffix('.tmp');assert not tmp.exists();tmp.write_text(data);tmp.chmod(0o644);tmp.replace(p)
 subprocess.run(['systemctl','daemon-reload'],check=True)
