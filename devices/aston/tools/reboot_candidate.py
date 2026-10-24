@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the candidate and backup, then normally reboot the authorized phone."""
+"""Verify the candidate and backup, then normally reboot the authorized phone. The backup is kept only when the vault lacks it."""
 import argparse,hashlib,json,os,shlex,subprocess
 from pathlib import Path
 ROOT=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston/boot'
@@ -8,11 +8,16 @@ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--gener
 GEN=parser.parse_args().generation;assert GEN>=27
 SSH=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','aston']
 manifest=ROOT/('kernel-flash-evidence.json' if GEN==27 else f'kernel-flash-evidence-devices{GEN}.json')
-m=json.loads(manifest.read_text());backup=ROOT/f'boot_b-before-devices{GEN}.img'
-if not backup.exists():
- with backup.open('xb') as f:subprocess.run([*SSH,shlex.join(['cat',m['backup']])],stdout=f,check=True)
-assert backup.stat().st_size==201326592
-assert hashlib.sha256(backup.read_bytes()).hexdigest()==m['backup_sha256']
+m=json.loads(manifest.read_text())
+# The backup is normally the image flashed before; fetch it only when the vault holds no image with its hash.
+held={json.loads(p.read_text())['sha256']:p.name for p in ROOT.glob('boot-package-devices*.json') if (ROOT/p.name.replace('boot-package-','boot_b-').replace('.json','.img')).exists()}
+if m['backup_sha256'] in held:print('Backup equals the vault image of',held[m['backup_sha256']])
+else:
+ backup=ROOT/f'boot_b-before-devices{GEN}.img'
+ if not backup.exists():
+  with backup.open('xb') as f:subprocess.run([*SSH,shlex.join(['cat',m['backup']])],stdout=f,check=True)
+ assert backup.stat().st_size==201326592
+ assert hashlib.sha256(backup.read_bytes()).hexdigest()==m['backup_sha256']
 pre=json.loads((ROOT/'boot-preflight.json').read_text())
 code='''from pathlib import Path
 import hashlib,json,subprocess,sys

@@ -26,8 +26,8 @@ directory without loading anything. `tools/activate_kernel.py --generation N
 boot-preflight.json, the current boot_b and the modules, then writes boot_b with
 the phone's /var/lib/aston-release/remote_boot_flash.py (equal to tools/), which
 backs up, reads back and records kernel-flash-evidence-devicesN.json.
-`tools/reboot_candidate.py --generation N` fetches the backup, rechecks both
-partitions and reboots. Only boot_b is written; the previous image is the
+`tools/reboot_candidate.py --generation N` fetches the backup only when the
+vault holds no image with its hash, rechecks both partitions and reboots. Only boot_b is written; the previous image is the
 rollback. init_boot_b stays the devices10 image: boot/firstboot's static PID 1
 as a root-owned newc cpio, lz4 -l, on the stock init_boot_b.
 

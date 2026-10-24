@@ -2,7 +2,8 @@
 """Write this exact candidate using the existing guarded Aston boot updater.
 
 No reboot. The source image, companion, module closure and updater hashes must
-match; the updater backs up boot_b and verifies a complete readback.
+match; the updater backs up boot_b to /run/aston-flash (gone at reboot; reboot_candidate keeps
+it when the vault lacks it) and verifies a complete readback.
 """
 import argparse,hashlib,json,os,shlex,subprocess
 from pathlib import Path
@@ -16,7 +17,7 @@ assert 27<=GENERATION<=99
 RELEASE=f'7.3.0-devices{GENERATION}-aston'
 IMAGE=ROOT/f'boot_b-devices{GENERATION}.img'
 UPDATER=Path(__file__).resolve().parent/'remote_boot_flash.py'
-REMOTE_IMAGE=f'/var/tmp/aston-fingerprint/boot_b-devices{GENERATION}.img'
+REMOTE_IMAGE=f'/run/aston-flash/boot_b-devices{GENERATION}.img'
 STAGE=r'''
 from pathlib import Path
 import hashlib,sys
@@ -60,7 +61,7 @@ for name,digest in m['files'].items():
  assert not p.is_symlink() and p.stat().st_uid==0 and sha(p)==digest
 assert sha(expected['image'])==expected['image_sha256']
 # Only this existing updater opens the allowlisted boot_b partition for writing.
-r=subprocess.run(['python3',str(updater),'--apply','--partition','boot_b','--image',expected['image'],'--expected-sha',expected['image_sha256'],'--expect-current-sha',expected['previous'],'--backup-dir','/var/lib/aston-release-backups/fingerprint-'+expected['release']],stdout=subprocess.PIPE,check=True,text=True)
+r=subprocess.run(['python3',str(updater),'--apply','--partition','boot_b','--image',expected['image'],'--expected-sha',expected['image_sha256'],'--expect-current-sha',expected['previous']],stdout=subprocess.PIPE,check=True,text=True)
 result=json.loads(r.stdout)
 assert result['readback_sha256']==expected['image_sha256']
 assert result['backup_sha256']==expected['previous']

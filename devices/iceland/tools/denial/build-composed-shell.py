@@ -1,7 +1,7 @@
 """Usage: build-composed-shell.py ID
 
 Build the tablet's plugin composition (clock, desktop, launcher, pets, local taskbar; no top bar) from the
-latest-code candidate's own source snapshot and engine.
+latest-code candidate's own source snapshot and engine, in the reused release folder.
 
 The composition files are the plugin manager's output for this selection (surface-occlusion candidate01). The
 composed pubspec must equal the snapshot's pubspec with only the composition edits, so nothing else is borrowed
@@ -12,7 +12,7 @@ import hashlib, json, re, shutil, subprocess, os, sys
 HERE = Path(__file__).resolve().parent
 VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
 ID = sys.argv[1]
-OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial' / ID
+OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/release'
 CANDIDATE = OUT / 'candidate'
 TEMPLATE = VAULT / 'denial/composition-template'
 TASKBAR = Path('/mnt/development/denial-os/denial-plugins/plugins/denial_taskbar')

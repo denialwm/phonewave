@@ -31,15 +31,15 @@ the tablet's own pad4-flash, which checks the image and reads it back.
 Only boot_b and init_boot_b are ever written. Never set_active, erase, format, GPT
 edits or EDL. Tablet #1 was bricked that way.
 
-Deploying Denial: every step takes the release name ID, for example
-pad4-smithay-release-20261023, which becomes /opt/denial/ID on the tablet.
-tools/denial/build-recipe.py build --denial SOURCE --candidate
-~/.cache/phonewave/iceland/denial/ID/candidate builds a candidate from a Denial
-checkout or worktree, build-composed-shell.py ID composes the shell from the
-vault template, and package.py ID PREVIOUS packs payload.tar.zst, where PREVIOUS
-is the /opt/denial installation the tablet runs. All three write under
-~/.cache/phonewave/iceland/denial/ID. Copy the archive, archive.sha256, stage.py
-and activate.py to the tablet's ~/.cache/pad4-deploy-ID, then run `sudo -n
-python3 stage.py ID` and `sudo -n python3 activate.py ID` there. Activation
-restarts the graphical session and Droidloom with it. The Denial runtime
-libraries in /opt are copied from the vault.
+Deploying Denial: the release name ID, for example pad4-dev-20261024, becomes
+/opt/denial/ID on the tablet. On the workstation every step reuses one folder,
+~/.cache/phonewave/iceland/denial/release, and one Rust cache beside it.
+tools/denial/build-recipe.py build --denial SOURCE empties that folder and
+builds a candidate from a Denial checkout or worktree, build-composed-shell.py
+ID composes the shell from the vault template, and package.py ID PREVIOUS packs
+payload.tar.zst, where PREVIOUS is the /opt/denial installation the tablet
+runs. Copy the archive, archive.sha256, stage.py and activate.py over the
+tablet's ~/.cache/pad4-deploy, then run `sudo -n python3 stage.py ID` and `sudo
+-n python3 activate.py ID` there. Activation restarts the graphical session and
+Droidloom with it. The Denial runtime libraries in /opt are copied from the
+vault.

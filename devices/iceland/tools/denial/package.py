@@ -7,7 +7,7 @@ import hashlib, json, os, shutil, subprocess, sys
 HERE = Path(__file__).resolve().parent
 VAULT = Path(os.environ.get('PHONEWAVE_VAULT', '/mnt/development/denial-os/device-vault')) / 'iceland'
 ID, PREVIOUS = sys.argv[1], sys.argv[2]
-OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial' / ID
+OUT = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/release'
 CANDIDATE = OUT / 'candidate'
 COMPOSED = OUT / 'composed'
 payload = OUT / 'payload'

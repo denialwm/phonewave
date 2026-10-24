@@ -18,6 +18,7 @@ os.environ['LC_ALL'] = 'C'  # Machine-readable ELF/tool diagnostics, independent
 TARGET = 'aarch64-unknown-linux-gnu'
 ARM_NAME = 'denial_linux_arm64_release'
 HOST_NAME = 'denial_host_release'
+RELEASE = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/release'
 
 def run(args, **kwargs):
     print('+', ' '.join(map(str, args)), flush=True)
@@ -185,13 +186,12 @@ def main():
     p.add_argument('--skia', type=Path, default=Path(os.environ.get('DENIAL_SKIA_SOURCE_ROOT', '/mnt/exty/denial-skia-fork-3.44.7')))
     p.add_argument('--sysroot', type=Path, default=Path('/mnt/development/denial-os/cross/sysroot'))
     p.add_argument('--engine-build', type=Path, default=Path.home() / '.cache/denial/flutter-engine/build-arm64')
-    p.add_argument('--candidate', type=Path, help='New, nonexisting directory (required for build); existing candidate for verify')
+    p.add_argument('--candidate', type=Path, default=RELEASE / 'candidate',
+                   help='Default: the reused release folder, emptied before a build; any other directory must not exist yet')
     p.add_argument('--rust-cache', type=Path, default=Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/rust')
     p.add_argument('--jobs', type=int, default=min(6, max(1, len(os.sched_getaffinity(0)) - 4)))
     a = p.parse_args()
     if a.action == 'verify':
-        if not a.candidate:
-            p.error('--candidate required')
         verify(a.candidate.resolve())
         return
     if len(os.sched_getaffinity(0)) <= 4 or not 1 <= a.jobs <= len(os.sched_getaffinity(0)) - 4:
@@ -240,8 +240,9 @@ def main():
     if a.action == 'check':
         print('Prerequisites OK. build regenerates ARM GN and rebuilds engine/compiler; stale ARM cache is NOT selected. No writes/device access.')
         return
-    if not a.candidate:
-        p.error('--candidate required for build')
+    # One release folder, reused: the previous build is already installed on the tablet.
+    if a.candidate == RELEASE.resolve() / 'candidate' and RELEASE.exists():
+        shutil.rmtree(RELEASE)
     a.candidate.mkdir(parents=True, exist_ok=False)
     c = a.candidate
     source = c / 'source'

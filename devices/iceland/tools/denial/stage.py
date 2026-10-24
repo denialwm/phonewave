@@ -1,4 +1,4 @@
-"""Usage: stage.py ID. Stage a Denial payload on denialpad4 (root) from ~logix/.cache/pad4-deploy-ID. Installs a new versioned directory only:
+"""Usage: stage.py ID. Stage a Denial payload on denialpad4 (root) from ~logix/.cache/pad4-deploy (reused). Installs a new versioned directory only:
 the running session, launcher and plugin selection are untouched."""
 from pathlib import Path
 import ctypes, hashlib, json, os, subprocess, sys
@@ -7,7 +7,7 @@ assert os.geteuid() == 0
 assert Path('/etc/pad4-root-id').read_text().strip() == '59b8e7b3:archroot-v1'
 assert b'oneplus,iceland\0' in Path('/proc/device-tree/compatible').read_bytes()
 ID = sys.argv[1]
-S = Path('/home/logix/.cache/pad4-deploy-' + ID)
+S = Path('/home/logix/.cache/pad4-deploy')
 D = Path('/opt/denial') / ID
 sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
