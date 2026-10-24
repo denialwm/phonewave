@@ -14,8 +14,9 @@
 #   moto70-shell-loop activate [ID]   select ID (default: last pushed) and reload
 #   moto70-shell-loop status     selection, running PID and mapped libapp
 #
-# Engine, dart:ui or compositor changes are out of scope: the push refuses
-# when the local ARM64 engine differs from the one deniald has mapped.
+# Engine, dart:ui or compositor changes are out of scope: the push warns
+# when the local ARM64 engine differs from the one deniald has mapped, and
+# the new shell runs on the phone's engine.
 # Nothing here rolls back automatically; `activate OLD_ID` is the manual path.
 set -euo pipefail
 
@@ -30,11 +31,12 @@ UNIT=denial-mainline
 JOBS=$(($(nproc) - 4))
 
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes
-    -o ConnectTimeout=5 -o ControlMaster=auto -o "ControlPath=$LOOP/ssh-%C"
+    -o ConnectTimeout=5 -o ControlMaster=auto -o "ControlPath=${XDG_RUNTIME_DIR:-/tmp}/moto70-ssh-%C"
     -o ControlPersist=600)
 mkdir -p -- "$LOOP"
 
 die() { printf 'moto70-shell-loop: %s\n' "$*" >&2; exit 1; }
+warn() { printf 'moto70-shell-loop: warning: %s\n' "$*" >&2; }
 moto() { ssh "${SSH_OPTS[@]}" "$MOTO_HOST" "$@"; }
 now() { date +%s.%N; }
 elapsed() { awk -v a="$1" -v b="$(now)" 'BEGIN { printf "%.1fs", b - a }'; }
@@ -104,7 +106,7 @@ push() {
     mapped_engine=$(moto "sha256sum \"\$(awk '\$6 ~ /libflutter_engine\\.so\$/ { print \$6; exit }' /proc/$pid/maps)\"" | cut -d' ' -f1)
     local_engine=$(sha256sum "$ARM/libflutter_engine.so" | cut -d' ' -f1)
     [[ $mapped_engine == "$local_engine" ]] \
-        || die "local ARM64 engine ${local_engine:0:8} differs from the running ${mapped_engine:0:8}; this loop only swaps Dart. Deploy the engine with a full candidate and restart first"
+        || warn "local ARM64 engine ${local_engine:0:8} differs from the running ${mapped_engine:0:8}; the shell keeps the phone's engine (full candidate to change it)"
     base=$(moto readlink -f "$CURRENT")
     [[ $base == "$SETS"/* ]] || die "unexpected current selection $base"
     libapp=$(sha256sum "$LOOP/assembly/lib/libapp.so" | cut -d' ' -f1)
@@ -138,7 +140,7 @@ PY
     rsync -a --chown=root:root -e "ssh ${SSH_OPTS[*]}" \
         "$LOOP/deployment.json" "$LOOP/source.patch" "$MOTO_HOST:$stage/"
     {
-        printf '%s  shell/lib/libapp.so\n%s  shell/lib/libflutter_engine.so\n' "$libapp" "$local_engine"
+        printf '%s  shell/lib/libapp.so\n%s  shell/lib/libflutter_engine.so\n' "$libapp" "$mapped_engine"
         cat -- "$LOOP/assets.sha256"
     } | moto "set -e; cd '$stage'; cat > SHA256SUMS; sha256sum --quiet -c SHA256SUMS
         chmod -R a-w . ; mv -T '$stage' '$SETS/$id'"
