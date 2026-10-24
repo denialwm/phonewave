@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Stage the back-gesture candidate (new native/deniald + shell libapp/assets)
-# next to the running set, select it and restart denial-mainline.
-# Engine, ICU, Settings, denialctl and denial-ui are hard links to the base.
+# Stage a full moto70-build-denial candidate (native/, shell/, settings/) as a
+# new set next to the running one, select it and restart denial-mainline.
+# Files the running set already has are hard links to it. A new set never
+# overwrites a mapped engine.
 # No automatic rollback: the previous selection is printed for a manual switch.
-# DENIAL_CANDIDATE is the candidate directory: deniald, shell/lib/libapp.so,
-# shell/flutter_assets, source-head, source.patch and source-live.patch.
+# DENIAL_CANDIDATE is the candidate directory.
 set -euo pipefail
 
 B=${DENIAL_CANDIDATE:?set DENIAL_CANDIDATE to the candidate directory}
-ARM=$HOME/.cache/denial/flutter-engine/build-arm64/out/denial_linux_arm64_release
 MOTO_HOST=${MOTO_HOST:-roadstr-wifi}
 SETS=/var/lib/moto70-denial
 UNIT=denial-mainline
@@ -16,51 +15,32 @@ SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5)
 moto() { ssh "${SSH_OPTS[@]}" "$MOTO_HOST" "$@"; }
 
 stage() {
-    local pid mapped local_engine base deniald libapp id st
-    pid=$(moto systemctl show -p MainPID --value "$UNIT")
-    [[ $pid =~ ^[1-9][0-9]*$ ]] || { echo "$UNIT not running" >&2; exit 1; }
-    mapped=$(moto "sha256sum \"\$(awk '\$6 ~ /libflutter_engine\\.so\$/ { print \$6; exit }' /proc/$pid/maps)\"" | cut -d' ' -f1)
-    local_engine=$(sha256sum "$ARM/libflutter_engine.so" | cut -d' ' -f1)
-    [[ $mapped == "$local_engine" ]] || { echo "engine ${local_engine:0:8} != running ${mapped:0:8}" >&2; exit 1; }
+    local base deniald libapp head id st
+    "$(dirname "$0")/moto70-build-denial" verify --candidate "$B"
     base=$(moto readlink -f "$SETS/mainline-current")
     [[ $base == "$SETS"/* ]] || { echo "unexpected base $base" >&2; exit 1; }
-    deniald=$(sha256sum "$B/deniald" | cut -d' ' -f1)
+    deniald=$(sha256sum "$B/native/deniald" | cut -d' ' -f1)
     libapp=$(sha256sum "$B/shell/lib/libapp.so" | cut -d' ' -f1)
-    id=back-gesture-$(date +%Y%m%d-%H%M%S)-${deniald:0:8}-${libapp:0:8}
+    head=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["head"])' "$B/source-manifest.json")
+    id=denial-$(date +%Y%m%d-%H%M%S)-${deniald:0:8}-${libapp:0:8}
     st=$SETS/.staging-$id
-    python3 - "$id" "$base" "$deniald" "$libapp" "$(<"$B/source-head")" >"$B/deployment.json" <<'PY'
+    python3 - "$id" "$base" "$head" >"$B/deployment.json" <<'PY'
 import json, sys
-ident, base, deniald, libapp, head = sys.argv[1:]
-print(json.dumps(dict(id=ident, base=base, deniald_sha256=deniald, libapp_sha256=libapp, source_head=head,
-    changed='native/deniald and shell/lib/libapp.so + shell/data/flutter_assets: Android edge Back gesture (edge swipe regions, NavigateBack -> KEY_BACK) and mobile close-lease completion; deniald from the source/ snapshot (source.patch), shell from the live checkout (source-live.patch); engine, ICU, settings, denialctl, denial-ui are hard links to base',
+ident, base, head = sys.argv[1:]
+print(json.dumps(dict(id=ident, base=base, source_head=head,
+    changed='full moto70-build-denial candidate: native, shell, settings; unchanged files are hard links to base',
     mode='DEVELOPMENT, not release/runtime validated'), indent=2))
 PY
-    (cd "$B/shell" && find flutter_assets -type f -print0 | sort -z | xargs -0 sha256sum \
-        | sed 's#  flutter_assets/#  shell/data/flutter_assets/#') >"$B/assets.sha256"
-
-    moto "set -e; b='$base'; n='$st'; rm -rf -- \"\$n\"
-        mkdir -p \"\$n/shell/lib\" \"\$n/shell/data\"
-        cp -al \"\$b/native\" \"\$b/settings\" \"\$n/\"
-        rm -f \"\$n/native/deniald\"
-        ln \"\$b/shell/lib/libflutter_engine.so\" \"\$n/shell/lib/\"
-        ln \"\$b/shell/data/icudtl.dat\" \"\$n/shell/data/\""
-    rsync -a --chown=root:root --chmod=F755 --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
-        "$B/deniald" "$MOTO_HOST:$st/native/deniald"
-    rsync -a --delete --chown=root:root --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
-        --link-dest="$base/shell/data/flutter_assets" \
-        "$B/shell/flutter_assets/" "$MOTO_HOST:$st/shell/data/flutter_assets/"
+    moto "rm -rf -- '$st'; mkdir -p -- '$st'"
     rsync -a --chown=root:root --compress --compress-choice=zstd -e "ssh ${SSH_OPTS[*]}" \
-        "$B/shell/lib/libapp.so" "$MOTO_HOST:$st/shell/lib/libapp.so"
+        --link-dest="$base" "$B/native" "$B/shell" "$B/settings" "$MOTO_HOST:$st/"
     rsync -a --chown=root:root -e "ssh ${SSH_OPTS[*]}" \
-        "$B/deployment.json" "$B/source.patch" "$B/source-live.patch" "$MOTO_HOST:$st/"
-    {
-        printf '%s  native/deniald\n%s  shell/lib/libapp.so\n%s  shell/lib/libflutter_engine.so\n' \
-            "$deniald" "$libapp" "$local_engine"
-        cat -- "$B/assets.sha256"
-    } | moto "set -e; cd '$st'; cat > SHA256SUMS; sha256sum --quiet -c SHA256SUMS
+        "$B/SHA256SUMS" "$B/manifest.json" "$B/source-manifest.json" "$B/source.patch" \
+        "$B/flutter.patch" "$B/skia.patch" "$B/build-recipe.py" "$B/deployment.json" "$MOTO_HOST:$st/"
+    moto "set -e; cd '$st'; sha256sum --quiet -c SHA256SUMS
         chmod -R a-w . ; mv -T '$st' '$SETS/$id'"
     printf '%s\n' "$id" >"$B/staged-id"
-    printf 'staged %s on base %s (running deniald %s)\n' "$id" "${base##*/}" "$pid"
+    printf 'staged %s on base %s\n' "$id" "${base##*/}"
 }
 
 activate() {
