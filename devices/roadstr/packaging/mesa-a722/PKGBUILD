@@ -1,13 +1,14 @@
 # Mesa 26.2.4 with the Adreno 722 for the Motorola Edge 70 (aarch64).
 #
-# Arch's mesa 1:26.2.4-1 with one patch (the A722 device entry) and only
-# the drivers this phone uses: freedreno (msm and kgsl) and Turnip, with
-# llvmpipe, softpipe and zink as fallbacks. It replaces the same three
-# packages the phone had installed. Build natively on the phone.
+# Arch's mesa 1:26.2.4-1 with two patches (the A722 device entry, and no BV
+# pipe for it in Turnip) and only the drivers this phone uses: freedreno (msm
+# and kgsl) and Turnip, with llvmpipe, softpipe and zink as fallbacks. It
+# replaces the same three packages the phone had installed. Build natively on
+# the phone.
 pkgbase=mesa
 pkgname=(mesa vulkan-freedreno vulkan-mesa-implicit-layers)
 pkgver=26.2.4
-pkgrel=1.1
+pkgrel=1.2
 epoch=1
 pkgdesc="Open-source OpenGL drivers (with the Adreno 722)"
 url="https://www.mesa3d.org/"
@@ -23,13 +24,16 @@ makedepends=(
 source=(
   "https://archive.mesa3d.org/mesa-$pkgver.tar.xz"
   0001-freedreno-add-Adreno-722.patch
+  0002-turnip-no-BV-pipe-on-the-Adreno-722.patch
 )
 sha256sums=('bce5f7fbebb934373b86c999a064d52fb5065878dc57f287f95346648ec832e9'
-            '80efb7d13d8a4400ed9b692b80264c4cf88ef3ee788d9797fd59ce3d6b663796')
+            '80efb7d13d8a4400ed9b692b80264c4cf88ef3ee788d9797fd59ce3d6b663796'
+            'b734a12830a633fa2196ff78a384c1a350e28434906eef325a0250a9b096fd7b')
 
 prepare() {
   cd mesa-$pkgver
   patch -Np1 < ../0001-freedreno-add-Adreno-722.patch
+  patch -Np1 < ../0002-turnip-no-BV-pipe-on-the-Adreno-722.patch
   # Same version string scheme as Arch, so caches keyed on it invalidate.
   echo "$pkgver-arch$epoch.$pkgrel" > VERSION
 }
