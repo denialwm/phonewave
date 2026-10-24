@@ -28,7 +28,7 @@ assert b'DENIAL_NATIVE_WINDOW_COMPOSITION' not in (CANDIDATE / 'native/deniald')
 
 assert not payload.exists()
 payload.mkdir()
-for name in ['native', 'shell', 'settings']:
+for name in ['native', 'shell', 'settings', 'polkit']:
     shutil.copytree(CANDIDATE / name, payload / name)
 shutil.copytree(COMPOSED / 'bundle', payload / 'plugin-bundle')
 shutil.copy2(CANDIDATE / 'manifest.json', payload / 'build-manifest.json')

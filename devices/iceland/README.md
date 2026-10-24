@@ -42,4 +42,9 @@ runs. Copy the archive, archive.sha256, stage.py and activate.py over the
 tablet's ~/.cache/pad4-deploy, then run `sudo -n python3 stage.py ID` and `sudo
 -n python3 activate.py ID` there. Activation restarts the graphical session and
 Droidloom with it. The Denial runtime libraries in /opt are copied from the
-vault.
+vault. The Settings launcher entry runs
+/usr/local/bin/pad4-denial-settings, which starts the Settings of the running
+release, so activation never needs to touch it.
+The portal units, etc/systemd/user/denial-portal.service and its D-Bus service
+file, name the release whose denial-portal and permission dialog they run:
+repoint and reinstall both when either changes.

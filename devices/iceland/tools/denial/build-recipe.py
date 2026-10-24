@@ -18,6 +18,10 @@ os.environ['LC_ALL'] = 'C'  # Machine-readable ELF/tool diagnostics, independent
 TARGET = 'aarch64-unknown-linux-gnu'
 ARM_NAME = 'denial_linux_arm64_release'
 HOST_NAME = 'denial_host_release'
+# Flutter apps, by source folder and payload folder. The Polkit dialog also
+# draws denial-portal's Access requests.
+APPS = [('dart_shell', 'shell'), ('settings_app', 'settings'), ('polkit_app', 'polkit')]
+PAYLOAD_ROOTS = ['native'] + [bundle for _, bundle in APPS]
 RELEASE = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'phonewave/iceland/denial/release'
 
 def run(args, **kwargs):
@@ -142,10 +146,10 @@ def verify(candidate):
             raise RuntimeError(f'Source snapshot changed: {name}')
     if schema(candidate / 'source') != m['settings_schema']:
         raise RuntimeError('Packaged schema does not describe snapshot')
-    required = {'native/deniald', 'native/denialctl', 'native/denial-ui', 'settings/denial-settings'}
-    for app in ['shell', 'settings']:
+    required = {'native/deniald', 'native/denialctl', 'native/denial-ui', 'native/denial-portal', 'settings/denial-settings', 'polkit/denial-app'}
+    for _, app in APPS:
         required.update({f'{app}/lib/libapp.so', f'{app}/lib/libflutter_engine.so', f'{app}/data/icudtl.dat', f'{app}/data/flutter_assets/AssetManifest.bin'})
-    payload = {str(path.relative_to(candidate)): sha(path) for root in ['native', 'shell', 'settings'] for path in (candidate / root).rglob('*') if path.is_file()}
+    payload = {str(path.relative_to(candidate)): sha(path) for root in PAYLOAD_ROOTS for path in (candidate / root).rglob('*') if path.is_file()}
     if not required.issubset(payload) or payload != m['payload_sha256']:
         raise RuntimeError('Missing, changed or undeclared payload')
     if any(sums.get(n) != h for n, h in payload.items()):
@@ -164,7 +168,7 @@ def verify(candidate):
         raise RuntimeError('Incorrect source-lock provenance')
     if set(m['aot_contract']['symbols']) != {'_kDartSnapshotData', '_kDartSnapshotText'}:
         raise RuntimeError('Unsupported or incomplete Dart AOT loader contract')
-    for app in ['shell', 'settings']:
+    for _, app in APPS:
         exports = text(['nm', '-D', '--defined-only', candidate / app / 'lib/libapp.so'])
         for symbol in m['aot_contract']['symbols']:
             if not re.search(r'\b' + symbol + r'$', exports, re.M):
@@ -307,7 +311,7 @@ def main():
         run([flutter, '--suppress-analytics', 'gen-l10n'], cwd=source / 'packages/denial_flutter_sdk', env=flutter_env)
         # Regenerated tracked localization must match the snapshot; stale ARBs are rejected.
         unchanged()
-        for directory, bundle in [('dart_shell', 'shell'), ('settings_app', 'settings')]:
+        for directory, bundle in APPS:
             run([flutter, '--suppress-analytics', 'pub', 'get', '--offline', '--enforce-lockfile'], cwd=source / directory, env=flutter_env)
             output = c / (bundle + '-assembly')
             run([flutter, 'assemble', f'--local-engine-src-path={view}', f'--local-engine={ARM_NAME}', f'--local-engine-host={HOST_NAME}',
@@ -329,7 +333,7 @@ def main():
         if not all(host_trees.values()):
             raise RuntimeError('Missing host SDK tree inputs')
         flutter_tool_inputs = {n: sha(flutter_cache / n) for n in ['flutter_tools.snapshot', 'flutter.version.json', 'dart-sdk/bin/dart', 'dart-sdk/bin/snapshots/frontend_server_aot.dart.snapshot']}
-        for app in ['shell', 'settings']:
+        for _, app in APPS:
             if sha(c / app / 'lib/libflutter_engine.so') != engine_inputs['libflutter_engine.so']:
                 raise RuntimeError('Packaged engine differs from compiler session')
         native_sysroot_inputs = tree_hashes(a.sysroot)
@@ -344,13 +348,15 @@ def main():
     env['CARGO_BUILD_JOBS'] = str(a.jobs)
     common = ['cargo', '+' + toolchain, 'build', '--locked', '--offline', '--release', '--target', TARGET, '--jobs', str(a.jobs)]
     run(common + ['--manifest-path', source / 'compositor/Cargo.toml', '--features', 'flutter,ui-development', '--bin', 'deniald', '--bin', 'denialctl', '--bin', 'denial-ui'], env=env)
+    run(common + ['--manifest-path', source / 'compositor/Cargo.toml', '-p', 'denial-portal'], env=env)
     run(common + ['--manifest-path', source / 'native_app/Cargo.toml', '--bin', 'denial-app'], env=env)
     (c / 'native').mkdir()
-    for name in ['deniald', 'denialctl', 'denial-ui']:
+    for name in ['deniald', 'denialctl', 'denial-ui', 'denial-portal']:
         shutil.copy2(rust_cache / TARGET / 'release' / name, c / 'native' / name)
     shutil.copy2(rust_cache / TARGET / 'release/denial-app', c / 'settings/denial-settings')
+    shutil.copy2(rust_cache / TARGET / 'release/denial-app', c / 'polkit/denial-app')
     unchanged()
-    payload = {str(path.relative_to(c)): sha(path) for root in ['native', 'shell', 'settings'] for path in sorted((c / root).rglob('*')) if path.is_file()}
+    payload = {str(path.relative_to(c)): sha(path) for root in PAYLOAD_ROOTS for path in sorted((c / root).rglob('*')) if path.is_file()}
     elfs = {name: elf(c / name, 'AArch64') for name in payload if (c / name).read_bytes()[:4] == b'\x7fELF'}
     sdk_assets = source / 'packages/denial_flutter_sdk/assets'
     required_assets = ['packages/denial_flutter_sdk/assets/' + str(path.relative_to(sdk_assets)) for path in sorted(sdk_assets.rglob('*')) if path.is_file() and path.suffix in ['.png', '.svg', '.ttf']]

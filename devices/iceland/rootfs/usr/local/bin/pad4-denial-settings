@@ -1,0 +1,3 @@
+#!/bin/sh
+# Settings of the running Denial release, which pad4-denial-login exports.
+exec "${DENIAL_SETTINGS_BINARY:?not started from the Denial session}" "$@"

@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.desktop.denial
-Exec=/opt/denial/systemd-helpers-20261013/bin/denial-portal
+Exec=/opt/denial/pad4-never-allow-20261024/native/denial-portal --dialog-bundle /opt/denial/pad4-never-allow-20261024/polkit
 SystemdService=denial-portal.service
