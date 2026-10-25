@@ -306,13 +306,25 @@ def main():
         run([flutter, '--suppress-analytics', 'gen-l10n'], cwd=source / 'packages/denial_flutter_sdk', env=flutter_env)
         # Regenerated tracked localization must match the snapshot; stale ARBs are rejected.
         unchanged()
-        for directory, bundle in [('dart_shell', 'shell'), ('settings_app', 'settings')]:
+        apps = [('dart_shell', 'shell'), ('settings_app', 'settings')]
+        for directory, _ in apps:
             run([flutter, '--suppress-analytics', 'pub', 'get', '--offline', '--enforce-lockfile'], cwd=source / directory, env=flutter_env)
+        # Both apps at once: AOT compilation is mostly one thread each.
+        assemblies = []
+        for directory, bundle in apps:
+            args = [flutter, 'assemble', f'--local-engine-src-path={view}', f'--local-engine={ARM_NAME}', f'--local-engine-host={HOST_NAME}',
+                    '--suppress-analytics', f'--resource-pool-size={a.jobs}', f'--output={c / (bundle + "-assembly")}', '-dTargetFile=lib/main.dart', '-dBuildMode=release',
+                    '-dTargetPlatform=linux-arm64', '-dDartObfuscation=false', '-dTrackWidgetCreation=true', '-dTreeShakeIcons=false',
+                    'release_bundle_linux-arm64_assets']
+            print('+', ' '.join(map(str, args)), flush=True)
+            assemblies.append((args, subprocess.Popen(list(map(str, args)), cwd=source / directory, env=flutter_env)))
+        for args, process in assemblies:
+            if process.wait():
+                for _, other in assemblies:
+                    other.kill()
+                raise subprocess.CalledProcessError(process.returncode, args)
+        for directory, bundle in apps:
             output = c / (bundle + '-assembly')
-            run([flutter, 'assemble', f'--local-engine-src-path={view}', f'--local-engine={ARM_NAME}', f'--local-engine-host={HOST_NAME}',
-                 '--suppress-analytics', f'--resource-pool-size={a.jobs}', f'--output={output}', '-dTargetFile=lib/main.dart', '-dBuildMode=release',
-                 '-dTargetPlatform=linux-arm64', '-dDartObfuscation=false', '-dTrackWidgetCreation=true', '-dTreeShakeIcons=false',
-                 'release_bundle_linux-arm64_assets'], cwd=source / directory, env=flutter_env)
             base = c / bundle
             (base / 'lib').mkdir(parents=True)
             (base / 'data').mkdir()
