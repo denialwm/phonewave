@@ -186,6 +186,7 @@ def main():
     p.add_argument('--sysroot', type=Path, default=Path('/mnt/development/denial-os/cross/sysroot'))
     p.add_argument('--engine-build', type=Path, default=Path.home() / '.cache/denial/flutter-engine/build-arm64')
     p.add_argument('--candidate', type=Path, help='New, nonexisting directory (required for build); existing candidate for verify')
+    p.add_argument('--cargo-target', type=Path, help='Cargo target directory kept between builds (default: inside the candidate)')
     p.add_argument('--jobs', type=int, default=min(6, max(1, len(os.sched_getaffinity(0)) - 4)))
     a = p.parse_args()
     if a.action == 'verify':
@@ -334,15 +335,16 @@ def main():
         clang = engine_src / 'flutter/buildtools/linux-x64/clang/bin/clang'
         clang_identity = dict(path=str(clang), sha256=sha(clang), version=text([clang, '--version']))
         unchanged()
-    env['CARGO_TARGET_DIR'] = str(c / 'rust')
+    rust = a.cargo_target.resolve() if a.cargo_target else c / 'rust'
+    env['CARGO_TARGET_DIR'] = str(rust)
     env['CARGO_BUILD_JOBS'] = str(a.jobs)
     common = ['cargo', '+' + toolchain, 'build', '--locked', '--offline', '--release', '--target', TARGET, '--jobs', str(a.jobs)]
     run(common + ['--manifest-path', source / 'compositor/Cargo.toml', '--features', 'flutter,ui-development', '--bin', 'deniald', '--bin', 'denialctl', '--bin', 'denial-ui'], env=env)
     run(common + ['--manifest-path', source / 'native_app/Cargo.toml', '--bin', 'denial-app'], env=env)
     (c / 'native').mkdir()
     for name in ['deniald', 'denialctl', 'denial-ui']:
-        shutil.copy2(c / 'rust' / TARGET / 'release' / name, c / 'native' / name)
-    shutil.copy2(c / 'rust' / TARGET / 'release/denial-app', c / 'settings/denial-settings')
+        shutil.copy2(rust / TARGET / 'release' / name, c / 'native' / name)
+    shutil.copy2(rust / TARGET / 'release/denial-app', c / 'settings/denial-settings')
     unchanged()
     payload = {str(path.relative_to(c)): sha(path) for root in ['native', 'shell', 'settings'] for path in sorted((c / root).rglob('*')) if path.is_file()}
     elfs = {name: elf(c / name, 'AArch64') for name in payload if (c / name).read_bytes()[:4] == b'\x7fELF'}
