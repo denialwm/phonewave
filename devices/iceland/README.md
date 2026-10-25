@@ -47,4 +47,6 @@ vault. The Settings launcher entry runs
 release, so activation never needs to touch it.
 The portal units, etc/systemd/user/denial-portal.service and its D-Bus service
 file, name the release whose denial-portal and permission dialog they run:
-repoint and reinstall both when either changes.
+repoint and reinstall both when either changes. The same goes for
+etc/systemd/user/denial-polkit-agent.service.d/pad4.conf and the release whose
+denial-polkit-agent and authentication dialog it runs.

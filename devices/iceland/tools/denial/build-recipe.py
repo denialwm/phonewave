@@ -146,7 +146,7 @@ def verify(candidate):
             raise RuntimeError(f'Source snapshot changed: {name}')
     if schema(candidate / 'source') != m['settings_schema']:
         raise RuntimeError('Packaged schema does not describe snapshot')
-    required = {'native/deniald', 'native/denialctl', 'native/denial-ui', 'native/denial-portal', 'settings/denial-settings', 'polkit/denial-app'}
+    required = {'native/deniald', 'native/denialctl', 'native/denial-ui', 'native/denial-portal', 'native/denial-polkit-agent', 'settings/denial-settings', 'polkit/denial-app'}
     for _, app in APPS:
         required.update({f'{app}/lib/libapp.so', f'{app}/lib/libflutter_engine.so', f'{app}/data/icudtl.dat', f'{app}/data/flutter_assets/AssetManifest.bin'})
     payload = {str(path.relative_to(candidate)): sha(path) for root in PAYLOAD_ROOTS for path in (candidate / root).rglob('*') if path.is_file()}
@@ -349,9 +349,13 @@ def main():
     common = ['cargo', '+' + toolchain, 'build', '--locked', '--offline', '--release', '--target', TARGET, '--jobs', str(a.jobs)]
     run(common + ['--manifest-path', source / 'compositor/Cargo.toml', '--features', 'flutter,ui-development', '--bin', 'deniald', '--bin', 'denialctl', '--bin', 'denial-ui'], env=env)
     run(common + ['--manifest-path', source / 'compositor/Cargo.toml', '-p', 'denial-portal'], env=env)
+    # The agent links polkit and GLib by name, without pkg-config to point the linker at the sysroot. The
+    # search path goes to the agent crate alone, so the shared dependencies keep their cached builds.
+    run(['cargo', '+' + toolchain, 'rustc'] + common[3:] + ['--manifest-path', source / 'compositor/Cargo.toml', '-p', 'denial-polkit-agent',
+        '--bin', 'denial-polkit-agent', '--', '-L', f'native={a.sysroot}/usr/lib'], env=env)
     run(common + ['--manifest-path', source / 'native_app/Cargo.toml', '--bin', 'denial-app'], env=env)
     (c / 'native').mkdir()
-    for name in ['deniald', 'denialctl', 'denial-ui', 'denial-portal']:
+    for name in ['deniald', 'denialctl', 'denial-ui', 'denial-portal', 'denial-polkit-agent']:
         shutil.copy2(rust_cache / TARGET / 'release' / name, c / 'native' / name)
     shutil.copy2(rust_cache / TARGET / 'release/denial-app', c / 'settings/denial-settings')
     shutil.copy2(rust_cache / TARGET / 'release/denial-app', c / 'polkit/denial-app')

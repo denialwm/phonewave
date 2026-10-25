@@ -30,7 +30,7 @@ env = dict(os.environ, LD_LIBRARY_PATH='/opt/pad4-denial-runtime-20261013/usr/li
 subprocess.run([str(D / 'abi-probe'), str(D)], env=env, check=True)
 # The composed shell uses the same engine/ICU; its snapshot must load too.
 ctypes.CDLL(str(D / 'plugin-bundle/lib/libapp.so'), mode=os.RTLD_NOW | os.RTLD_LOCAL)
-for name in ['native/deniald', 'native/denialctl', 'native/denial-ui', 'native/denial-portal', 'settings/denial-settings', 'polkit/denial-app']:
+for name in ['native/deniald', 'native/denialctl', 'native/denial-ui', 'native/denial-portal', 'native/denial-polkit-agent', 'settings/denial-settings', 'polkit/denial-app']:
     r = subprocess.run(['ldd', str(D / name)], env=env, text=True, capture_output=True)
     assert r.returncode == 0 and 'not found' not in r.stdout + r.stderr, (name, r.stdout, r.stderr)
     print('DEPENDENCIES PASS', name)
