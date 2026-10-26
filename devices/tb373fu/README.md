@@ -30,6 +30,21 @@ live in `$PHONEWAVE_VAULT/tb373fu` (default
 - The reference kernel's `boot_b` image stays at hand in the vault; it is
   where the tablet charges until a perpetua build drives the charger.
 
+## Fastboot
+
+From Linux on the reference kernel, the reboot-mode driver has to be loaded
+by hand, because the rootfs module allowlist blocks it:
+
+```sh
+M=/usr/lib/modules/$(uname -r)/kernel/drivers/power/reset
+insmod $M/reboot-mode.ko
+insmod $M/syscon-reboot-mode.ko
+systemctl reboot --no-block --reboot-argument=bootloader
+```
+
+Fastboot shows up on the host after about 15 seconds (`0e8d:201c`);
+`fastboot reboot` returns SSH after about 30 seconds.
+
 ## Recovery
 
 If a `boot_b` image does not come back:
