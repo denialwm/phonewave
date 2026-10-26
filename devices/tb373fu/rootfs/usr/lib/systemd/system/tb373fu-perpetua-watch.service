@@ -1,5 +1,5 @@
 [Unit]
-Description=Idea Tab Pro: return to the reference kernel when perpetua has no USB
+Description=Idea Tab Pro: return to the reference kernel when perpetua has no USB or a low battery
 After=tb373fu-usb.service
 
 [Service]

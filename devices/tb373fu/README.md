@@ -38,9 +38,12 @@ matches the fixed host MAC `02:11:22:33:44:55`.
 
 ## Testing a perpetua kernel
 
-Perpetua's `devices/boot/mediatek-lk` packs the build into the reference
-`boot_b` as the template and signs it again with the same AVB key. Write
-it with `dd` over SSH and read the hash back; reboot.
+`tools/perpetua-test N` tests release `devices-N-tb373fu` of
+`linux-perpetua-build`: it packs the kernel with perpetua's
+`devices/boot/mediatek-lk` (the reference `boot_b` is the template, signed
+again with the same AVB key), installs the modules, writes `boot_b` over
+SSH with a hash read-back, reboots, waits for the tablet and reports the
+boot. It refuses below 30% battery.
 
 A perpetua boot is the one with `/chosen/linux,fdt-handoff` in the live
 tree. On such a boot:
@@ -53,7 +56,9 @@ tree. On such a boot:
   to the journal (`tb373fu-mmio-dump`), writes
   `/var/lib/phonewave/tb373fu/boot_b-reference.img` back to `boot_b`
   after checking it against its `.sha256`, and reboots. The next boot is
-  the reference kernel, with the failed boot's journal.
+  the reference kernel, with the failed boot's journal. It does the same
+  when the battery falls below 30%, since perpetua does not drive the
+  charger yet.
 - `80-tb373fu-perpetua-drivers.rules` gives udev its normal module
   loading back; the reference kernel's rootfs turns it off.
 - `81-tb373fu-perpetua-backlight.rules` switches the backlight on. The

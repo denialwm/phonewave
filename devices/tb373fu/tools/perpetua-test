@@ -1,0 +1,84 @@
+#!/bin/bash
+# Usage: perpetua-test N
+#
+# Tests linux-perpetua release devices-N-tb373fu on the tablet: packs it
+# for boot_b, installs its modules, writes boot_b over SSH with a hash
+# read-back, reboots and reports how the boot went. When the boot does not
+# bring USB up, tb373fu-perpetua-watch has put the reference kernel back,
+# and this prints what the failed boot left. Needs `ssh tb373fu` and the
+# battery at 30% or more.
+#
+# PERPETUA_BUILD, PERPETUA_SOURCE and PHONEWAVE_VAULT override the default
+# checkouts next to this one.
+set -euo pipefail
+[[ $# -eq 1 && $1 =~ ^[0-9]+$ ]] || { sed -n 's/^# \{0,1\}//; 2,13p' "$0" >&2; exit 2; }
+n=$1
+top=$(cd "$(dirname "$0")/../../../.." && pwd)
+build=${PERPETUA_BUILD:-$top/linux-perpetua-build}
+source=${PERPETUA_SOURCE:-$top/linux-perpetua}
+vault=${PHONEWAVE_VAULT:-$top/device-vault}/tb373fu
+release=7.3.0-devices$n-tb373fu
+dir=$build/releases/devices-$n-tb373fu
+image=$vault/boot/boot_b-devices$n.img
+ssh=(ssh -o BatchMode=yes -o ConnectTimeout=3 tb373fu)
+low=30
+
+[[ -d $dir ]] || { echo "no release $dir"; exit 1; }
+! grep -qi warning "$dir/build.log" || { echo "warnings in $dir/build.log"; exit 1; }
+"$source/devices/handoff/test" "$dir/artifacts/tb373fu.dtb" "$vault/survey/bootloader-fdt.dtb" \
+    0x40010000 0x42700000 >/dev/null || { echo 'the handoff test does not boot the built-in tree'; exit 1; }
+
+capacity=$("${ssh[@]}" 'cat /sys/class/power_supply/*/capacity 2>/dev/null | head -1')
+[[ -z $capacity || $capacity -ge $low ]] || { echo "battery at $capacity%; charge on the reference kernel first"; exit 1; }
+
+if [[ ! -e $image ]]; then
+    mkdir -p "$vault/boot/boot-evidence-devices$n"
+    "$source/devices/boot/mediatek-lk" "$vault/backups/slot_b/boot_b.img" "$dir/artifacts/Image" \
+        "$vault/signing/avb-test-rsa2048.pem" "$image" "$vault/boot/boot-evidence-devices$n" \
+        > "$vault/boot/boot-package-devices$n.json"
+fi
+want=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["sha256"])' \
+    "$vault/boot/boot-package-devices$n.json")
+
+tar -C "$dir/modules-root/lib/modules" --owner=0 --group=0 --exclude="$release/build" -cf - "$release" |
+    zstd -q -1 | "${ssh[@]}" "zstd -dc | tar -C /usr/lib/modules -mxf - && depmod $release"
+# The image is mostly padding; send it compressed.
+have=$(zstd -q -1 -c "$image" | "${ssh[@]}" 'zstd -dc > /tmp/boot.img &&
+    dd if=/tmp/boot.img of=/dev/disk/by-partlabel/boot_b bs=1M conv=fsync status=none &&
+    rm /tmp/boot.img && echo 3 > /proc/sys/vm/drop_caches &&
+    sha256sum /dev/disk/by-partlabel/boot_b' | cut -d' ' -f1)
+[[ $have == "$want" ]] || { echo "boot_b reads back $have, not $want; not rebooting"; exit 1; }
+printf '{"release": "%s", "partition": "boot_b", "via": "dd over ssh", "readback_sha256": "%s", "written": "%s"}\n' \
+    "$release" "$have" "$(date -u +%FT%TZ)" > "$vault/boot/kernel-flash-evidence-devices$n.json"
+echo "boot_b: $release ($have)"
+
+boot=$("${ssh[@]}" cat /proc/sys/kernel/random/boot_id)
+"${ssh[@]}" 'systemctl reboot' || true
+start=$SECONDS
+# A boot without USB comes back on the reference kernel after the watch's
+# 45 seconds and a second boot.
+until now=$("${ssh[@]}" cat /proc/sys/kernel/random/boot_id 2>/dev/null) && [[ $now != "$boot" ]]; do
+    ((SECONDS - start < 150)) || { echo 'the tablet did not come back within 150 s'; exit 1; }
+    sleep 2
+done
+echo "back after $((SECONDS - start)) s"
+
+"${ssh[@]}" release="$release" 'bash -s' <<'EOF'
+running=$(uname -r)
+if [[ $running == "$release" ]]; then
+    echo "running $running"
+    [[ -e /sys/firmware/devicetree/base/chosen/linux,fdt-handoff ]] && echo 'handoff: built-in tree' || echo 'handoff: NOT the built-in tree'
+    systemctl is-system-running --wait >/dev/null || true
+    systemd-analyze | head -1
+    systemctl --failed --no-legend --plain | sed 's/^/failed: /'
+    journalctl -b -u tb373fu-perpetua-watch -o cat | head -1
+    for p in /sys/class/power_supply/*/; do echo "battery: $(<$p/capacity)%, $(<$p/status), $(<$p/current_now) uA"; done
+    # Keep the module trees of this release and the one before it.
+    ls -d /usr/lib/modules/7.3.0-devices*-tb373fu | sort -V | head -n -2 | xargs -r rm -rf
+else
+    echo "running $running, not $release: the watch reverted it"
+    journalctl -b -1 -k -o cat | head -2
+    journalctl -b -1 -u tb373fu-perpetua-watch -o cat | head -3
+    exit 1
+fi
+EOF
