@@ -54,6 +54,13 @@ tree. On such a boot:
   `/var/lib/phonewave/tb373fu/boot_b-reference.img` back to `boot_b`
   after checking it against its `.sha256`, and reboots. The next boot is
   the reference kernel, with the failed boot's journal.
+- `80-tb373fu-perpetua-drivers.rules` gives udev its normal module
+  loading back; the reference kernel's rootfs turns it off.
+- `81-tb373fu-perpetua-backlight.rules` switches the backlight on. The
+  kernel's `led-backlight` waits for a display driver to do that, and
+  perpetua shows the console on the bootloader's framebuffer.
+  systemd-backlight keeps the level across boots
+  (`/sys/class/backlight/backlight`, 0 to 4095).
 
 A kernel that never reaches userspace needs fastboot.
 

@@ -1,0 +1,4 @@
+# On a perpetua boot, switch the backlight on. It waits for a display
+# driver to do that, and the panel runs on the bootloader's framebuffer.
+# systemd-backlight restores the saved level.
+ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="backlight", TEST=="/sys/firmware/devicetree/base/chosen/linux,fdt-handoff", ATTR{bl_power}="0"
