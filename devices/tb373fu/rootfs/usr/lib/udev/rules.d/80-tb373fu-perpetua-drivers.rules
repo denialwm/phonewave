@@ -1,0 +1,4 @@
+# On a perpetua boot, load drivers by modalias as udev normally does. The
+# reference kernel's rootfs empties 80-drivers.rules to keep its vendor
+# modules from loading on their own; perpetua's modules are all ours.
+ENV{MODALIAS}=="?*", TEST=="/sys/firmware/devicetree/base/chosen/linux,fdt-handoff", RUN{builtin}+="kmod load $env{MODALIAS}"
