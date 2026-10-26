@@ -1,0 +1,13 @@
+[Unit]
+Description=Idea Tab Pro USB network and serial gadget
+After=systemd-udevd.service
+Before=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave/tb373fu-usb
+RemainAfterExit=yes
+TimeoutStartSec=35
+
+[Install]
+WantedBy=multi-user.target

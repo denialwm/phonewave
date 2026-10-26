@@ -1,0 +1,12 @@
+#!/bin/sh
+# On a perpetua boot, mask the units that only work on the reference
+# kernel: they wait for its Wi-Fi, GPU and display devices and hold
+# network.target, and with it sshd, for 90 seconds.
+[ -e /sys/firmware/devicetree/base/chosen/linux,fdt-handoff ] || exit 0
+early=${2:?early generator directory}
+for unit in wpa_supplicant@wlan0.service tb373fu-boot-ok.service \
+    tb373fu-cpu-policy.service tb373fu-denial.service tb373fu-display.service \
+    tb373fu-hardware-ready.service tb373fu-lowpower.service \
+    tb373fu-offline-ufbc-selftest.service; do
+    ln -sf /dev/null "$early/$unit"
+done

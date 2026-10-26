@@ -1,0 +1,8 @@
+[Match]
+MACAddress=02:11:22:33:44:66
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=10.0.0.2/24

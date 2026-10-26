@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Boot a MediaTek device into fastboot through its preloader.
+
+For a few seconds at the start of every boot the preloader shows up as a
+USB serial port (0e8d:2000) and takes a boot mode. Run this, then restart
+the device (a long press of Power); it sends FASTBOOT as soon as the port
+appears, and LK starts fastboot instead of the kernel.
+
+Needs access to the serial port, usually root. Standard library only.
+"""
+import os
+from pathlib import Path
+import sys
+import termios
+import time
+
+VENDOR, PRODUCT = '0e8d', '2000'
+REQUEST, ANSWER = b'FASTBOOT', b'TOOBTSAF'
+
+
+def preloader_port():
+    for tty in Path('/sys/class/tty').glob('ttyACM*'):
+        usb = (tty / 'device').resolve().parent
+        try:
+            ids = ((usb / 'idVendor').read_text().strip(), (usb / 'idProduct').read_text().strip())
+        except OSError:
+            continue
+        if ids == (VENDOR, PRODUCT):
+            return Path('/dev') / tty.name
+    return None
+
+
+def request_fastboot(port):
+    fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+    try:
+        attrs = termios.tcgetattr(fd)
+        attrs[0] = attrs[1] = attrs[3] = 0
+        attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
+        attrs[4] = attrs[5] = termios.B115200
+        termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        heard = b''
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            os.write(fd, REQUEST)
+            time.sleep(0.05)
+            try:
+                heard += os.read(fd, 256)
+            except BlockingIOError:
+                pass
+            if ANSWER in heard:
+                return True
+        print(f'no answer; heard {heard!r}', file=sys.stderr)
+        return False
+    finally:
+        os.close(fd)
+
+
+def main():
+    timeout = float(sys.argv[1]) if len(sys.argv) > 1 else 300
+    print(f'Waiting {timeout:.0f} s for the preloader; restart the device now.')
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        port = preloader_port()
+        if port:
+            try:
+                if request_fastboot(port):
+                    print(f'{port}: preloader answered; fastboot is starting.')
+                    return 0
+            except OSError as error:
+                print(f'{port}: {error}', file=sys.stderr)
+                if error.errno == 13:
+                    return 1
+        time.sleep(0.02)
+    print('The preloader did not show up.', file=sys.stderr)
+    return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,10 @@
+[Unit]
+Description=Idea Tab Pro: return to the reference kernel when perpetua has no USB
+After=tb373fu-usb.service
+
+[Service]
+Type=exec
+ExecStart=/usr/lib/phonewave/tb373fu-perpetua-watch
+
+[Install]
+WantedBy=multi-user.target

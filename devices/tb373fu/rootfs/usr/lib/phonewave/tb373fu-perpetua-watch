@@ -1,0 +1,33 @@
+#!/bin/bash
+# On a perpetua boot only: if the USB gadget is not configured within
+# 45 seconds, dump the USB registers, write the reference kernel back to
+# boot_b and reboot, so the tablet comes back reachable with this boot's
+# journal. Does nothing on the reference kernel.
+set -eu
+[[ -e /sys/firmware/devicetree/base/chosen/linux,fdt-handoff ]] || exit 0
+state=/var/lib/phonewave/tb373fu
+image=$state/boot_b-reference.img
+for ((second = 0; second < 45; second++)); do
+    for udc in /sys/class/udc/*/state; do
+        if [[ -r $udc && $(<"$udc") == configured ]]; then
+            echo "USB gadget configured after ${second} s"
+            exit 0
+        fi
+    done
+    sleep 1
+done
+for udc in /sys/class/udc/*; do
+    [[ -e $udc ]] && echo "${udc##*/}: $(<"$udc/state")"
+done
+echo 'USB gadget not configured after 45 s; USB registers:'
+# The USB2 PHY port, the MTU3 IP port control, its device MAC and MISC_CTRL.
+/usr/lib/phonewave/tb373fu-mmio-dump 0x11e40000 0x400 0x11203e00 0x100 0x11201000 0x400 0x11201c80 0x10 || true
+[[ -r $image && -r $image.sha256 ]] || { echo "no reference image in $state"; exit 1; }
+want=$(<"$image.sha256")
+[[ $(sha256sum < "$image" | cut -d' ' -f1) == "$want" ]] || { echo 'reference image corrupt'; exit 1; }
+dd if="$image" of=/dev/disk/by-partlabel/boot_b bs=1M conv=fsync status=none
+echo 3 > /proc/sys/vm/drop_caches
+have=$(sha256sum < /dev/disk/by-partlabel/boot_b | cut -d' ' -f1)
+[[ $have == "$want" ]] || { echo "boot_b reads back $have, not rebooting"; exit 1; }
+echo 'reference kernel written back to boot_b; rebooting'
+systemctl reboot

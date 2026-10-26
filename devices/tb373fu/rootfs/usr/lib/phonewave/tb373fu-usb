@@ -1,0 +1,33 @@
+#!/bin/bash
+# The USB network and serial gadget, unless the reference kernel's
+# initramfs already made it. The addresses are those the reference
+# initramfs uses, so the host keeps one profile for both kernels.
+set -eu
+mountpoint -q /sys/kernel/config || mount -t configfs configfs /sys/kernel/config
+g=/sys/kernel/config/usb_gadget/g1
+if [[ -r "$g/UDC" && -n $(cat "$g/UDC") ]]; then exit 0; fi
+mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409"
+echo 0x18d1 > "$g/idVendor"
+echo 0xd001 > "$g/idProduct"
+echo 0x0200 > "$g/bcdUSB"
+echo 0x0100 > "$g/bcdDevice"
+echo tb373fu > "$g/strings/0x409/serialnumber"
+echo Phonewave > "$g/strings/0x409/manufacturer"
+echo 'Idea Tab Pro Linux' > "$g/strings/0x409/product"
+echo 'ECM network and ACM console' > "$g/configs/c.1/strings/0x409/configuration"
+echo 500 > "$g/configs/c.1/MaxPower"
+mkdir -p "$g/functions/ecm.usb0" "$g/functions/acm.GS0"
+echo 02:11:22:33:44:55 > "$g/functions/ecm.usb0/host_addr"
+echo 02:11:22:33:44:66 > "$g/functions/ecm.usb0/dev_addr"
+[[ -e "$g/configs/c.1/ecm.usb0" ]] || ln -s "$g/functions/ecm.usb0" "$g/configs/c.1/ecm.usb0"
+[[ -e "$g/configs/c.1/acm.GS0" ]] || ln -s "$g/functions/acm.GS0" "$g/configs/c.1/acm.GS0"
+for ((attempt=0; attempt<300; attempt++)); do
+    for udc in /sys/class/udc/*; do
+        [[ -e "$udc" ]] || continue
+        echo "${udc##*/}" > "$g/UDC"
+        exit 0
+    done
+    sleep 0.1
+done
+echo 'USB device controller did not probe' >&2
+exit 1
