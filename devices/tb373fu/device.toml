@@ -1,0 +1,19 @@
+# Lenovo Idea Tab Pro. Hardware identified in the running reference kernel
+# (6.1.138-tb373fu-syncobj1), its device tree and the stock firmware.
+codename = "tb373fu"
+model = "Lenovo Idea Tab Pro"
+chassis = "tablet"
+soc = "mt6897"
+# Planned; perpetua has no MT6897 device tree yet.
+dtb = "mediatek/mt6897-lenovo-tb373fu.dtb"
+
+[display]
+# Bootloader LCM driver: nt36532_dsi_vdo_144hz_tianma_lcm_drv.
+# Dual DSI, video mode. Bias: SM5109. Backlight: two SGM37604A.
+panel = "tianma,nt36532"
+resolution = [2944, 1840]
+refresh_hz = [144]
+
+[touch]
+# Novatek NT36532 on SPI.
+controller = "novatek,nt36532"
