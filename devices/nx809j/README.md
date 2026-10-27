@@ -62,6 +62,20 @@ so later images keep it.
 
 ## Root filesystem
 
-Arch Linux ARM on `userdata`, following Perpetua's
-`devices/arch-linux-arm.md`. Formatting `userdata` ends Android on this
-phone. Resolve the partition by its GPT PARTUUID from the rescue.
+Arch Linux ARM on a partition of its own, following Perpetua's
+`devices/arch-linux-arm.md`. Android keeps `userdata`: its f2fs was shrunk
+online from rooted Android (`F2FS_IOC_RESIZE_FS`) and the end of `sda`
+became a partition named `linux`, GPT PARTUUID
+`2225dabe-3937-4455-83a4-58a737b38f2f`, ext4 labelled `ALARM`. The vault
+keeps the partition tables from before and after (`backups/gpt*`). Android
+still boots from slot B's stock images; formatting `userdata` from Android
+is its own recovery and leaves `linux` alone.
+
+Package with `--root-partuuid 2225dabe-3937-4455-83a4-58a737b38f2f` to boot
+the installed root; without it the phone stays in the RAM rescue.
+
+`rootfs/` installs the ECM+ACM gadget service and a networkd profile matched
+by the device-side MAC, on the rescue's link: the phone is 10.77.73.2 and
+leases 10.77.73.1 to the host, without a router, DNS or NTP. Enable `sshd`
+and `systemd-networkd`; root and `logix` log in with keys only. Install the
+exact release's module tree under `/usr/lib/modules`.

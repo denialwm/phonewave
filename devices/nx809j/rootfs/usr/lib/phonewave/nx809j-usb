@@ -1,0 +1,30 @@
+#!/bin/bash
+set -eu
+mountpoint -q /sys/kernel/config || mount -t configfs configfs /sys/kernel/config
+g=/sys/kernel/config/usb_gadget/nx809j
+if [[ -r "$g/UDC" && -n $(cat "$g/UDC") ]]; then exit 0; fi
+mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409"
+echo 0x1d6b > "$g/idVendor"
+echo 0x0104 > "$g/idProduct"
+echo 0x0200 > "$g/bcdUSB"
+echo 0x0100 > "$g/bcdDevice"
+echo nx809j > "$g/strings/0x409/serialnumber"
+echo Phonewave > "$g/strings/0x409/manufacturer"
+echo 'RedMagic 11 Pro Linux' > "$g/strings/0x409/product"
+echo 'ECM network and ACM console' > "$g/configs/c.1/strings/0x409/configuration"
+echo 500 > "$g/configs/c.1/MaxPower"
+mkdir -p "$g/functions/ecm.usb0" "$g/functions/acm.usb0"
+echo 02:66:08:00:00:01 > "$g/functions/ecm.usb0/host_addr"
+echo 02:66:08:00:00:02 > "$g/functions/ecm.usb0/dev_addr"
+[[ -e "$g/configs/c.1/ecm.usb0" ]] || ln -s "$g/functions/ecm.usb0" "$g/configs/c.1/ecm.usb0"
+[[ -e "$g/configs/c.1/acm.usb0" ]] || ln -s "$g/functions/acm.usb0" "$g/configs/c.1/acm.usb0"
+for ((attempt=0; attempt<300; attempt++)); do
+    for udc in /sys/class/udc/*; do
+        [[ -e "$udc" ]] || continue
+        echo "${udc##*/}" > "$g/UDC"
+        exit 0
+    done
+    sleep 0.1
+done
+echo 'USB device controller did not probe' >&2
+exit 1
