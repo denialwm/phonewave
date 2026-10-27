@@ -79,3 +79,33 @@ by the device-side MAC, on the rescue's link: the phone is 10.77.73.2 and
 leases 10.77.73.1 to the host, without a router, DNS or NTP. Enable `sshd`
 and `systemd-networkd`; root and `logix` log in with keys only. Install the
 exact release's module tree under `/usr/lib/modules`.
+
+## Denial
+
+`nx809j-denial.service` runs Denial as `logix` on tty1, in a logind
+session, and starts at boot (`systemctl enable nx809j-denial`). It opens
+the display and the GPU by path (`platform-9801000.display-controller-card`
+and `-render`) and runs the set that `/var/lib/nx809j-denial/current`
+names. Its output configuration starts from `/usr/share/nx809j/outputs.conf`
+(scale 2). Besides the base image it needs `seatd` (libseat), `libinput`,
+`wayland`, `xorg-xwayland`, `polkit`, `xkeyboard-config` and fonts
+(`noto-fonts`, `noto-fonts-emoji`, `noto-fonts-cjk`, `ttf-dejavu`,
+`ttf-liberation`); deniald stops at startup without Xwayland.
+
+To install a build of the `dev` stream (`tools/build start denial aston`
+builds the same AArch64 candidate for every phone):
+
+```sh
+B=$(readlink -f /mnt/development/denial-os/builds/aston/denial/latest)
+id=denial-${B##*/}
+ssh root@10.77.73.2 mkdir -p /var/lib/nx809j-denial/.staging-$id
+rsync -a --chown=root:root $B/native $B/shell $B/settings $B/SHA256SUMS \
+    $B/manifest.json $B/source-manifest.json $B/source.patch \
+    $B/flutter.patch $B/skia.patch $B/build-recipe.py \
+    root@10.77.73.2:/var/lib/nx809j-denial/.staging-$id/
+ssh root@10.77.73.2 "set -e; cd /var/lib/nx809j-denial
+    (cd .staging-$id && sha256sum --quiet -c SHA256SUMS && chmod -R a-w .)
+    mv -T .staging-$id $id; echo previous=\$(readlink current)
+    ln -sfn $id .current.new; mv -T .current.new current
+    systemctl restart nx809j-denial"
+```

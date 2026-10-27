@@ -1,0 +1,51 @@
+[Unit]
+Description=Denial on the RedMagic 11 Pro
+After=systemd-logind.service systemd-user-sessions.service dbus.service systemd-udev-trigger.service
+# The session owns tty1 like a login does: logind only places a session on
+# seat0, which has VTs, when it comes with one.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=120
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=logix
+Group=logix
+SupplementaryGroups=audio input render video
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=/home/logix
+Environment=HOME=/home/logix
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_SESSION_CLASS=user
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=LIBSEAT_BACKEND=logind
+Environment=RUST_LOG=deniald=info,smithay=warn
+Environment=DENIAL_SHELL_PROFILE=mobile
+# Denial writes its output configuration atomically into this directory.
+StateDirectory=nx809j
+StateDirectoryMode=0755
+ExecStartPre=+/bin/sh -c 'test -e /var/lib/nx809j/outputs.conf || install -o logix -g logix -m 0644 /usr/share/nx809j/outputs.conf /var/lib/nx809j/'
+# The deployment is the one /var/lib/nx809j-denial/current names.
+ExecStart=/var/lib/nx809j-denial/current/native/deniald --device /dev/dri/by-path/platform-9801000.display-controller-card --render-device /dev/dri/by-path/platform-9801000.display-controller-render --output-config /var/lib/nx809j/outputs.conf --wayland --flutter-bundle /var/lib/nx809j-denial/current/shell
+Environment=DENIAL_SETTINGS_BINARY=/var/lib/nx809j-denial/current/settings/denial-settings
+AmbientCapabilities=CAP_SYS_NICE
+LimitRTPRIO=10
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
