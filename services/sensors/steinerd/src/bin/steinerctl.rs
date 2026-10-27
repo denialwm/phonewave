@@ -130,8 +130,8 @@ async fn list(types: &[&str]) -> Result<(), Box<dyn Error>> {
             match core.attributes(uid).await {
                 Ok(a) => println!(
                     "{data_type}: {uid} {} {} {} rates={:?}",
-                    a.str(attr::VENDOR).unwrap_or("?").trim(),
-                    a.str(attr::NAME).unwrap_or("?").trim(),
+                    a.str(attr::VENDOR).unwrap_or("?"),
+                    a.str(attr::NAME).unwrap_or("?"),
                     if a.on_change() {
                         "on-change"
                     } else {

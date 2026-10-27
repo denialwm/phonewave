@@ -239,8 +239,8 @@ impl State {
                 eprintln!(
                     "steinerd: {}: {} {}",
                     kind.name(),
-                    attrs.str(attr::VENDOR).unwrap_or("?").trim(),
-                    attrs.str(attr::NAME).unwrap_or("?").trim(),
+                    attrs.str(attr::VENDOR).unwrap_or("?"),
+                    attrs.str(attr::NAME).unwrap_or("?"),
                 );
                 let available = attrs.bool(attr::AVAILABLE) != Some(false);
                 sensor.attrs = Some(attrs);

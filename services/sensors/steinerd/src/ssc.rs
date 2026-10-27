@@ -112,7 +112,11 @@ impl AttrValue {
                     .filter_map(|(_, e)| AttrValue::decode(e.as_bytes()?))
                     .collect(),
             ),
-            2 => AttrValue::Str(v.as_str()?.to_owned()),
+            2 => AttrValue::Str(
+                v.as_str()?
+                    .trim_matches(|c: char| c == '\0' || c.is_whitespace())
+                    .to_owned(),
+            ),
             3 => AttrValue::Float(v.as_f32()?),
             4 => AttrValue::Int(v.as_u64()? as i64),
             5 => AttrValue::Bool(v.as_u64()? != 0),
