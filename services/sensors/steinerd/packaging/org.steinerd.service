@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.steinerd
+Exec=/usr/bin/steinerd
+User=root
+SystemdService=steinerd.service

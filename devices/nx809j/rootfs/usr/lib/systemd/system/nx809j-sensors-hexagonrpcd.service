@@ -1,0 +1,24 @@
+[Unit]
+Description=RedMagic 11 Pro sensor registry for the ADSP (hexagonrpcd)
+
+[Service]
+Type=exec
+# The ADSP's sensor drivers read their configuration from here at start.
+# The files come from the stock vendor and persist partitions; the README
+# says how to copy them.
+ExecStart=/usr/local/bin/hexagonrpcd -f /dev/fastrpc-adsp-secure -d adsp -s -R /usr/share/qcom/kaanapali/Nubia/NX809J
+Restart=always
+RestartSec=1
+PrivateDevices=yes
+DevicePolicy=closed
+DeviceAllow=/dev/fastrpc-adsp-secure rw
+BindPaths=/dev/fastrpc-adsp-secure
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

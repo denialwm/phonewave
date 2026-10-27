@@ -1,0 +1,25 @@
+[Unit]
+Description=Sensor service
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.steinerd
+ExecStart=/usr/bin/steinerd
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_QIPCRTR
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

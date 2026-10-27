@@ -126,3 +126,21 @@ links to the copy directory, and `efs.handset` beside it holds the SoC serial,
 written on the phone from `/sys/devices/soc0/serial_number` and never printed.
 Install dmail with its `make install` layout, then run `systemd-sysusers`,
 reload systemd and D-Bus and enable `dmail.service`.
+
+## Sensors
+
+steinerd (services/sensors/steinerd) offers orientation, light and proximity
+from the ADSP's sensor core: lsm6dsv accelerometer and gyroscope, stk3a7x
+light and proximity, ak0991x magnetometer. The ADSP reads its sensor
+configuration from the host when it starts, so
+`nx809j-sensors-hexagonrpcd.service` runs `hexagonrpcd -s` from boot on
+`/dev/fastrpc-adsp-secure`. hexagonrpcd (linux-msm/hexagonrpc `da7a374`,
+GPL-3.0) is cross-built with meson, prefix `/usr/local`, rpath
+`/usr/local/lib`, and installed with `libhexagonrpc` in `/usr/local`.
+
+The files it serves are the phone's own and never enter this repo:
+`tools/sensor-files`, run on the phone as root, copies them from the stock
+`vendor_b` and persist, both read-only, into
+`/usr/share/qcom/kaanapali/Nubia/NX809J`. Restart the phone afterwards. Then
+install steinerd with its `make install` layout and enable `steinerd.service`;
+`steinerctl list accel proximity ambient_light` shows the three sensors.

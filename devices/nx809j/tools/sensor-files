@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Copy the ADSP sensor configuration from the stock partitions.
+
+Runs on the phone as root. Reads vendor_b inside super and persist, both
+read-only, and writes only the hexagonrpcd tree that
+nx809j-sensors-hexagonrpcd.service serves. Restart the phone afterwards:
+the ADSP reads the files only when it starts.
+"""
+import os
+import shutil
+import struct
+import subprocess
+import tempfile
+
+ROOT = "/usr/share/qcom/kaanapali/Nubia/NX809J"
+SUPER = "/dev/disk/by-partlabel/super"
+PERSIST = "/dev/disk/by-partlabel/persist"
+DM_NAME = "nx809j-sensor-files-vendor"
+
+
+def linear_table(device, partition):
+    """The device-mapper table of one logical partition in super."""
+    with open(device, "rb") as f:
+        f.seek(4096)
+        geometry = f.read(4096)
+        magic, = struct.unpack_from("<I", geometry, 0)
+        if magic != 0x616C4467:
+            raise SystemExit("super has no LP geometry")
+        metadata_size, = struct.unpack_from("<I", geometry, 40)
+        slot = 1 if partition.endswith("_b") else 0
+        f.seek(4096 + 2 * 4096 + slot * metadata_size)
+        meta = f.read(metadata_size)
+    if struct.unpack_from("<I", meta, 0)[0] != 0x414C5030:
+        raise SystemExit("super has no LP metadata")
+    header_size, = struct.unpack_from("<I", meta, 8)
+    tables = meta[header_size:]
+    parts = struct.unpack_from("<III", meta, 80)
+    extents = struct.unpack_from("<III", meta, 92)
+    for i in range(parts[1]):
+        name, _attrs, first, count, _group = struct.unpack_from(
+            "<36sIIII", tables, parts[0] + i * parts[2])
+        if name.rstrip(b"\0").decode() != partition:
+            continue
+        lines, start = [], 0
+        for e in range(first, first + count):
+            sectors, kind, data, source = struct.unpack_from(
+                "<QIQI", tables, extents[0] + e * extents[2])
+            if kind != 0 or source != 0:
+                raise SystemExit(f"{partition}: extent type {kind} on device {source}")
+            lines.append(f"{start} {sectors} linear {device} {data}")
+            start += sectors
+        return "\n".join(lines) + "\n"
+    raise SystemExit(f"no {partition} in super")
+
+
+def main():
+    super_dev = os.path.realpath(SUPER)
+    table = linear_table(super_dev, "vendor_b")
+    with tempfile.TemporaryDirectory() as work:
+        vendor = os.path.join(work, "vendor")
+        persist = os.path.join(work, "persist")
+        os.mkdir(vendor)
+        os.mkdir(persist)
+        subprocess.run(["dmsetup", "create", "--readonly", DM_NAME],
+                       input=table, text=True, check=True)
+        try:
+            subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{DM_NAME}", vendor], check=True)
+            # noload: never replay persist's journal.
+            subprocess.run(["mount", "-o", "ro,noload", PERSIST, persist], check=True)
+            sensors = os.path.join(ROOT, "sensors")
+            shutil.rmtree(sensors, ignore_errors=True)
+            os.makedirs(sensors)
+            shutil.copytree(os.path.join(vendor, "etc/sensors/config"),
+                            os.path.join(sensors, "config"))
+            shutil.copyfile(os.path.join(vendor, "etc/sensors/sns_reg_config"),
+                            os.path.join(sensors, "sns_reg.conf"))
+            shutil.copytree(os.path.join(persist, "sensors/registry/registry"),
+                            os.path.join(sensors, "registry"))
+            os.makedirs(os.path.join(ROOT, "dsp"), exist_ok=True)
+        finally:
+            subprocess.run(["umount", persist], check=False)
+            subprocess.run(["umount", vendor], check=False)
+            subprocess.run(["dmsetup", "remove", DM_NAME], check=False)
+    print(f"sensor files in {ROOT}; restart the phone")
+
+
+if __name__ == "__main__":
+    main()
