@@ -1,0 +1,15 @@
+[Unit]
+Description=RedMagic 11 Pro modem file server (tqftpserv)
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/tqftpserv
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/tqftpserv

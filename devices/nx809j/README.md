@@ -109,3 +109,20 @@ ssh root@10.77.73.2 "set -e; cd /var/lib/nx809j-denial
     ln -sfn $id .current.new; mv -T .current.new current
     systemctl restart nx809j-denial"
 ```
+
+## Modem
+
+dmail (services/modem/dmail) owns it. rootfs/ carries
+`/usr/lib/dmail/modem-setup`, the `nx809j-modem-rmtfs` and
+`nx809j-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
+`nx809j-dmail.conf`, which puts logix in the `dmail` group. The data
+endpoints are those of Kaanapali's IPA (AP to modem 2, modem to AP 24), the
+same as the Ace 3. The modem firmware lives in
+`/usr/lib/firmware/qcom/kaanapali/nubia/nx809j/`; `rmtfs`, `tqftpserv` and
+`qrtr-lookup` in `/usr/local/bin`.
+
+The EFS copy never enters this repo: on the phone `/var/lib/nx809j-modem/efs`
+links to the copy directory, and `efs.handset` beside it holds the SoC serial,
+written on the phone from `/sys/devices/soc0/serial_number` and never printed.
+Install dmail with its `make install` layout, then run `systemd-sysusers`,
+reload systemd and D-Bus and enable `dmail.service`.

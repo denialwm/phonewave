@@ -1,0 +1,17 @@
+[Unit]
+Description=RedMagic 11 Pro modem file system (rmtfs)
+
+[Service]
+Type=exec
+# -r: the modem's writes stay in memory; the copy never changes.
+ExecStart=/usr/local/bin/rmtfs -r -o /var/lib/nx809j-modem/efs
+PrivateDevices=yes
+DevicePolicy=closed
+DeviceAllow=/dev/qcom_rmtfs_mem1 rw
+BindPaths=/dev/qcom_rmtfs_mem1
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+PrivateTmp=yes

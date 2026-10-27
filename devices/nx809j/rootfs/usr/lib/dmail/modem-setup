@@ -1,0 +1,59 @@
+#!/bin/bash
+# RedMagic 11 Pro: what the modem needs before it answers. dmail runs this and waits for
+# the modem's services (services/modem/dmail/DESIGN.md, Boot). With the modem
+# up it changes nothing.
+#
+# The modem keeps its file system (EFS) on rmtfs, served read-only from this
+# phone's private copy: /var/lib/nx809j-modem/efs links to the copy directory,
+# and efs.handset beside it holds the SoC serial of the phone it came from.
+set -euo pipefail
+kit=/var/lib/nx809j-modem
+
+mss=
+for p in /sys/class/remoteproc/remoteproc*; do
+	[[ $(<"$p/name") == modem ]] && mss=$p
+done
+if [[ -z $mss ]]; then
+	echo "modem-setup: no modem remoteproc" >&2
+	exit 1
+fi
+# A crash stops the modem: no restart behind dmail's back, no memory dump.
+# A crashed modem keeps its dump setting until it is stopped.
+if [[ $(<"$mss/state") == crashed ]]; then
+	echo stop > "$mss/state"
+fi
+echo disabled > "$mss/recovery"
+echo disabled > "$mss/coredump"
+
+if ! systemctl is-active -q nx809j-modem-rmtfs.service; then
+	if [[ $(<"$kit/efs.handset") != "$(</sys/devices/soc0/serial_number)" ]]; then
+		echo "modem-setup: the EFS copy is not this phone's" >&2
+		exit 1
+	fi
+	(cd "$kit/efs" && sha256sum -c --quiet SHA256SUMS)
+	systemctl start nx809j-modem-rmtfs.service
+fi
+systemctl start nx809j-modem-tqftpserv.service
+
+# The modem looks for rmtfs as it boots.
+rmtfs_up() {
+	/usr/local/bin/qrtr-lookup | awk '$1 == 14 { up = 1 } END { exit !up }'
+}
+for _ in {1..25}; do
+	rmtfs_up && break
+	sleep 0.2
+done
+if ! rmtfs_up; then
+	echo "modem-setup: rmtfs is not serving" >&2
+	exit 1
+fi
+
+state=$(<"$mss/state")
+case $state in
+running) ;;
+offline) echo start > "$mss/state" ;;
+*)
+	echo "modem-setup: the modem is $state" >&2
+	exit 1
+	;;
+esac
