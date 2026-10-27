@@ -14,19 +14,81 @@ use crate::pb::{self, Value};
 use crate::qmi;
 use crate::ssc::{self, Attributes, Core, Event, Uid, attr, msg};
 
-/// The data type that feeds each kind.
-fn data_type(kind: Kind) -> &'static str {
-    match kind {
-        Kind::Orientation => "accel",
-        Kind::Light => "ambient_light",
-        Kind::Proximity => "proximity",
+/// Where readings come from: one data type on the sensor core.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Source {
+    Accel,
+    Gyro,
+    /// The gyroscope's bias, which the core tracks while the phone is still.
+    GyroCal,
+    /// The core's rotation vector, fused from the accelerometer, gyroscope
+    /// and a magnetometer it calibrates itself.
+    RotationVector,
+    Light,
+    Proximity,
+}
+
+impl Source {
+    const ALL: [Source; 6] = [
+        Source::Accel,
+        Source::Gyro,
+        Source::GyroCal,
+        Source::RotationVector,
+        Source::Light,
+        Source::Proximity,
+    ];
+
+    fn data_type(self) -> &'static str {
+        match self {
+            Source::Accel => "accel",
+            Source::Gyro => "gyro",
+            Source::GyroCal => "gyro_cal",
+            Source::RotationVector => "rotv",
+            Source::Light => "ambient_light",
+            Source::Proximity => "proximity",
+        }
     }
+}
+
+/// The sources a claim runs. The first gives the readings and says whether
+/// the phone has the sensor; the gyroscope's calibration comes along where
+/// the core has one.
+fn sources(kind: Kind) -> &'static [Source] {
+    match kind {
+        Kind::Orientation | Kind::Accel => &[Source::Accel],
+        Kind::Gyro => &[Source::Gyro, Source::GyroCal],
+        Kind::Compass => &[Source::RotationVector],
+        Kind::Light => &[Source::Light],
+        Kind::Proximity => &[Source::Proximity],
+    }
+}
+
+/// The DSP clock's ticks per second.
+const TICKS: u64 = 19_200_000;
+/// The heading is published at most 20 times a second, from a rotation
+/// vector that comes 100 times.
+const HEADING_TICKS: u64 = TICKS / 20;
+/// Acceleration and rotation rate are published at most 30 times a second:
+/// the core streams the physical sensor's rate to every client, 100 Hz or
+/// more while the rotation vector runs.
+const MOTION_TICKS: u64 = TICKS / 30;
+
+/// Whether a value last published at `at` may be published again at `now`,
+/// `every` ticks apart; if so, `now` becomes its time.
+fn due(at: &mut Option<u64>, now: u64, every: u64) -> bool {
+    let due = at.is_none_or(|at| now.wrapping_sub(at) >= every);
+    if due {
+        *at = Some(now);
+    }
+    due
 }
 
 #[derive(Default)]
 struct Sensor {
     uid: Option<Uid>,
     attrs: Option<Attributes>,
+    /// Its attributes came and do not say it is unavailable.
+    available: bool,
     on: bool,
 }
 
@@ -59,8 +121,14 @@ enum Wake {
 struct State {
     props: Props,
     claims: BTreeMap<Kind, BTreeSet<String>>,
-    sensors: BTreeMap<Kind, Sensor>,
+    sensors: BTreeMap<Source, Sensor>,
     classifier: Classifier,
+    /// The gyroscope's bias in rad/s, as the core last reported it.
+    gyro_bias: [f32; 3],
+    /// When each throttled value was last published, in DSP ticks.
+    heading_at: Option<u64>,
+    acceleration_at: Option<u64>,
+    rotation_rate_at: Option<u64>,
 }
 
 /// How long one wait for the sensor core lasts before it is logged again.
@@ -97,9 +165,7 @@ impl Daemon {
                 Err(e) => eprintln!("steinerd: sensor core lost: {e}"),
             }
             state.sensors.clear();
-            state.props.has_orientation = false;
-            state.props.has_light = false;
-            state.props.has_proximity = false;
+            state.refresh_has();
             self.bus.publish(&state.props);
         }
     }
@@ -123,10 +189,10 @@ impl Daemon {
 
     /// Runs on one core until it goes away (an error) or steinerd stops.
     async fn follow(&mut self, core: &Core, state: &mut State) -> Result<(), String> {
-        for kind in Kind::ALL {
-            core.request_suids(data_type(kind), true)
+        for source in Source::ALL {
+            core.request_suids(source.data_type(), true)
                 .await
-                .map_err(|e| format!("looking up {}: {e}", data_type(kind)))?;
+                .map_err(|e| format!("looking up {}: {e}", source.data_type()))?;
         }
         loop {
             let core_wake = async {
@@ -173,9 +239,12 @@ impl State {
 
     /// Starts the claimed sensors that are ready and stops the rest.
     async fn sync(&mut self, core: &Core) {
-        for kind in Kind::ALL {
-            let claimed = self.claims.get(&kind).is_some_and(|c| !c.is_empty());
-            let sensor = self.sensors.entry(kind).or_default();
+        for source in Source::ALL {
+            let claimed = Kind::ALL.into_iter().any(|kind| {
+                sources(kind).contains(&source)
+                    && self.claims.get(&kind).is_some_and(|c| !c.is_empty())
+            });
+            let sensor = self.sensors.entry(source).or_default();
             let Some(uid) = sensor.uid else { continue };
             let want = claimed && sensor.attrs.is_some();
             if want == sensor.on {
@@ -190,7 +259,7 @@ impl State {
                 Ok(()) => sensor.on = want,
                 Err(e) => {
                     let verb = if want { "starting" } else { "stopping" };
-                    eprintln!("steinerd: {verb} {}: {e}", kind.name());
+                    eprintln!("steinerd: {verb} {}: {e}", source.data_type());
                     // A failed stop still leaves no one listening.
                     sensor.on = false;
                 }
@@ -204,14 +273,11 @@ impl State {
     }
 
     async fn event(&mut self, core: &Core, e: &Event) {
-        if let Some((data_type_name, uids)) = ssc::suid_answer(e) {
-            let Some(kind) = Kind::ALL
-                .into_iter()
-                .find(|k| data_type(*k) == data_type_name)
-            else {
+        if let Some((data_type, uids)) = ssc::suid_answer(e) {
+            let Some(source) = Source::ALL.into_iter().find(|s| s.data_type() == data_type) else {
                 return;
             };
-            let sensor = self.sensors.entry(kind).or_default();
+            let sensor = self.sensors.entry(source).or_default();
             let uid = uids.first().copied();
             if sensor.uid == uid {
                 return;
@@ -220,53 +286,84 @@ impl State {
                 uid,
                 ..Sensor::default()
             };
-            self.set_has(kind, false);
+            self.refresh_has();
             if let Some(uid) = uid
                 && let Err(e) = core.request_attributes(uid).await
             {
-                eprintln!("steinerd: {} attributes: {e}", kind.name());
+                eprintln!("steinerd: {data_type} attributes: {e}");
             }
             return;
         }
-        let Some((kind, sensor)) = self.sensors.iter_mut().find(|(_, s)| s.uid == Some(e.uid))
+        let Some((source, sensor)) = self.sensors.iter_mut().find(|(_, s)| s.uid == Some(e.uid))
         else {
             return;
         };
-        let kind = *kind;
-        match (kind, e.msg_id) {
+        let source = *source;
+        // Packed or one field per value.
+        let floats = || -> Vec<f32> {
+            pb::Reader::new(&e.payload)
+                .filter(|(f, _)| *f == 1)
+                .flat_map(|(_, v)| v.floats())
+                .collect()
+        };
+        match (source, e.msg_id) {
             (_, msg::ATTRIBUTES) => {
                 let attrs = Attributes::decode(&e.payload);
                 eprintln!(
                     "steinerd: {}: {} {}",
-                    kind.name(),
+                    source.data_type(),
                     attrs.str(attr::VENDOR).unwrap_or("?"),
                     attrs.str(attr::NAME).unwrap_or("?"),
                 );
-                let available = attrs.bool(attr::AVAILABLE) != Some(false);
+                sensor.available = attrs.bool(attr::AVAILABLE) != Some(false);
                 sensor.attrs = Some(attrs);
-                self.set_has(kind, available);
+                self.refresh_has();
             }
-            (Kind::Orientation, msg::MEASUREMENT) => {
-                // Packed or one field per axis.
-                let floats: Vec<f32> = pb::Reader::new(&e.payload)
-                    .filter(|(f, _)| *f == 1)
-                    .flat_map(|(_, v)| v.floats())
-                    .collect();
-                if let [x, y, z, ..] = floats[..] {
+            (Source::Accel, msg::MEASUREMENT) => {
+                if let [x, y, z, ..] = floats()[..] {
                     let ns = (u128::from(e.timestamp) * 625 / 12) as u64;
                     if let Some(o) = self.classifier.feed(x, y, z, ns) {
                         self.props.orientation = o;
                     }
+                    if due(&mut self.acceleration_at, e.timestamp, MOTION_TICKS) {
+                        self.props.acceleration = (x.into(), y.into(), z.into());
+                    }
                 }
             }
-            (Kind::Light, msg::MEASUREMENT) => {
+            (Source::Gyro, msg::MEASUREMENT) => {
+                if let [x, y, z, ..] = floats()[..]
+                    && due(&mut self.rotation_rate_at, e.timestamp, MOTION_TICKS)
+                {
+                    let [bx, by, bz] = self.gyro_bias;
+                    self.props.rotation_rate = ((x - bx).into(), (y - by).into(), (z - bz).into());
+                }
+            }
+            (Source::GyroCal, msg::CALIBRATION) => {
+                if let [x, y, z, ..] = floats()[..] {
+                    self.gyro_bias = [x, y, z];
+                }
+            }
+            (Source::RotationVector, msg::MEASUREMENT) => {
+                let accuracy = pb::field(&e.payload, 2)
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    .min(3) as u8;
+                let changed = accuracy != self.props.heading_accuracy;
+                if let [x, y, z, w, ..] = floats()[..]
+                    && (due(&mut self.heading_at, e.timestamp, HEADING_TICKS) || changed)
+                {
+                    self.props.heading = (heading(x, y, z, w) * 10.0).round() / 10.0 % 360.0;
+                    self.props.heading_accuracy = accuracy;
+                }
+            }
+            (Source::Light, msg::MEASUREMENT) => {
                 if let Some(lux) =
                     pb::field(&e.payload, 1).and_then(|v| v.floats().first().copied())
                 {
                     self.props.light = f64::from(lux);
                 }
             }
-            (Kind::Proximity, msg::PROXIMITY_EVENT) => {
+            (Source::Proximity, msg::PROXIMITY_EVENT) => {
                 if let Some(near) = pb::field(&e.payload, 1).and_then(Value::as_u64) {
                     self.props.near = near != 0;
                 }
@@ -275,11 +372,79 @@ impl State {
         }
     }
 
-    fn set_has(&mut self, kind: Kind, has: bool) {
-        match kind {
-            Kind::Orientation => self.props.has_orientation = has,
-            Kind::Light => self.props.has_light = has,
-            Kind::Proximity => self.props.has_proximity = has,
-        }
+    /// Whether the phone has each sensor, from its first source.
+    fn refresh_has(&mut self) {
+        let has = |kind| {
+            self.sensors
+                .get(&sources(kind)[0])
+                .is_some_and(|s| s.available)
+        };
+        self.props.has_orientation = has(Kind::Orientation);
+        self.props.has_light = has(Kind::Light);
+        self.props.has_proximity = has(Kind::Proximity);
+        self.props.has_accel = has(Kind::Accel);
+        self.props.has_gyro = has(Kind::Gyro);
+        self.props.has_compass = has(Kind::Compass);
+    }
+}
+
+/// The heading of a rotation vector (x, y, z, w; the device's frame in the
+/// world's, east, north, up), in degrees clockwise from north: where the
+/// top edge points while the screen faces more up or down than sideways,
+/// else where the back points. Held as phones are, past 45 degrees from
+/// flat, both point the same way, so the switch does not jump.
+fn heading(x: f32, y: f32, z: f32, w: f32) -> f64 {
+    let (x, y, z, w) = (f64::from(x), f64::from(y), f64::from(z), f64::from(w));
+    // Columns of the rotation matrix: the device's y and z axes in the
+    // world's east, north and up.
+    let top = (2.0 * (x * y - z * w), 1.0 - 2.0 * (x * x + z * z));
+    let back = (-2.0 * (x * z + y * w), -2.0 * (y * z - x * w));
+    let screen_up = 1.0 - 2.0 * (x * x + y * y);
+    let (east, north) = if screen_up.abs() >= std::f64::consts::FRAC_1_SQRT_2 {
+        top
+    } else {
+        back
+    };
+    east.atan2(north).to_degrees().rem_euclid(360.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::heading;
+
+    /// A turn of `degrees` about `axis` as a rotation vector.
+    fn turn(axis: [f32; 3], degrees: f32) -> (f32, f32, f32, f32) {
+        let (sin, cos) = (degrees.to_radians() / 2.0).sin_cos();
+        (axis[0] * sin, axis[1] * sin, axis[2] * sin, cos)
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        let d = (a - b).rem_euclid(360.0);
+        d.min(360.0 - d) < 0.01
+    }
+
+    #[test]
+    fn flat_heading_follows_the_top_edge() {
+        let (x, y, z, w) = turn([0.0, 0.0, 1.0], 0.0);
+        assert!(close(heading(x, y, z, w), 0.0));
+        // Turned 90 degrees counterclockwise about up: the top edge points
+        // west.
+        let (x, y, z, w) = turn([0.0, 0.0, 1.0], 90.0);
+        assert!(close(heading(x, y, z, w), 270.0));
+    }
+
+    #[test]
+    fn upright_heading_follows_the_back() {
+        // Stood up from flat, facing north: the screen faces south, the
+        // back north.
+        let (x, y, z, w) = turn([1.0, 0.0, 0.0], 90.0);
+        assert!(close(heading(x, y, z, w), 0.0));
+    }
+
+    #[test]
+    fn sample_from_the_redmagic() {
+        // Lying on a desk, steinerctl raw rotv.
+        let h = heading(0.0088, -0.0078, -0.938, 0.3465);
+        assert!((h - 139.5).abs() < 1.0, "{h}");
     }
 }

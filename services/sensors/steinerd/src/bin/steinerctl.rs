@@ -3,7 +3,8 @@
 use std::error::Error;
 use std::time::{Duration, Instant};
 
-use futures_lite::StreamExt;
+use async_io::Timer;
+use futures_lite::{StreamExt, future};
 use steinerd::bus::{NAME, PATH};
 use steinerd::pb::{Reader, Value};
 use steinerd::ssc::{Core, attr};
@@ -14,15 +15,18 @@ use zbus::zvariant::OwnedValue;
 const INTERFACE: &str = "org.steinerd.Sensors1";
 
 const USAGE: &str = "usage: steinerctl status
-       steinerctl watch [orientation|light|proximity]...
+       steinerctl watch [orientation|light|proximity|accel|gyro|compass]...
        steinerctl list [DATA_TYPE]...    sensors the core offers
-       steinerctl raw DATA_TYPE [HZ]     10 s of events, from the core";
+       steinerctl raw DATA_TYPE [HZ]     10 s of events, from the core
+                                         (HZ only for continuous sensors)";
 
 /// What `list` looks up when given nothing.
 const TYPES: &[&str] = &[
     "accel",
     "gyro",
+    "gyro_cal",
     "mag",
+    "mag_cal",
     "proximity",
     "ambient_light",
     "gravity",
@@ -40,7 +44,17 @@ fn main() {
     let result: Result<(), Box<dyn Error>> = async_io::block_on(async {
         match args[..] {
             ["status"] => status().await,
-            ["watch"] => watch(&["orientation", "light", "proximity"]).await,
+            ["watch"] => {
+                watch(&[
+                    "orientation",
+                    "light",
+                    "proximity",
+                    "accel",
+                    "gyro",
+                    "compass",
+                ])
+                .await
+            }
             ["watch", ref sensors @ ..] => watch(sensors).await,
             ["list"] => list(TYPES).await,
             ["list", ref types @ ..] => list(types).await,
@@ -69,14 +83,22 @@ async fn properties() -> Result<(zbus::Connection, PropertiesProxy<'static>), Bo
 }
 
 fn show(name: &str, value: &OwnedValue) -> String {
+    let vector = value
+        .try_clone()
+        .ok()
+        .and_then(|v| <(f64, f64, f64)>::try_from(v).ok());
     let text = match (
         value.downcast_ref::<bool>(),
         value.downcast_ref::<f64>(),
         value.downcast_ref::<&str>(),
+        value.downcast_ref::<u8>(),
+        vector,
     ) {
-        (Ok(b), _, _) => b.to_string(),
-        (_, Ok(f), _) => format!("{f:.1}"),
-        (_, _, Ok(s)) => s.to_owned(),
+        (Ok(b), ..) => b.to_string(),
+        (_, Ok(f), ..) => format!("{f:.1}"),
+        (_, _, Ok(s), ..) => s.to_owned(),
+        (_, _, _, Ok(n), _) => n.to_string(),
+        (.., Some((x, y, z))) => format!("{x:.2},{y:.2},{z:.2}"),
         _ => format!("{value:?}"),
     };
     format!("{name}={text}")
@@ -154,10 +176,22 @@ async fn raw(data_type: &str, hz: Option<f32>) -> Result<(), Box<dyn Error>> {
         .await?
         .first()
         .ok_or("no such sensor")?;
+    // A rate sent to an on-change sensor is a fatal error on the ADSP
+    // (sns_stream_service req_bound), which takes the phone down with it.
+    if hz.is_some() && core.attributes(uid).await?.on_change() {
+        return Err(format!("{data_type} reports on change and takes no rate").into());
+    }
     core.enable(uid, hz).await?;
     let until = Instant::now() + Duration::from_secs(10);
     while Instant::now() < until {
-        for e in core.events().await? {
+        // An on-change sensor may say nothing for the whole 10 s.
+        let events = future::or(async { Some(core.events().await) }, async {
+            Timer::at(until).await;
+            None
+        })
+        .await;
+        let Some(events) = events else { break };
+        for e in events? {
             let fields: Vec<String> = Reader::new(&e.payload)
                 .map(|(f, v)| match v {
                     Value::Varint(n) => format!("{f}={n}"),

@@ -129,9 +129,11 @@ reload systemd and D-Bus and enable `dmail.service`.
 
 ## Sensors
 
-steinerd (services/sensors/steinerd) offers orientation, light and proximity
-from the ADSP's sensor core: lsm6dsv accelerometer and gyroscope, stk3a7x
-light and proximity, ak0991x magnetometer. The ADSP reads its sensor
+steinerd (services/sensors/steinerd) offers orientation, acceleration,
+rotation rate, compass heading, light and proximity from the ADSP's sensor
+core: lsm6dsv accelerometer and gyroscope, stk3a7x light and proximity,
+ak0991x magnetometer, through the core's AKM rotation vector for the
+compass. The ADSP reads its sensor
 configuration from the host when it starts, so
 `nx809j-sensors-hexagonrpcd.service` runs `hexagonrpcd -s` from boot on
 `/dev/fastrpc-adsp-secure`. hexagonrpcd (linux-msm/hexagonrpc `da7a374`,

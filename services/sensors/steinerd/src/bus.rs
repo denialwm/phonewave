@@ -28,16 +28,29 @@ pub enum Kind {
     Orientation,
     Light,
     Proximity,
+    Accel,
+    Gyro,
+    Compass,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 3] = [Kind::Orientation, Kind::Light, Kind::Proximity];
+    pub const ALL: [Kind; 6] = [
+        Kind::Orientation,
+        Kind::Light,
+        Kind::Proximity,
+        Kind::Accel,
+        Kind::Gyro,
+        Kind::Compass,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Kind::Orientation => "orientation",
             Kind::Light => "light",
             Kind::Proximity => "proximity",
+            Kind::Accel => "accel",
+            Kind::Gyro => "gyro",
+            Kind::Compass => "compass",
         }
     }
 
@@ -47,7 +60,7 @@ impl Kind {
             .find(|k| k.name() == name)
             .ok_or_else(|| {
                 Error::InvalidArgs(format!(
-                    "no sensor {name:?}: orientation, light or proximity"
+                    "no sensor {name:?}: orientation, light, proximity, accel, gyro or compass"
                 ))
             })
     }
@@ -68,6 +81,17 @@ pub struct Props {
     pub light: f64,
     pub has_proximity: bool,
     pub near: bool,
+    pub has_accel: bool,
+    /// m/s², x to the right edge, y to the top edge, z out of the screen.
+    pub acceleration: (f64, f64, f64),
+    pub has_gyro: bool,
+    /// rad/s about the same axes, counterclockwise looking down each.
+    pub rotation_rate: (f64, f64, f64),
+    pub has_compass: bool,
+    /// Degrees clockwise from magnetic north; -1 before the first reading.
+    pub heading: f64,
+    /// 0 unreliable, 1 low, 2 medium, 3 high.
+    pub heading_accuracy: u8,
 }
 
 impl Default for Props {
@@ -79,6 +103,13 @@ impl Default for Props {
             light: 0.0,
             has_proximity: false,
             near: false,
+            has_accel: false,
+            acceleration: (0.0, 0.0, 0.0),
+            has_gyro: false,
+            rotation_rate: (0.0, 0.0, 0.0),
+            has_compass: false,
+            heading: -1.0,
+            heading_accuracy: 0,
         }
     }
 }
@@ -106,9 +137,10 @@ fn sender(header: &Header<'_>) -> Result<String, Error> {
 
 #[interface(name = "org.steinerd.Sensors1")]
 impl Sensors {
-    /// Starts a sensor for the caller: "orientation", "light" or
-    /// "proximity". It runs while anyone holds a claim; a claim ends with
-    /// Release or when the caller leaves the bus.
+    /// Starts a sensor for the caller: "orientation", "light",
+    /// "proximity", "accel", "gyro" or "compass". It runs while anyone
+    /// holds a claim; a claim ends with Release or when the caller leaves
+    /// the bus.
     async fn claim(&self, sensor: &str, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
         let kind = Kind::parse(sensor)?;
         self.send(Command::Claim(kind, sender(&header)?)).await
@@ -152,6 +184,51 @@ impl Sensors {
     #[zbus(property)]
     fn near(&self) -> bool {
         self.props.near
+    }
+
+    #[zbus(property)]
+    fn has_accel(&self) -> bool {
+        self.props.has_accel
+    }
+
+    /// The accelerometer in m/s²: x toward the right edge, y toward the top
+    /// edge, z out of the screen. At rest it reads gravity's reaction, about
+    /// +9.8 up.
+    #[zbus(property)]
+    fn acceleration(&self) -> (f64, f64, f64) {
+        self.props.acceleration
+    }
+
+    #[zbus(property)]
+    fn has_gyro(&self) -> bool {
+        self.props.has_gyro
+    }
+
+    /// The gyroscope in rad/s about the accelerometer's axes, positive
+    /// counterclockwise looking down each, its bias taken off.
+    #[zbus(property)]
+    fn rotation_rate(&self) -> (f64, f64, f64) {
+        self.props.rotation_rate
+    }
+
+    #[zbus(property)]
+    fn has_compass(&self) -> bool {
+        self.props.has_compass
+    }
+
+    /// Degrees clockwise from magnetic north that the phone faces: its top
+    /// edge while it lies nearer flat, its back once it stands nearer
+    /// upright. -1 before the first reading.
+    #[zbus(property)]
+    fn heading(&self) -> f64 {
+        self.props.heading
+    }
+
+    /// How far the heading can be trusted, as the magnetometer's
+    /// calibration stands: 0 unreliable, 1 low, 2 medium, 3 high.
+    #[zbus(property)]
+    fn heading_accuracy(&self) -> u8 {
+        self.props.heading_accuracy
     }
 }
 
@@ -236,6 +313,27 @@ async fn apply(conn: &Connection, p: Props) -> zbus::Result<()> {
     }
     if old.near != p.near {
         s.near_changed(e).await?;
+    }
+    if old.has_accel != p.has_accel {
+        s.has_accel_changed(e).await?;
+    }
+    if old.acceleration != p.acceleration {
+        s.acceleration_changed(e).await?;
+    }
+    if old.has_gyro != p.has_gyro {
+        s.has_gyro_changed(e).await?;
+    }
+    if old.rotation_rate != p.rotation_rate {
+        s.rotation_rate_changed(e).await?;
+    }
+    if old.has_compass != p.has_compass {
+        s.has_compass_changed(e).await?;
+    }
+    if old.heading != p.heading {
+        s.heading_changed(e).await?;
+    }
+    if old.heading_accuracy != p.heading_accuracy {
+        s.heading_accuracy_changed(e).await?;
     }
     Ok(())
 }

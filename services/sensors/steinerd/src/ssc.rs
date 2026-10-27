@@ -34,6 +34,8 @@ pub mod msg {
     /// The SUID lookup's answer, and also the acknowledgement of an enable.
     pub const SUID_OR_CONFIG: u32 = 768;
     pub const PROXIMITY_EVENT: u32 = 769;
+    /// A calibration's bias, from a `_cal` sensor.
+    pub const CALIBRATION: u32 = 1022;
     pub const MEASUREMENT: u32 = 1025;
 }
 
