@@ -1,0 +1,24 @@
+# Nubia RedMagic 11 Pro (NX809J).
+codename = "nx809j"
+model = "Nubia RedMagic 11 Pro"
+chassis = "handset"
+soc = "kaanapali"
+dtb = "qcom/kaanapali-nubia-nx809j.dtb"
+
+[display]
+panel = "nubia,nx809j-rm692h5"
+resolution = [1216, 2688]
+refresh_hz = [60, 90, 120, 144]
+
+[touch]
+controller = "syna,s3910"
+
+[cooling]
+fan = "pwm-fan"
+pump = "awinic,awp1921"
+
+# The PMIC RTC counter is the secure world's; rtc-pm8xxx keeps a UTC offset
+# in 4 bytes of PMK8850 SDAM2 at 0x7c instead.
+[rtc]
+driver = "rtc-pm8xxx"
+offset_cell = "pmk8850_sdam_2 0x7c"

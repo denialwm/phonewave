@@ -1,0 +1,156 @@
+#!/bin/busybox sh
+# NX809J bootstrap. Disk root is opt-in at packaging time; failure keeps USB rescue.
+export PATH=/bin
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+ln -s /proc/self/fd /dev/fd
+ln -s /proc/self/fd/0 /dev/stdin
+ln -s /proc/self/fd/1 /dev/stdout
+ln -s /proc/self/fd/2 /dev/stderr
+mkdir -p /dev/pts /run /sys/kernel/config /sys/fs/pstore
+mount -t tmpfs -o mode=0755 tmpfs /run
+mount -t devpts -o mode=0620,ptmxmode=0666 devpts /dev/pts
+mount -t configfs configfs /sys/kernel/config
+mount -t pstore pstore /sys/fs/pstore 2>/dev/null
+exec </dev/null >>/dev/kmsg 2>&1
+trap ':' HUP INT TERM
+mark() { echo "nx809j-rescue: $*"; }
+# Resolve the root by GPT identity, never by device number.
+if [ -s /etc/root-partuuid ]; then
+    wanted=$(cat /etc/root-partuuid)
+    rootdev=
+    attempt=0
+    while [ "$attempt" -lt 100 ] && [ -z "$rootdev" ]; do
+        for entry in /sys/class/block/*/uevent; do
+            [ -f "$entry" ] || continue
+            if grep -qi "^PARTUUID=$wanted$" "$entry"; then
+                rootdev=/dev/$(sed -n 's/^DEVNAME=//p' "$entry")
+                break
+            fi
+        done
+        [ -n "$rootdev" ] || sleep 0.1
+        attempt=$((attempt + 1))
+    done
+    mkdir -p /newroot
+    if [ -n "$rootdev" ] && mount -t ext4 -o noatime "$rootdev" /newroot; then
+        if [ -x /newroot/sbin/init ]; then
+            mark "starting installed root on PARTUUID=$wanted"
+            mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
+            mount --move /dev /newroot/dev
+            mount --move /proc /newroot/proc
+            mount --move /sys /newroot/sys
+            mount --move /run /newroot/run
+            exec switch_root /newroot /sbin/init
+        fi
+        umount /newroot
+    fi
+    mark "disk root unavailable; retaining RAM rescue"
+fi
+mark "started on $(uname -r); RAM rescue active"
+ip link set lo up
+
+g=/sys/kernel/config/usb_gadget/nx809j
+mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409"
+echo 0x1d6b > "$g/idVendor"
+echo 0x0104 > "$g/idProduct"
+echo 0x0200 > "$g/bcdUSB"
+echo 0x0100 > "$g/bcdDevice"
+echo nx809j-rescue > "$g/strings/0x409/serialnumber"
+echo Phonewave > "$g/strings/0x409/manufacturer"
+echo 'RedMagic 11 Pro USB rescue' > "$g/strings/0x409/product"
+echo 'ECM network and ACM console' > "$g/configs/c.1/strings/0x409/configuration"
+echo 500 > "$g/configs/c.1/MaxPower"
+mkdir -p "$g/functions/ecm.usb0" "$g/functions/acm.usb0"
+echo 02:66:08:00:00:01 > "$g/functions/ecm.usb0/host_addr"
+echo 02:66:08:00:00:02 > "$g/functions/ecm.usb0/dev_addr"
+ln -s "$g/functions/ecm.usb0" "$g/configs/c.1/ecm.usb0"
+ln -s "$g/functions/acm.usb0" "$g/configs/c.1/acm.usb0"
+
+# A local USB serial shell remains useful even if network setup fails.
+(
+    while :; do
+        if [ -c /dev/ttyGS0 ]; then
+            setsid sh -c 'exec sh -i </dev/ttyGS0 >/dev/ttyGS0 2>&1'
+        fi
+        sleep 2
+    done
+) &
+
+# Without a packaged host key, dropbear makes one on the first connection.
+hostkey=/etc/dropbear/dropbear_ed25519_host_key
+keyopt="-r $hostkey"
+[ -s "$hostkey" ] || keyopt=-R
+
+# PID 1 stays alive. Bind as soon as DWC3 probes and keep the interface
+# configured across cable reconnects, independently of any SSH session.
+announced=
+ssh_started=
+controller_wait=0
+heartbeat=0
+dhcp_started=
+while :; do
+    if [ -z "$(cat "$g/UDC" 2>/dev/null)" ]; then
+        for udc in /sys/class/udc/*; do
+            [ -e "$udc" ] || continue
+            echo "${udc##*/}" > "$g/UDC" && break
+        done
+    fi
+    ifname=$(cat "$g/functions/ecm.usb0/ifname" 2>/dev/null)
+    if [ -n "$ifname" ] && [ -e "/sys/class/net/$ifname" ]; then
+        ip link set "$ifname" up
+        if ! ip -4 addr show dev "$ifname" | grep -q '10.77.73.2/30'; then
+            ip addr add 10.77.73.2/30 dev "$ifname"
+        fi
+        if [ -z "$ssh_started" ]; then
+            (
+                while :; do
+                    dropbearmulti dropbear -F -E -j $keyopt -p 10.77.73.2:22 -P /run/dropbear.pid
+                    sleep 2
+                done
+            ) &
+            ssh_started=1
+        fi
+        if [ -z "$dhcp_started" ]; then
+            # Give the host its link address without a gateway or DNS change.
+            cat > /run/nx809j-udhcpd.conf <<EOC
+start 10.77.73.1
+end 10.77.73.1
+interface $ifname
+max_leases 1
+option subnet 255.255.255.252
+option lease 86400
+lease_file /run/nx809j-udhcpd.leases
+pidfile /run/nx809j-udhcpd.pid
+EOC
+            touch /run/nx809j-udhcpd.leases
+            (
+                while :; do
+                    udhcpd -f /run/nx809j-udhcpd.conf
+                    sleep 2
+                done
+            ) &
+            dhcp_started=1
+        fi
+        if [ -z "$announced" ] && [ -n "$(cat "$g/UDC" 2>/dev/null)" ]; then
+            mark "USB controller $(cat "$g/UDC") bound; SSH on $ifname at 10.77.73.2"
+            announced=1
+        fi
+    fi
+    if [ -z "$announced" ]; then
+        controller_wait=$((controller_wait + 1))
+        if [ "$controller_wait" = 5 ]; then
+            mark "waiting for USB device controller"
+            mkdir -p /sys/kernel/debug
+            mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+            cat /sys/kernel/debug/devices_deferred 2>/dev/null
+        fi
+    fi
+    heartbeat=$((heartbeat + 1))
+    if [ "$heartbeat" = 5 ]; then
+        mark "alive: uptime=$(cut -d' ' -f1 /proc/uptime) USB=$(cat "$g/UDC" 2>/dev/null) state=$(cat /sys/class/udc/*/state 2>/dev/null)"
+        heartbeat=0
+    fi
+    sleep 2
+done
