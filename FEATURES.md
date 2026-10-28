@@ -63,7 +63,7 @@ last.
 | Cooling | works | 2026-10-28, devices-153, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | untested | 2026-10-28, devices-153, probe | Droidloom ce52723 installed; Android ready in 4 s, GLES on freedreno, Play Store. No app opened yet |
+| Android apps | works | 2026-10-28, devices-155, user | Droidloom ce52723; Android ready in 4 s, GLES on freedreno, Play Store |
 | Shoulder triggers | ? | | |
 | RGB light | ? | | |
 
