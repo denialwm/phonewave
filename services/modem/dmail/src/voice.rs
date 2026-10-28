@@ -82,9 +82,7 @@ pub async fn report_calls(voice: &Client) -> Result<(), Error> {
 
 /// The calls the modem has now, ended ones left out.
 pub async fn calls(voice: &Client) -> Result<Vec<Call>, Error> {
-    let reply = voice
-        .call(Message::request(ALL_CALL_INFO), TIMEOUT)
-        .await?;
+    let reply = voice.call(Message::request(ALL_CALL_INFO), TIMEOUT).await?;
     let mut calls = parse_calls(&reply, 0x10, 0x11);
     calls.retain(|c| c.state != State::Ended);
     Ok(calls)
@@ -132,7 +130,10 @@ fn parse_calls(msg: &Message, info: u8, numbers: u8) -> Vec<Call> {
 /// Starts a call; its id follows the modem's calls from here on.
 pub async fn dial(voice: &Client, number: &str) -> Result<u8, Error> {
     let reply = voice
-        .call(Message::request(DIAL).with(0x01, number.as_bytes()), TIMEOUT)
+        .call(
+            Message::request(DIAL).with(0x01, number.as_bytes()),
+            TIMEOUT,
+        )
         .await?;
     match reply.tlv(0x10) {
         Some(&[id]) => Ok(id),
@@ -195,10 +196,7 @@ mod tests {
 
     #[test]
     fn reads_states() {
-        let msg = indication(&[(
-            0x01,
-            &[2, 1, 5, 0, 1, 3, 0, 0, 2, 7, 0, 2, 3, 0, 0],
-        )]);
+        let msg = indication(&[(0x01, &[2, 1, 5, 0, 1, 3, 0, 0, 2, 7, 0, 2, 3, 0, 0])]);
         let calls = parse_status(&msg);
         assert_eq!(calls[0].state, State::Alerting);
         assert!(!calls[0].incoming);
@@ -208,7 +206,10 @@ mod tests {
 
     #[test]
     fn survives_a_short_number_list() {
-        let msg = indication(&[(0x01, &[1, 1, 3, 0, 1, 3, 0, 0]), (0x10, &[1, 1, 0, 9, b'1'])]);
+        let msg = indication(&[
+            (0x01, &[1, 1, 3, 0, 1, 3, 0, 0]),
+            (0x10, &[1, 1, 0, 9, b'1']),
+        ]);
         assert_eq!(parse_status(&msg)[0].number, "");
     }
 }

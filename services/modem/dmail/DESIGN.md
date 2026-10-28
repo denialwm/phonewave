@@ -149,8 +149,9 @@ dmail gives it the carrier DNS for `rmnet_data0` (`SetLinkDNS`). resolved sends
 lookups to every link marked as a default route, in parallel, and that would
 wake the modem for each lookup on Wi-Fi. So dmail marks `rmnet_data0` as a DNS
 default route (`SetLinkDefaultRoute`) only while its default route is the best
-one, following the routing table over rtnetlink. Not done yet: resolved is
-masked on aston (see Device config), so lookups go over Wi-Fi's DNS.
+one, following the routing table over rtnetlink. LLMNR and mDNS stay off on
+the link. Without resolved running, cellular has no DNS: NetworkManager's
+resolv.conf holds Wi-Fi's servers only.
 
 **Toggle.** `Data1.SetEnabled`, saved in `/var/lib/dmail/`. When on, the
 session is up whenever the modem is registered with packet service attached,
@@ -162,6 +163,14 @@ the address and route, then retry after 2 s, 4 s, 8 s and so on, up to 60 s.
 Retry at once when NAS reports packet service attached again. Log the end
 reason. After a reject with cause 7, 8 or 14 dmail stops retrying until packet
 service attaches again, and Data1 shows `failed` (Open, 1).
+
+**Recovery by hand.** For when the network goes away and stays away, three
+steps, each bigger than the last: `Data1.Reconnect` (new session, also after
+a refusal), `Modem1.RestartRadio` (radio off and on: the modem registers anew
+and forgets a refused domain) and `Modem1.Restart` (dmail starts the modem
+over from `modem-setup`, the way out of `failed`). Settings' Mobile network
+page offers them, next to what Modem1 and Data1 report about the session,
+the last drop and the last reject. dmail never takes them by itself.
 
 **APN.** `/etc/dmail/apn.toml` if present, else mobile-broadband-provider-info
 (installed on aston) by the SIM's home network, else the modem's default
@@ -297,12 +306,25 @@ Changes go out as PropertiesChanged.
 | | `PinRetries` | `u` |
 | | `SimSlot` | `y`: 1 or 2, the SIM for SMS and data |
 | | `Number` | `s`: the SIM's own number as it holds it, empty if none |
+| | `Attached` | `b`: registered with packet service attached |
+| | `LastReject` | `(sx)`: the last refused registration in words, and when; empty and 0 for none. Kept across `Restart` |
 | | `UnlockPin(s pin)` | |
 | | `SetSimSlot(y slot)` | saved, applied at once |
+| | `RestartRadio()` | radio off and on, about 2 s; refused during a call |
+| | `Restart()` | start over from `modem-setup`; refused during a call |
 | `org.dmail.Data1` | `Enabled` | `b` |
 | | `State` | `s`: off, connecting, connected, failed |
 | | `Interface` | `s` |
+| | `Apn` | `s`: in use or being tried |
+| | `Address` | `s`: `10.0.0.2/30`, while connected |
+| | `Dns` | `as`: the carrier's servers, while connected |
+| | `Mtu` | `u`, while connected |
+| | `Since` | `x`: when the session came up, 0 unless connected |
+| | `RetryAt` | `x`: when dmail tries again, 0 for no waiting try |
+| | `Drops` | `u`: sessions the network ended since dmail started |
+| | `LastFailure` | `(sx)`: why the last session ended or failed to start, and when |
 | | `SetEnabled(b enabled)` | |
+| | `Reconnect()` | new session at once; mobile data must be on |
 | `org.dmail.Messages1` | `DeliveryReports` | `b`, default false |
 | | `SetDeliveryReports(b enabled)` | saved, for messages sent from then on |
 | | `ListConversations()` | `a(ssxbu)`: peer, last text, time, last outgoing, unread; archived left out |
@@ -362,9 +384,9 @@ They point at the phone's EFS copy, installed from `device-vault/<codename>/`;
 the copy never enters this repo.
 
 The device tree also enables systemd-resolved and links `/etc/resolv.conf` to
-its stub. On aston resolved has been masked since the image was built on
-28 May; nothing records why. To verify: NetworkManager then hands Wi-Fi DNS to
-resolved by itself.
+its stub; NetworkManager then hands Wi-Fi DNS to resolved by itself. On aston
+the image masked resolved on 28 May, with no reason recorded; the mask was
+removed on 2026-10-25.
 
 ## Denial and apps
 
@@ -390,7 +412,8 @@ resolved by itself.
 1. Why the network answers VoLTE-preferred-without-IMS with cause 7 is not
    known; boot step 4 avoids it. Should a cause 7 still come, the modem stops
    trying packet service until the radio goes off and on. Retrying goes against
-   3GPP, so dmail reports it on Data1 and does not cycle the radio by itself.
+   3GPP, so dmail reports it on Data1 and does not cycle the radio by itself;
+   the user can, from Settings (`Modem1.RestartRadio`).
    Checked live on 2026-10-21: SMS routes are "transfer only", so dmail acks.
    NSA reporting still to check on roadstr.
 2. Dual SIM with two SIMs in: taking a SIM the modem runs as subscription 2

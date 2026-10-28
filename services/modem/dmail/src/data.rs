@@ -90,6 +90,77 @@ pub struct EndReason {
     pub verbose: Option<(u16, u16)>,
 }
 
+impl EndReason {
+    /// The session ended because this client stopped it.
+    pub fn client_end(&self) -> bool {
+        self.verbose == Some((3, 2000))
+    }
+}
+
+impl std::fmt::Display for EndReason {
+    /// The verbose reason in words where dmail knows it, with its numbers;
+    /// libqmi's `qmi-enums-wds.h` names them all.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Some((kind, reason)) = self.verbose else {
+            return match self.reason {
+                Some(reason) => write!(f, "reason {reason}"),
+                None => f.write_str("no reason given"),
+            };
+        };
+        let words = match (kind, reason) {
+            // Internal.
+            (2, 202) => "the call ended",
+            (2, 206) => "the network ended it",
+            (2, 212) => "the modem restarted",
+            (2, 214) => "the radio type is not preferred",
+            (2, 219) => "the radio went off",
+            (2, 227) => "the network's inactivity timer ran out",
+            // Call manager.
+            (3, 1007) => "packet service not allowed",
+            (3, 1008) => "the network cannot derive the phone's identity",
+            (3, 1009) => "implicitly detached",
+            (3, 1014) => "the radio type changed",
+            (3, 1015) => "congestion",
+            (3, 1019) => "the radio bearer failed",
+            (3, 1022) => "roaming not allowed in this tracking area",
+            (3, 1026) => "the radio released the data bearer",
+            (3, 1027) => "the network released the signalling connection",
+            (3, 1028) => "detached from packet service",
+            (3, 1029) => "attaching failed",
+            (3, 1031) => "the LTE service request failed",
+            (3, 1062) => "radio link failure",
+            (3, 1067) => "the network detached the phone and asked it to attach again",
+            (3, 1068) => "the network detached the phone",
+            (3, 1083) => "detached from packet service",
+            (3, 1084) => "no radio available",
+            (3, 2000) => "dmail stopped it",
+            (3, 2001) => "no service",
+            // 3GPP, TS 24.008 and 24.301.
+            (6, 8) => "operator-determined barring",
+            (6, 26) => "insufficient resources",
+            (6, 27) => "unknown or missing APN",
+            (6, 29) => "authentication failed",
+            (6, 30) => "rejected by the gateway",
+            (6, 31) => "activation rejected",
+            (6, 33) => "service not subscribed",
+            (6, 36) => "regular deactivation",
+            (6, 38) => "network failure",
+            (6, 39) => "the network asked to attach again",
+            _ => "",
+        };
+        let kind_name = match kind {
+            2 => "internal",
+            3 => "call manager",
+            6 => "3GPP",
+            _ => "type",
+        };
+        match words {
+            "" => write!(f, "{kind_name} {reason}"),
+            words => write!(f, "{words} ({kind_name} {reason})"),
+        }
+    }
+}
+
 fn end_reason(msg: &Message) -> EndReason {
     EndReason {
         reason: match msg.tlv(0x10) {

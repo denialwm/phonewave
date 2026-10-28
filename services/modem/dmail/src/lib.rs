@@ -11,6 +11,7 @@ pub mod netlink;
 pub mod network;
 pub mod qmi;
 pub mod qrtr;
+pub mod resolved;
 pub mod sim;
 pub mod sms;
 pub mod voice;

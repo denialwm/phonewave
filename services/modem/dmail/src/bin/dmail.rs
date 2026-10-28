@@ -43,7 +43,7 @@ fn run() -> Result<(), String> {
 
     let ex = LocalExecutor::new();
     future::block_on(ex.run(async {
-        let bus = Bus::serve(commands_tx, store.clone(), settings)
+        let bus = Bus::serve(&ex, commands_tx, store.clone(), settings)
             .await
             .map_err(|e| format!("D-Bus: {e}"))?;
         eprintln!("dmail: on the system bus");

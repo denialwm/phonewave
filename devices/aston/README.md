@@ -95,6 +95,14 @@ DSP volume control's dB metadata is invalid, as on the Pad 4.
 
 Microphones: the WCD9380 takes AMIC1 on ADC1 (TX SMIC SWR_MIC0) and AMIC5
 on ADC4, input INP5 (SWR_MIC1), the handset pair of the stock
+DNS: systemd-resolved, so that dmail can give it the carrier's servers for
+`rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
+resolv.conf holds Wi-Fi's servers only. rootfs/ links `/etc/resolv.conf` to
+resolved's stub, enables resolved from `/usr` and turns LLMNR and mDNS off
+(`50-aston-unicast-only.conf`). The image masks resolved in
+`/etc/systemd/system`: remove that link once, then reload systemd and
+NetworkManager.
+
 mixer_paths.xml. ADC1/2 and ADC3/4 share one SoundWire master port, so one
 mic records at a time: UCM devices Mic1 and Mic2 conflict, and PipeWire
 offers them as the profiles "HiFi (Mic1, Speaker)" (default) and

@@ -16,15 +16,15 @@ use async_io::Timer;
 use async_signal::Signals;
 use futures_lite::{StreamExt, future};
 
-use crate::bus::{self, Bus, Command, DataProps, Error, ModemProps, Reply, now};
+use crate::bus::{self, Bus, Command, Error, ModemProps, Reply, now};
 use crate::config::{self, Device, Settings};
-use crate::netlink::{self, Netlink};
+use crate::netlink::{self, Netlink, RouteWatch};
 use crate::qmi::{self, Client, Message, service};
 use crate::qrtr::{Addr, Event as QrtrEvent, Lookup, Service};
 use crate::sim::{self, Pin};
 use crate::sms::store::Store;
 use crate::sms::{pdu, wms};
-use crate::{apn, data, modem, network, voice};
+use crate::{apn, data, modem, network, resolved, voice};
 
 const SETUP: &str = "/usr/lib/dmail/modem-setup";
 const SETUP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -51,6 +51,8 @@ const MUX_ID: u8 = 1;
 const ROUTE_METRIC: u32 = 10000;
 const FIRST_RETRY: Duration = Duration::from_secs(2);
 const LAST_RETRY: Duration = Duration::from_secs(60);
+/// How long the radio stays off when it restarts.
+const RADIO_OFF: Duration = Duration::from_secs(2);
 /// The modem's message format for GSM/UMTS point-to-point SMS.
 const FORMAT_GW_PP: u8 = 6;
 /// Reject causes after which the modem stops asking for packet service until
@@ -82,6 +84,8 @@ enum Event {
     Wds(Message),
     Wms(Message),
     Voice(Message),
+    /// The IPv4 routing table changed.
+    Routes,
     Command(Command),
     ModemGone,
     Retry,
@@ -92,6 +96,8 @@ enum Event {
 enum End {
     Stop,
     ModemGone,
+    /// Asked to start over.
+    Restart,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -109,6 +115,11 @@ impl Daemon<'_> {
         loop {
             let reason = match self.life().await {
                 Ok(End::Stop) => return Ok(()),
+                Ok(End::Restart) => {
+                    log("starting the modem over, as asked");
+                    crashes.clear();
+                    continue;
+                }
                 Ok(End::ModemGone) => {
                     log("the modem went away");
                     let now = Instant::now();
@@ -124,14 +135,14 @@ impl Daemon<'_> {
             log(format!("failed: {reason}"));
             let props = ModemProps {
                 state: "failed".into(),
+                last_reject: self.bus.last_reject(),
                 ..ModemProps::starting(self.settings.sim_slot)
             };
-            self.publish_modem(&props).await;
-            self.publish_data("failed", "").await;
+            self.publish_modem(&props);
+            self.publish_data("failed");
             if !self.idle().await {
                 return Ok(());
             }
-            log("the modem's services registered again: starting over");
             crashes.clear();
         }
     }
@@ -163,7 +174,10 @@ impl Daemon<'_> {
             );
             let command = match next.await {
                 Idle::Command(command) => command,
-                Idle::Restarted => return true,
+                Idle::Restarted => {
+                    log("the modem's services registered again: starting over");
+                    return true;
+                }
                 Idle::Stop => return false,
             };
             match command {
@@ -174,6 +188,15 @@ impl Daemon<'_> {
                     self.settings.data_enabled = enabled;
                     self.save(config::DATA_ENABLED, enabled.into());
                     let _ = reply.try_send(Ok(()));
+                    self.publish_data(if enabled { "failed" } else { "off" });
+                }
+                Command::Restart(reply) => {
+                    let _ = reply.try_send(Ok(()));
+                    log("starting the modem over, as asked");
+                    return true;
+                }
+                Command::Reconnect(reply) | Command::RestartRadio(reply) => {
+                    let _ = reply.try_send(Err(Error::NotReady("the modem failed".into())));
                 }
                 Command::SetSimSlot(slot, reply) => {
                     self.set_sim_slot(slot);
@@ -182,7 +205,7 @@ impl Daemon<'_> {
                         state: "failed".into(),
                         ..ModemProps::starting(slot)
                     };
-                    self.publish_modem(&props).await;
+                    self.publish_modem(&props);
                 }
                 Command::SetDeliveryReports(enabled, reply) => {
                     self.set_delivery_reports(enabled, reply).await;
@@ -215,33 +238,43 @@ impl Daemon<'_> {
         self.settings.delivery_reports = enabled;
         self.save(config::DELIVERY_REPORTS, enabled.into());
         let _ = reply.try_send(Ok(()));
-        if let Err(e) = self.bus.publish_delivery_reports(enabled).await {
-            log(format!("publishing Messages1: {e}"));
-        }
+        self.bus.publish_delivery_reports(enabled);
     }
 
-    async fn publish_data(&self, state: &str, interface: &str) {
-        let props = DataProps {
-            enabled: self.settings.data_enabled,
-            state: state.into(),
-            interface: interface.into(),
-        };
-        if let Err(e) = self.bus.publish_data(&props).await {
-            log(format!("publishing Data1: {e}"));
-        }
+    /// Publishes Data1's state, with the switch; any state but `connected`
+    /// clears the session's details. Off and failed wait for no retry.
+    fn publish_data(&self, state: &str) {
+        self.update_data(|p| {
+            p.state = state.into();
+            if state != "connected" {
+                p.end_session();
+            }
+            if state == "off" || state == "failed" {
+                p.retry_at = 0;
+            }
+        });
     }
 
-    async fn publish_modem(&self, props: &ModemProps) {
-        if let Err(e) = self.bus.publish_modem(props).await {
-            log(format!("publishing Modem1: {e}"));
-        }
+    fn update_data(&self, change: impl FnOnce(&mut bus::DataProps)) {
+        let enabled = self.settings.data_enabled;
+        self.bus.update_data(|p| {
+            p.enabled = enabled;
+            change(p);
+        });
+    }
+
+    fn publish_modem(&self, props: &ModemProps) {
+        self.bus.publish_modem(props);
     }
 
     /// One life of the modem, from bringing it up to it going away or dmail
     /// stopping.
     async fn life(&mut self) -> Result<End, String> {
-        let mut props = ModemProps::starting(self.settings.sim_slot);
-        self.publish_modem(&props).await;
+        let mut props = ModemProps {
+            last_reject: self.bus.last_reject(),
+            ..ModemProps::starting(self.settings.sim_slot)
+        };
+        self.publish_modem(&props);
         run_setup().await?;
         let (lookup, found) = wait_services().await?;
         let client = |id: u32| -> Result<Rc<Client>, String> {
@@ -276,14 +309,18 @@ impl Daemon<'_> {
             return Ok(End::ModemGone);
         }
 
-        let tasks = vec![
+        let mut tasks = vec![
             forward(self.ex, m.uim.clone(), Event::Uim, tx.clone()),
             forward(self.ex, m.nas.clone(), Event::Nas, tx.clone()),
             forward(self.ex, m.wds.clone(), Event::Wds, tx.clone()),
             forward(self.ex, m.wms.clone(), Event::Wms, tx.clone()),
-            forward(self.ex, m.voice.clone(), Event::Voice, tx),
+            forward(self.ex, m.voice.clone(), Event::Voice, tx.clone()),
             watch,
         ];
+        match RouteWatch::new() {
+            Ok(routes) => tasks.push(watch_routes(self.ex, routes, tx)),
+            Err(e) => log(format!("following routes: {e}")),
+        }
         let mut life = Life {
             m,
             netlink: Netlink::new().map_err(|e| format!("rtnetlink: {e}"))?,
@@ -296,6 +333,8 @@ impl Daemon<'_> {
             retry: FIRST_RETRY,
             retry_at: None,
             refused: false,
+            dns: Vec::new(),
+            dns_default: None,
             calls: Vec::new(),
             _tasks: tasks,
         };
@@ -348,6 +387,15 @@ impl Daemon<'_> {
                 Event::Wds(msg) => life.on_wds(self, msg).await,
                 Event::Wms(msg) => life.on_wms(self, msg).await,
                 Event::Voice(msg) => life.on_voice(self, msg).await,
+                Event::Routes => life.follow_routes(self).await,
+                Event::Command(Command::Restart(reply)) => {
+                    if !life.calls.is_empty() {
+                        let _ = reply.try_send(Err(Error::NotReady("a call is on".into())));
+                        continue;
+                    }
+                    let _ = reply.try_send(Ok(()));
+                    break End::Restart;
+                }
                 Event::Command(c) => life.on_command(self, &mut props, c).await,
                 Event::Retry => {
                     life.retry_at = None;
@@ -360,15 +408,11 @@ impl Daemon<'_> {
         life.end_session().await;
         // The modem's calls went with it.
         life.update_calls(self, Vec::new()).await;
-        self.publish_data(
-            if self.settings.data_enabled {
-                "connecting"
-            } else {
-                "off"
-            },
-            "",
-        )
-        .await;
+        self.publish_data(if self.settings.data_enabled {
+            "connecting"
+        } else {
+            "off"
+        });
         Ok(end)
     }
 }
@@ -469,7 +513,7 @@ async fn fail_send(bus: &Bus, store: &Mutex<Store>, id: u64) {
     if let Err(e) = store.lock().unwrap().set_state(id, "failed") {
         log(format!("SMS {id}: {e}"));
     }
-    let _ = bus.message_changed(id, "failed").await;
+    bus.message_changed(id, "failed");
 }
 
 /// Runs the device's `modem-setup`, if it has one.
@@ -614,6 +658,21 @@ fn watch_services(
     })
 }
 
+/// Reports changes to the routing table, for cellular DNS.
+fn watch_routes(ex: &LocalExecutor<'static>, routes: RouteWatch, tx: Sender<Event>) -> Task<()> {
+    ex.spawn(async move {
+        loop {
+            if let Err(e) = routes.changed().await {
+                log(format!("following routes: {e}"));
+                return;
+            }
+            if tx.send(Event::Routes).await.is_err() {
+                return;
+            }
+        }
+    })
+}
+
 struct Modem {
     dms: Rc<Client>,
     uim: Rc<Client>,
@@ -642,6 +701,10 @@ struct Life {
     retry_at: Option<Instant>,
     /// The network refused packet service: no retries until it attaches again.
     refused: bool,
+    /// The session's DNS servers, and whether resolved sends every lookup to
+    /// them (None until it was told).
+    dns: Vec<std::net::Ipv4Addr>,
+    dns_default: Option<bool>,
     /// The modem's calls, each with when it connected (0 until then).
     calls: Vec<(voice::Call, i64)>,
     _tasks: Vec<Task<()>>,
@@ -723,7 +786,7 @@ impl Life {
         };
         self.sim = now;
         if now == was {
-            d.publish_modem(props).await;
+            d.publish_modem(props);
             return;
         }
         if now == Sim::Ready {
@@ -762,6 +825,7 @@ impl Life {
             Ok(s) => {
                 let technology = s.technology().as_str();
                 let radio_changed = technology != props.technology;
+                let was = (props.state.clone(), props.technology.clone(), self.attached);
                 props.technology = technology.into();
                 props.operator = match &s.plmn {
                     Some((_, _, name)) if s.registered() => name.clone(),
@@ -783,6 +847,14 @@ impl Life {
                     self.retry_at = Some(Instant::now());
                 }
                 self.attached = attached;
+                props.attached = attached;
+                if was != (props.state.clone(), technology.into(), attached) {
+                    let packet = if attached { "attached" } else { "detached" };
+                    log(format!(
+                        "network: {}, {technology}, packet service {packet}",
+                        props.state
+                    ));
+                }
                 if radio_changed {
                     props.signal = match network::signal(&self.m.nas).await {
                         Ok(signal) => signal.unwrap_or(0),
@@ -795,7 +867,7 @@ impl Life {
             }
             Err(e) => log(format!("serving system: {e}")),
         }
-        d.publish_modem(props).await;
+        d.publish_modem(props);
     }
 
     async fn on_nas(&mut self, d: &Daemon<'_>, props: &mut ModemProps, msg: Message) {
@@ -811,20 +883,22 @@ impl Life {
                     r.cause,
                     r.cause_name()
                 ));
+                props.last_reject = (r.to_string(), now());
+                d.publish_modem(props);
                 // See DESIGN.md, Open: the modem will not ask again until the
                 // radio cycles.
                 if r.domain >= 2 && PS_REFUSED.contains(&r.cause) {
                     self.refused = true;
                     self.retry_at = None;
                     if d.settings.data_enabled && self.session.is_none() {
-                        d.publish_data("failed", "").await;
+                        d.publish_data("failed");
                     }
                 }
             }
             network::SIGNAL_INFO_IND => {
                 if let Some(signal) = network::parse_signal(&msg).filter(|&s| s != props.signal) {
                     props.signal = signal;
-                    d.publish_modem(props).await;
+                    d.publish_modem(props);
                 }
             }
             network::SERVING_SYSTEM | network::SYSTEM_INFO_IND => {
@@ -896,13 +970,9 @@ impl Life {
         }
         self.calls = kept;
         let calls = self.calls.iter().map(bus_call).collect();
-        if let Err(e) = d.bus.publish_calls(calls).await {
-            log(format!("publishing Voice1: {e}"));
-        }
+        d.bus.publish_calls(calls);
         for call in &ended {
-            if let Err(e) = d.bus.call_ended(&bus_call(call)).await {
-                log(format!("publishing CallEnded: {e}"));
-            }
+            d.bus.call_ended(&bus_call(call));
         }
     }
 
@@ -911,55 +981,91 @@ impl Life {
             return;
         }
         if let Some((data::Status::Disconnected, why)) = data::parse_status(&msg) {
-            log(format!("the network ended the data session: {why:?}"));
+            // The end of a session dmail stopped itself can come in after
+            // the next one started.
+            if why.client_end() {
+                return;
+            }
+            log(format!("the network ended the data session: {why}"));
             self.session = None;
             self.drop_link();
+            d.update_data(|p| {
+                p.drops += 1;
+                p.last_failure = (format!("The network ended it: {why}"), now());
+            });
             self.schedule_retry(d).await;
         }
     }
 
     async fn schedule_retry(&mut self, d: &Daemon<'_>) {
         if self.refused {
-            d.publish_data("failed", "").await;
+            d.publish_data("failed");
             return;
         }
-        d.publish_data("connecting", "").await;
+        d.publish_data("connecting");
         self.retry_at = Some(Instant::now() + self.retry);
+        let at = now() + self.retry.as_secs() as i64;
+        d.update_data(|p| p.retry_at = at);
         self.retry = (self.retry * 2).min(LAST_RETRY);
     }
 
     /// Brings the session up if it is wanted and possible.
     async fn connect(&mut self, d: &Daemon<'_>) {
         if !d.settings.data_enabled {
-            d.publish_data("off", "").await;
+            d.publish_data("off");
             return;
         }
         if self.session.is_some() {
             return;
         }
         if self.refused {
-            d.publish_data("failed", "").await;
+            d.publish_data("failed");
             return;
         }
-        d.publish_data("connecting", "").await;
+        d.publish_data("connecting");
         if self.sim != Sim::Ready || !self.attached {
             return;
         }
         self.retry_at = None;
+        d.update_data(|p| p.retry_at = 0);
         match self.start_session(d).await {
-            Ok(()) => {
+            Ok(s) => {
                 self.retry = FIRST_RETRY;
-                d.publish_data("connected", LINK).await;
+                let apn = self.apn.clone().unwrap_or_default();
+                d.update_data(|p| {
+                    p.state = "connected".into();
+                    p.interface = LINK.into();
+                    p.apn = apn;
+                    p.address = format!("{}/{}", s.address, s.prefix);
+                    p.dns = s.dns.iter().map(ToString::to_string).collect();
+                    p.mtu = s.mtu.unwrap_or(0);
+                    p.since = now();
+                });
+                self.dns = s.dns;
+                self.dns_default = None;
+                if let Ok(index) = netlink::index(LINK)
+                    && let Err(e) = resolved::set_link(d.bus.connection(), index, &self.dns).await
+                {
+                    log(format!("cellular DNS: {e}"));
+                }
+                self.follow_routes(d).await;
             }
             Err(e) => {
                 log(format!("data session: {e}"));
+                let apn = self.apn.clone().unwrap_or_default();
+                d.update_data(|p| {
+                    p.apn = apn;
+                    p.last_failure = (format!("Could not start: {e}"), now());
+                });
                 self.end_session().await;
                 self.schedule_retry(d).await;
             }
         }
     }
 
-    async fn start_session(&mut self, d: &Daemon<'_>) -> Result<(), String> {
+    /// Starts a session; returns the settings the network gave it, with the
+    /// MTU as set on the link.
+    async fn start_session(&mut self, d: &Daemon<'_>) -> Result<data::Settings, String> {
         let cfg = &d.device.data;
         if !self.port_ready {
             data::open_port(&self.m.dpm, self.endpoint, cfg.dpm.rx, cfg.dpm.tx)
@@ -1008,10 +1114,11 @@ impl Life {
             (Ok(handle), _) => handle,
             (Err(e), why) => return Err(format!("refused: {e}, {why:?}")),
         });
-        let s = data::settings(&self.m.wds)
+        let mut s = data::settings(&self.m.wds)
             .await
             .map_err(qmi_error("settings"))?;
         let mtu = s.mtu.unwrap_or(cfg.mtu_max).min(cfg.mtu_max);
+        s.mtu = Some(mtu);
         self.netlink.set_up(LINK, Some(mtu)).map_err(net)?;
         self.netlink
             .add_address(LINK, s.address, s.prefix)
@@ -1019,8 +1126,45 @@ impl Life {
         self.netlink
             .add_default_route(LINK, ROUTE_METRIC)
             .map_err(net)?;
-        log(format!("data session up on {apn:?}, mtu {mtu}"));
-        Ok(())
+        let dns: Vec<_> = s.dns.iter().map(ToString::to_string).collect();
+        log(format!(
+            "data session up on {apn:?}, mtu {mtu}, dns {}",
+            dns.join(" ")
+        ));
+        Ok(s)
+    }
+
+    /// Tells resolved whether every lookup goes to the carrier's DNS: only
+    /// while the session's default route is the best one, so lookups on
+    /// Wi-Fi never wake the modem.
+    async fn follow_routes(&mut self, d: &Daemon<'_>) {
+        if self.session.is_none() || self.dns.is_empty() {
+            return;
+        }
+        let Ok(index) = netlink::index(LINK) else {
+            return;
+        };
+        let routes = match self.netlink.default_routes() {
+            Ok(routes) => routes,
+            Err(e) => return log(format!("reading routes: {e}")),
+        };
+        let ours = routes.iter().find(|&&(oif, _)| oif == index);
+        let best = ours.is_some_and(|&(_, metric)| {
+            routes
+                .iter()
+                .all(|&(oif, other)| oif == index || other > metric)
+        });
+        if self.dns_default == Some(best) {
+            return;
+        }
+        match resolved::set_default_route(d.bus.connection(), index, best).await {
+            Ok(()) => {
+                let lookups = if best { "every lookup" } else { "no lookups" };
+                log(format!("cellular DNS: {lookups}"));
+                self.dns_default = Some(best);
+            }
+            Err(e) => log(format!("cellular DNS: {e}")),
+        }
     }
 
     /// The device's override, else the provider database for the SIM's home
@@ -1044,6 +1188,8 @@ impl Life {
     /// Stops the session, if there is one, and removes the link.
     async fn end_session(&mut self) {
         self.retry_at = None;
+        self.dns.clear();
+        self.dns_default = None;
         if let Some(handle) = self.session.take()
             && let Err(e) = data::stop(&self.m.wds, handle).await
         {
@@ -1065,11 +1211,13 @@ impl Life {
     async fn on_command(&mut self, d: &mut Daemon<'_>, props: &mut ModemProps, command: Command) {
         match command {
             Command::UnlockPin(pin, reply) => {
-                let result = self.unlock(d, props, pin).await;
+                let result = self.unlock(props, pin).await;
                 let unlocked = result.is_ok();
                 let _ = reply.try_send(result);
                 if unlocked {
                     self.sim_ready(d, props).await;
+                } else {
+                    d.publish_modem(props);
                 }
             }
             Command::SetData(enabled, reply) => {
@@ -1082,8 +1230,37 @@ impl Life {
                     self.connect(d).await;
                 } else {
                     self.end_session().await;
-                    d.publish_data("off", "").await;
+                    d.publish_data("off");
                 }
+            }
+            Command::Reconnect(reply) => {
+                if !d.settings.data_enabled {
+                    let _ = reply.try_send(Err(Error::NotReady("mobile data is off".into())));
+                    return;
+                }
+                let _ = reply.try_send(Ok(()));
+                log("reconnecting mobile data, as asked");
+                self.end_session().await;
+                self.refused = false;
+                self.retry = FIRST_RETRY;
+                self.connect(d).await;
+            }
+            Command::RestartRadio(reply) => {
+                if !self.calls.is_empty() {
+                    let _ = reply.try_send(Err(Error::NotReady("a call is on".into())));
+                    return;
+                }
+                let done = self.restart_radio().await;
+                let restarted = done.is_ok();
+                let _ = reply.try_send(done);
+                if restarted {
+                    self.refresh_network(d, props).await;
+                    self.connect(d).await;
+                }
+            }
+            // The life loop ends the life for it.
+            Command::Restart(reply) => {
+                let _ = reply.try_send(Err(Error::Failed("not here".into())));
             }
             Command::SetSimSlot(slot, reply) => {
                 let changed = slot != d.settings.sim_slot;
@@ -1093,7 +1270,7 @@ impl Life {
                 if changed {
                     self.switch_sim(d, props).await;
                 } else {
-                    d.publish_modem(props).await;
+                    d.publish_modem(props);
                 }
             }
             Command::SetDeliveryReports(enabled, reply) => {
@@ -1133,6 +1310,21 @@ impl Life {
         }
     }
 
+    /// Radio off and on: the modem registers anew and asks for packet
+    /// service again, even after a refusal (DESIGN.md, Open, 1). Publishes
+    /// nothing: the caller answers first.
+    async fn restart_radio(&mut self) -> Result<(), Error> {
+        log("restarting the radio, as asked");
+        let failed = |e: qmi::Error| Error::Failed(format!("the modem refused: {e}"));
+        self.end_session().await;
+        modem::set_low_power(&self.m.dms).await.map_err(failed)?;
+        Timer::after(RADIO_OFF).await;
+        modem::set_online(&self.m.dms).await.map_err(failed)?;
+        self.refused = false;
+        self.retry = FIRST_RETRY;
+        Ok(())
+    }
+
     /// Moves SMS and data to the SIM in the newly chosen slot.
     async fn switch_sim(&mut self, d: &Daemon<'_>, props: &mut ModemProps) {
         log(format!("moving to the SIM in slot {}", d.settings.sim_slot));
@@ -1151,13 +1343,9 @@ impl Life {
         }
     }
 
-    /// One PIN attempt. The PIN goes no further than the modem.
-    async fn unlock(
-        &mut self,
-        d: &Daemon<'_>,
-        props: &mut ModemProps,
-        pin: String,
-    ) -> Result<(), Error> {
+    /// One PIN attempt. The PIN goes no further than the modem. Publishes
+    /// nothing: the caller answers first.
+    async fn unlock(&mut self, props: &mut ModemProps, pin: String) -> Result<(), Error> {
         if self.sim != Sim::Locked {
             return Err(Error::NotReady("the SIM is not locked".into()));
         }
@@ -1172,13 +1360,10 @@ impl Life {
                 self.sim = Sim::Ready;
                 Ok(())
             }
-            Err(e) => {
-                d.publish_modem(props).await;
-                Err(Error::WrongPin(format!(
-                    "{e}; {} tries left",
-                    props.pin_retries
-                )))
-            }
+            Err(e) => Err(Error::WrongPin(format!(
+                "{e}; {} tries left",
+                props.pin_retries
+            ))),
         }
     }
 
@@ -1270,7 +1455,7 @@ async fn receive(d: &Daemon<'_>, tpdu: &[u8], announce: bool) {
     match done {
         Ok(messages) if announce => {
             for (id, peer) in messages {
-                let _ = d.bus.message_received(id, &peer).await;
+                d.bus.message_received(id, &peer);
             }
         }
         Ok(_) => {}
@@ -1294,7 +1479,7 @@ async fn settle(d: &Daemon<'_>, r: &pdu::StatusReport) {
         .report(&r.recipient, r.reference, outcome);
     match settled {
         Ok(Some((id, state))) => {
-            let _ = d.bus.message_changed(id, &state).await;
+            d.bus.message_changed(id, &state);
         }
         Ok(None) => {}
         Err(e) => log(format!("storing a status report: {e}")),
@@ -1325,7 +1510,7 @@ async fn send(bus: Bus, store: Arc<Mutex<Store>>, wms: Rc<Client>, id: u64, repo
     if let Err(e) = store.lock().unwrap().set_state(id, state) {
         log(format!("SMS {id}: {e}"));
     }
-    let _ = bus.message_changed(id, state).await;
+    bus.message_changed(id, state);
 }
 
 /// Sends the parts in order. A part asking for a report is recorded as soon

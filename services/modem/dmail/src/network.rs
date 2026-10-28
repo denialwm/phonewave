@@ -71,15 +71,20 @@ impl Serving {
         }
         self.radios
             .iter()
-            .map(|&r| match r {
-                RADIO_5GNR => Technology::G5,
-                RADIO_LTE => Technology::G4,
-                RADIO_UMTS | RADIO_TD_SCDMA => Technology::G3,
-                RADIO_GSM => Technology::G2,
-                _ => Technology::None,
-            })
+            .map(|&r| radio_technology(r))
             .max()
             .unwrap_or(Technology::None)
+    }
+}
+
+/// The network type of one QMI radio interface.
+pub fn radio_technology(radio: u8) -> Technology {
+    match radio {
+        RADIO_5GNR => Technology::G5,
+        RADIO_LTE => Technology::G4,
+        RADIO_UMTS | RADIO_TD_SCDMA => Technology::G3,
+        RADIO_GSM => Technology::G2,
+        _ => Technology::None,
     }
 }
 
@@ -174,6 +179,27 @@ pub struct Reject {
     /// 1 CS, 2 PS, 3 both.
     pub domain: u8,
     pub cause: u8,
+}
+
+impl std::fmt::Display for Reject {
+    /// "4G data: PS services not allowed (cause 7)".
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let domain = match self.domain {
+            1 => "calls and SMS",
+            2 => "data",
+            _ => "calls, SMS and data",
+        };
+        let technology = match radio_technology(self.radio) {
+            Technology::None => String::new(),
+            t => t.as_str().to_uppercase() + " ",
+        };
+        write!(
+            f,
+            "{technology}{domain}: {} (cause {})",
+            self.cause_name(),
+            self.cause
+        )
+    }
 }
 
 impl Reject {
@@ -313,5 +339,6 @@ mod tests {
             .with(0x03, [7]);
         let r = parse_reject(&msg).unwrap();
         assert_eq!((r.domain, r.cause_name()), (2, "PS services not allowed"));
+        assert_eq!(r.to_string(), "4G data: PS services not allowed (cause 7)");
     }
 }
