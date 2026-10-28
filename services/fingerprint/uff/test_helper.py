@@ -188,6 +188,12 @@ class FakeBridge(h.Bridge):
     def wait(self, predicate, timeout): assert predicate(), 'unexpected pending transition'
 
 class BridgeTests(unittest.TestCase):
+    def test_enrollment_stops_at_an_unanswered_challenge(self):
+        n = h.Native('enroll')
+        with self.assertRaises(h.ProtocolError): n.record('UFW1 challenge 1234')
+        n = h.Native('verify')
+        with self.assertRaises(h.ProtocolError): n.record('UFW1 challenge 1234')
+
     def test_enrollment_emits_only_enrollment_contract(self):
         records = []
         with patch.object(h, 'emit', records.append): FakeBridge('enroll').run()
@@ -237,7 +243,7 @@ class BridgeTests(unittest.TestCase):
     def test_verification_power_contract(self):
         records = []
         with patch.object(h, 'emit', records.append): FakeBridge('verify').run()
-        self.assertEqual(records, ['power 2', 'power 1', 'power 0', 'result 0 123'])
+        self.assertEqual(records, ['power 0', 'power 1', 'power 0', 'result 0 123'])
 
 if __name__ == '__main__':
     unittest.main()

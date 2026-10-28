@@ -1,0 +1,21 @@
+[Unit]
+Description=One native NX809J Gatekeeper PIN request
+# The request needs the storage, not the socket: a socket ordered after a
+# service with default dependencies cycles through sockets.target.
+Requires=nx809j-secure-storage.service
+After=nx809j-secure-storage.service
+
+[Service]
+Type=exec
+User=root
+ExecStart=/usr/libexec/goodix-gatekeeper-worker
+StandardInput=socket
+StandardOutput=inherit
+StandardError=journal
+TimeoutStartSec=35
+RuntimeMaxSec=35
+LimitCORE=0
+LimitMEMLOCK=1M
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict

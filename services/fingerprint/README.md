@@ -2,16 +2,17 @@
 
 Under-display fingerprint sensors that are only reachable through a signed
 trusted app in the Qualcomm TEE. Each directory holds one sensor's sources,
-tests, packaging and README.
+tests and packaging.
 
 | Path | Hardware | Device |
 |---|---|---|
 | [`jiiov`](jiiov) | JIIOV JV0307 optical under-display sensor, `ancapp64` trusted app | `roadstr` |
 | [`uff`](uff) | OPLUS UFF with a Goodix G7s optical sensor, `uff_gx` trusted app | `aston` |
+| [`goodix`](goodix) | Goodix ultrasonic GUM5228 stack, `goodixfp64` trusted app | `nx809j` |
 
 ## How they fit together
 
-Both have the same three parts:
+The working JIIOV and UFF drivers have the same three parts:
 
 - **libfprint driver** (`libfprint/`): lets fprintd enroll, verify and store
   prints. It talks to the worker over a private pipe protocol.

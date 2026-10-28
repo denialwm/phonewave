@@ -1,9 +1,14 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Root-only UFF1 bridge. Secure operations and presentation are separate children.
+"""Root-only UFF1 bridge. Secure operations and contact are separate children.
 
 No result is trusted until both children have finished their respective cleanup.
-The native child cannot commit an enrollment until presentation has withdrawn.
+The native child cannot commit an enrollment until contact has withdrawn.
+
+One helper serves every UFF1 phone: installed as uff-fprint-helper on the
+Aston, whose optical sensor needs Denial to light it, and as
+goodix-fprint-helper on the NX809J, whose ultrasonic sensor needs only the
+touchscreen to say a finger is on it.
 """
 import fcntl
 import hashlib
@@ -18,8 +23,18 @@ import subprocess
 import sys
 import time
 
-CONFIG = '/etc/aston-fingerprint/backend.json'
 STOP = False
+
+# Each phone: its configuration, its lock, the child that reports contact,
+# and whether its worker stays resident between requests.
+PHONES = {
+    'aston': {'config': '/etc/aston-fingerprint/backend.json',
+              'lock': '/run/lock/aston-fingerprint.lock',
+              'contact': 'presentation', 'resident': True},
+    'nx809j': {'config': '/etc/nx809j-fingerprint/backend.json',
+               'lock': '/run/lock/nx809j-fingerprint.lock',
+               'contact': 'contact', 'resident': False},
+}
 
 
 class ProtocolError(Exception):
@@ -56,17 +71,25 @@ def protected(path, digest=None, limit=32*1024*1024):
     return data
 
 
+def phone():
+    boot = Path('/proc/bootconfig').read_text()
+    require('androidboot.slot_suffix = "_b"' in boot, 'wrong slot')
+    model = Path('/proc/device-tree/compatible').read_bytes().split(b'\0')[0]
+    if model == b'oneplus,aston':
+        require('androidboot.serialno = "f683d9c9"' in boot, 'wrong device')
+        return 'aston'
+    require(model == b'nubia,nx809j', 'unsupported phone')
+    return 'nx809j'
+
+
 def configuration():
     require(os.geteuid() == 0, 'root required')
-    boot = Path('/proc/bootconfig').read_text()
-    require('androidboot.serialno = "f683d9c9"' in boot and
-            'androidboot.slot_suffix = "_b"' in boot, 'wrong device or slot')
-    config = json.loads(protected(CONFIG, limit=8192))
+    name = phone()
+    config = json.loads(protected(PHONES[name]['config'], limit=8192))
     require(config['format'] == 1, 'unsupported configuration')
-    for name in ('worker', 'firmware', 'presentation'):
-        entry = config[name]
-        protected(entry['path'], entry['sha256'])
-    return config
+    for entry in ('worker', 'firmware', PHONES[name]['contact']):
+        protected(config[entry]['path'], config[entry]['sha256'])
+    return dict(config, phone=PHONES[name])
 
 
 def compositor_environment():
@@ -156,6 +179,10 @@ class Native:
             raise ProtocolError('record after native result')
         if line == 'UFW1 standby' and self.state == 'starting' and self.operation == 'verify':
             self.state = 'standby'
+        elif line.startswith('UFW1 challenge ') and self.operation == 'enroll' and self.state == 'starting':
+            # The NX809J's worker enrolls only with an authorization token for
+            # this challenge from the PIN's credential; nothing supplies one yet.
+            raise ProtocolError('enrollment needs an authorization token; none is wired')
         elif line == 'UFW1 prepared' and ((self.operation == 'enroll' and self.state == 'starting') or (self.operation == 'verify' and self.state == 'activating')):
             require(self.operation in ('enroll', 'verify'), 'unexpected optical state')
             self.state = 'prepared'
@@ -260,15 +287,20 @@ class Bridge:
         args = [self.config['worker']['path'], self.operation, self.config['firmware']['path']]
         if self.argument is not None:
             args.append(self.argument)
-        env = dict(os.environ, UFF_RESIDENT='1')
-        self.native = Process(args, Native(self.operation, resident=True), env)
+        resident = self.config['phone']['resident']
+        env = dict(os.environ, UFF_RESIDENT='1') if resident else dict(os.environ)
+        self.native = Process(args, Native(self.operation, resident=resident), env)
         self.children.append(self.native)
         self.sel.register(self.native.p.stdout, selectors.EVENT_READ, self.native)
 
     def start_contact(self):
-        env = compositor_environment()
-        env['UFF_DEFER_PRESENT'] = '1'
-        self.presentation = Process([self.config['presentation']['path']], Contact(), env)
+        name = self.config['phone']['contact']
+        if name == 'presentation':
+            env = compositor_environment()
+            env['UFF_DEFER_PRESENT'] = '1'
+        else:
+            env = {'PATH': '/usr/bin:/bin', 'UFF_SUSPEND_PROTOCOL': '1'}
+        self.presentation = Process([self.config[name]['path']], Contact(), env)
         self.children.append(self.presentation)
         self.sel.register(self.presentation.p.stdout, selectors.EVENT_READ, self.presentation)
 
@@ -347,7 +379,9 @@ class Bridge:
             self.start_contact()
             if self.operation == 'verify':
                 self.wait(lambda: self.native.state.state == 'standby', 20)
-                emit('power 2')
+                # A resident worker waits in signed-firmware sleep; a
+                # one-shot one waits with the sensor's power off.
+                emit('power 2' if self.native.state.resident else 'power 0')
             self.wait(lambda: self.presentation.state.state == 'down', 120 if self.operation == 'enroll' else 86400)
             if self.operation == 'verify':
                 self.wait(lambda: self.native.state.state == 'standby', 15)
@@ -384,6 +418,8 @@ class Bridge:
                 emit(f'result {code} {identifier}')
                 return
             self.wait(lambda: self.native.state.state == 'prepared', 10)
+            if sample[0] == 3:
+                emit('retry')
             if sample[0] == 0:
                 progress = min(19, 20 * max(0, sample[3] - sample[1]) // sample[3])
                 if progress > stages:
@@ -420,7 +456,7 @@ def main():
         require(re.fullmatch(r'[1-9][0-9]{0,9}', argument) and int(argument) <= 0xffffffff,
                 'invalid template identifier')
     config = configuration()
-    lock = os.open('/run/lock/aston-fingerprint.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    lock = os.open(config['phone']['lock'], os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         bridge = Bridge(config, operation, argument)

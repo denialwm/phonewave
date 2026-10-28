@@ -19,6 +19,14 @@ is marked unbootable by the bootloader; if slot B ever becomes unbootable
 too, ask the user before any slot command. The rollback for each partition
 is its stock copy in `backups/slot_b/`.
 
+Native credential storage has one explicit user-authorized exception:
+`nx809j-secure-storage.service` may update encrypted secure files under
+`persist/data` and relay trusted-app authenticated RPMB commits in its selected
+canonical mode. Factory calibration files remain read-only; RPMB key
+programming and raw partition flashing remain forbidden. A fresh persist
+backup is held privately, but RPMB monotonic state has no verified rollback.
+The user accepted that limitation for native PIN/fingerprint bring-up.
+
 The stock ABL answers `fastboot flash` and `fastboot boot` with "unknown
 command", and fastbootd reports the device locked and refuses downloads.
 Images are written with `dd` from a running system: rooted Android, or
@@ -146,3 +154,73 @@ The files it serves are the phone's own and never enter this repo:
 `/usr/share/qcom/kaanapali/Nubia/NX809J`. Restart the phone afterwards. Then
 install steinerd with its `make install` layout and enable `steinerd.service`;
 `steinerctl list accel proximity ambient_light` shows the three sensors.
+
+## Fingerprint
+
+The stock Goodix ultrasonic stack uses `goodixfp64`; the kernel provides
+power, reset, IRQ and `/dev/goodix_fp`. Native PIN setup, fingerprint
+enrollment and lock-screen matching have succeeded. Preserve persist's
+`goodix/` factory calibration and keep it read-only. Historical power-on
+resets and the voltage correction are recorded in the private device vault.
+
+fprintd (Arch's 1.94.5) runs on a libfprint built on the phone with
+Phonewave's `uff` driver, which serves this sensor too:
+
+```sh
+python3 services/fingerprint/uff/build/snapshot_libfprint.py nx809j
+python3 devices/nx809j/tools/fingerprint/build_libfprint.py
+python3 devices/nx809j/tools/fingerprint/install_fprintd.py
+```
+
+The build needs `meson ninja gcc pkgconf glib2-devel` on the phone and
+installs to `/opt/libfprint-uff/<hash>`; the system library stays.
+`install_fprintd.py` points fprintd at it with
+`/etc/systemd/system/fprintd.service.d/60-nx809j-native.conf`, which also
+opens the TEE, `/dev/goodix_fp`, DMA buffers and touch input inside
+fprintd's sandbox. The driver runs `/usr/local/libexec/goodix-fprint-helper`
+for every operation, which `install_helper.py` installs after
+`services/fingerprint/goodix/build.py`:
+
+| Path | What |
+|---|---|
+| `/usr/local/libexec/goodix-fprint-helper` | Native Rust UFF1 bridge for this phone; no Python in the runtime path |
+| `/usr/local/libexec/nx809j-fingerprint/` | Goodix worker, signed app and `goodix-contact` |
+| `/etc/nx809j-fingerprint/backend.json` | Their paths and hashes, checked before every operation |
+| `/var/lib/nx809j-fingerprint/calibration` | This unit's calibration, copied once from persist mounted read-only |
+| `/var/lib/nx809j-fingerprint/templates` | The worker's private store |
+
+The worker runs one-shot per operation (about 0.8 s for a list). For
+verification it brings the sensor up and selects the templates while the
+lock screen listens, screen on or off, and keeps it asleep until the touch.
+After a rejected finger it stays up for the next attempt, up to 5 s, in
+`/run/nx809j-fingerprint` (created at boot by `tmpfiles.d`).
+Contact is `goodix-contact`: the TCM touchscreen reporting one finger held
+on stock's circle, centre (608, 2024) px, radius 120, also with the panel
+off; nothing is drawn or lit. A finger lifted before the image is captured
+fails the attempt; after it, the comparison goes on without it.
+
+Both Settings apps enroll through deniald's PIN-gated fingerprint session.
+The fingerprint marker uses the stock circle above.
+
+The native PIN provider uses `nx809j-gatekeeper.socket` and the per-connection
+`nx809j-gatekeeper@.service`. Install the generated `goodix-gatekeeper-worker`
+at `/usr/libexec/goodix-gatekeeper-worker`, install the units from rootfs/ and
+enable the socket. Socket access is private to `logix`; the worker runs as root
+and verifies the board. The Denial PIN record keeps the opaque handle and SID,
+never the PIN. The updated sensor worker can request an enrollment HAT from
+Denial's one-enrollment root broker without extending fprintd's API. This
+integration has host tests and live PIN and fingerprint enrollment results.
+
+
+The Gatekeeper socket and fprintd require `nx809j-secure-storage.service`.
+The default mode uses a private overlay and rejects hardware writes. The user
+explicitly authorized this phone's canonical mode: protected secure files in
+persist/data and authenticated RPMB writes, with the rollback limitation in the
+Careful section. Factory calibration remains read-only. The sensor worker
+delegates the shared listener so Gatekeeper can verify an enrollment challenge
+while the sensor is active.
+
+The phone's fingerprint runtime uses native executables. The Python scripts in
+the development checkout assemble and build artifacts, install them and run
+tests; they are not part of the on-device unlock path. The bridge and worker
+log unlock phase durations to fprintd's journal.

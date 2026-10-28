@@ -1,10 +1,13 @@
 #!/usr/bin/python3
-"""Make the uff libfprint source archive: upstream pin, Phonewave patches, uff driver."""
+"""Make the uff libfprint source archive: upstream pin, Phonewave patches, uff driver.
+The driver serves every UFF1 phone; the argument names the phone whose cache gets it."""
 from pathlib import Path
-import gzip,hashlib,io,json,os,shlex,subprocess,tarfile,tempfile
+import gzip,hashlib,io,json,os,shlex,subprocess,sys,tarfile,tempfile
 SRC=Path(__file__).resolve().parents[1]
 CACHE=Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'phonewave'
-OUT=CACHE/'aston/fingerprint/libfprint'
+DEVICE=sys.argv[1] if len(sys.argv)>1 else 'aston'
+assert DEVICE in ('aston','nx809j'),'unknown phone'
+OUT=CACHE/DEVICE/'fingerprint/libfprint'
 URL,PIN='https://gitlab.freedesktop.org/libfprint/libfprint.git','80a4b5ec612892c5c056c48dddaa561452cf37ec' # v1.94.100
 PATCHES=[*sorted((SRC.parent/'jiiov/libfprint').glob('*.patch')),*sorted((SRC/'libfprint').glob('*.patch'))]
 OVERLAY={'libfprint/drivers/uff.c':SRC/'libfprint/uff.c','tests/test-uff-suspend.c':SRC/'libfprint/test-uff-suspend.c'}

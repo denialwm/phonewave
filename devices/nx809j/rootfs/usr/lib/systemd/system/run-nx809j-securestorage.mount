@@ -1,0 +1,13 @@
+[Unit]
+Description=Read-only NX809J stock secure-storage backing files
+Before=nx809j-secure-storage.service
+StopWhenUnneeded=yes
+
+[Mount]
+What=/dev/disk/by-partlabel/persist
+Where=/run/nx809j/securestorage
+Type=ext4
+Options=ro,noload,nosuid,nodev,noexec
+# A mount comes before local-fs.target, so it cannot wait for tmpfiles
+# (which follows local-fs.target): it makes its private parent itself.
+DirectoryMode=0700

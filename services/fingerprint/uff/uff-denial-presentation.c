@@ -165,7 +165,7 @@ static int open_inputs(void) {
             ax.minimum!=0 || ax.maximum!=12639 || ay.minimum!=0 || ay.maximum!=27799) {
             close(fd);closedir(directory);return -1;
         }
-        uff_contact_init(&contact);contact.slot=slot.value;
+        uff_contact_init(&contact,&UFF_CONTACT_ASTON);contact.slot=slot.value;
         /* Snapshot current slots. A finger already held when the worker starts
          * must release before it can authorize a new optical acquisition.
          */

@@ -15,9 +15,9 @@ through Denial work on `7.3.0-devices35-aston`.
 |---|---|
 | `uff-probe.c`, `uff-wire.h`, `uff-storage.h`, `uff-gp-storage.h`, `uff-template-names.h` | Native transport: QTEE objects, `uff_gx` commands, confined storage listeners |
 | `uff-service-worker.c`, `uff-resident.h` | Worker child that keeps blocking secure calls out of the helper |
-| `uff-fprint-helper.py` | Root bridge behind the libfprint driver (`UFF1` pipe protocol) |
-| `uff-denial-presentation.c`, `uff-contact.h` | Presentation client for `denial-fingerprint-v1`, adapted from the Moto one |
-| `libfprint/uff.c` | libfprint driver, built as `drivers/uff.c` in libfprint |
+| `uff-fprint-helper.py` | Root bridge behind the Aston libfprint driver (`UFF1` pipe protocol); NX809J uses its own native helper |
+| `uff-denial-presentation.c`, `uff-contact.h` | Presentation client for `denial-fingerprint-v1`, adapted from the Moto one; `uff-contact.h` holds each phone's touch axes and sensor circle |
+| `libfprint/uff.c` | libfprint driver, built as `drivers/uff.c` in libfprint. It also serves the NX809J's Goodix sensor through `goodix-fprint-helper`, which speaks the same `UFF1` |
 | `libfprint/test-uff-suspend.c` | libfprint test for suspend and resume, built as `tests/test-uff-suspend.c` |
 | `register-print.c` | Registers an enrolled template with fprintd |
 | `test-wire.c`, `test-contact.c`, `test_helper.py` | Host tests; no device needed |
@@ -36,7 +36,8 @@ The scripts in `build/` cross-build from this directory and write only to
   sysroot `/mnt/development/denial-os/cross/sysroot` and Denial's protocol XML.
 - `assemble_firmware.py` assembles `uff_gx.elf` and `uff_spi.elf` from the
   factory `odm_b` blobs in the device vault (`aston/firmware/factory/`).
-- `snapshot_libfprint.py` makes the libfprint source archive: upstream
+- `snapshot_libfprint.py [aston|nx809j]` makes the libfprint source archive
+  in that phone's cache: upstream
   v1.94.100 (`80a4b5ec`), `../jiiov/libfprint/0001`-`0007`,
   `libfprint/0008-build-uff-driver.patch`, then `uff.c` and
   `test-uff-suspend.c`. The archive name is its hash.

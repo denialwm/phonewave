@@ -1,0 +1,3 @@
+# Denial's fingerprint settings start this one command as root. The lock PIN
+# opens it: deniald checks the PIN itself before it touches the reader.
+logix ALL=(root) NOPASSWD: /var/lib/nx809j-denial/*/native/deniald --fingerprint-settings

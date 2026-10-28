@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
-/* Experimental native Aston/G7s UFF driver. The worker isolates blocking
- * Qualcomm secure calls and owns their complete resource lifetime.
- * UFF1 is a private, versioned worker interface, not a public libfprint API.
+/* Experimental native driver for sensors behind a root UFF1 helper: the
+ * Aston's G7s UFF and the NX809J's Goodix GUM5228. The helper's worker
+ * isolates blocking Qualcomm secure calls and owns their complete resource
+ * lifetime. UFF1 is a private, versioned worker interface, not a public
+ * libfprint API.
  */
 #define FP_COMPONENT "uff"
 #include "drivers_api.h"
@@ -10,10 +12,27 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #ifndef UFF_HELPER
 #define UFF_HELPER "/usr/local/libexec/uff-fprint-helper"
 #endif
+#ifndef GOODIX_HELPER
+#define GOODIX_HELPER "/usr/local/libexec/goodix-fprint-helper"
+#endif
+
+/* Each phone's sensor: what fprintd calls it and how many templates its
+ * secure side keeps. The id table's driver_data indexes it. */
+typedef struct {
+  const char *driver, *name;
+  guint prints;
+} UffSensor;
+
+static const UffSensor sensors[] = {
+  { "aston-goodix-g7s-uff", "UFF G7s UFF (native, experimental)", 5 },
+  { "nx809j-goodix-gum5228", "Goodix GUM5228 ultrasonic (native, experimental)", 10 },
+};
 
 typedef struct {
   FpDevice parent;
@@ -23,7 +42,7 @@ typedef struct {
   GPtrArray *prints;
   GSource *deadline;
   GSource *sleep_deadline;
-  gboolean cancelled, failed, result_seen;
+  gboolean cancelled, failed, result_seen, reported;
   gboolean suspending, suspended, resuming;
   guint result, identifier, stages;
   guint power_phase; /* 0 legacy, 1 idle/quiescent, 2 capture/on, 3 cleaned/quiescent */
@@ -99,12 +118,28 @@ static void resume_device (FpDevice *dev) { sleep_command (dev, FALSE); }
 
 static const FpIdEntry id_table[] = {
   { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
-    .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint" },
+    .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint",
+    .driver_data = 0 },
+  { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
+    .platform_driver = "goodix-tee-fp", .platform_compatible = "goodix,gum5228",
+    .driver_data = 1 },
   { .udev_types = 0 }
 };
 
 /* The secure side matches a touch against every template and says which:
  * verify checks it is the expected print, identify finds it in the gallery. */
+static const UffSensor *
+sensor (FpDevice *dev)
+{
+  return &sensors[fpi_device_get_driver_data (dev)];
+}
+
+static const char *
+helper (FpDevice *dev)
+{
+  return fpi_device_get_driver_data (dev) == 1 ? GOODIX_HELPER : UFF_HELPER;
+}
+
 static gboolean
 matching (FpDevice *dev)
 {
@@ -131,6 +166,46 @@ print_identifier (FpPrint *print, guint *identifier)
     return FALSE;
   *identifier = g_variant_get_uint32 (data);
   return *identifier != 0;
+}
+
+/* A verification's outcome goes to fprintd as soon as the helper has it;
+ * fprintd tells its client at once. The helper's cleanup follows, and only
+ * decides how the action completes. */
+static void
+report (FpDevice *dev)
+{
+  FpiDeviceUff *self = (FpiDeviceUff *) dev;
+  guint identifier = 0;
+  self->reported = TRUE;
+  if (fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_VERIFY)
+    {
+      FpPrint *expected;
+      if (self->result == 3)
+        {
+          fpi_device_verify_report (dev, FPI_MATCH_ERROR, NULL,
+                                   fpi_device_retry_new (FP_DEVICE_RETRY_TOO_SHORT));
+          return;
+        }
+      fpi_device_get_verify_data (dev, &expected);
+      gboolean match = !self->result && self->identifier &&
+                       print_identifier (expected, &identifier) && identifier == self->identifier;
+      fpi_device_verify_report (dev, match ? FPI_MATCH_SUCCESS : FPI_MATCH_FAIL, NULL, NULL);
+      return;
+    }
+  GPtrArray *gallery;
+  FpPrint *found = NULL;
+  if (self->result == 3)
+    {
+      fpi_device_identify_report (dev, NULL, NULL,
+                                 fpi_device_retry_new (FP_DEVICE_RETRY_TOO_SHORT));
+      return;
+    }
+  fpi_device_get_identify_data (dev, &gallery);
+  for (guint i = 0; !self->result && self->identifier && !found && i < gallery->len; i++)
+    if (print_identifier (g_ptr_array_index (gallery, i), &identifier) &&
+        identifier == self->identifier)
+      found = g_ptr_array_index (gallery, i);
+  fpi_device_identify_report (dev, found, NULL, NULL);
 }
 
 static void
@@ -170,7 +245,7 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
   switch (fpi_device_get_current_action (dev))
     {
     case FPI_DEVICE_ACTION_PROBE:
-      fpi_device_probe_complete (dev, "aston-goodix-g7s-uff", "UFF G7s UFF (native, experimental)", NULL);
+      fpi_device_probe_complete (dev, sensor (dev)->driver, sensor (dev)->name, NULL);
       break;
     case FPI_DEVICE_ACTION_OPEN:
       fpi_device_open_complete (dev, NULL);
@@ -188,44 +263,15 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
         break;
       }
     case FPI_DEVICE_ACTION_VERIFY:
-      {
-        if (self->result == 3)
-          {
-            fpi_device_verify_report (dev, FPI_MATCH_ERROR, NULL,
-                                     fpi_device_retry_new (FP_DEVICE_RETRY_TOO_SHORT));
-            fpi_device_verify_complete (dev, NULL);
-            break;
-          }
-        FpPrint *expected;
-        guint identifier = 0;
-        fpi_device_get_verify_data (dev, &expected);
-        gboolean match = !self->result && self->identifier &&
-                         print_identifier (expected, &identifier) && identifier == self->identifier;
-        fpi_device_verify_report (dev, match ? FPI_MATCH_SUCCESS : FPI_MATCH_FAIL, NULL, NULL);
-        fpi_device_verify_complete (dev, NULL);
-        break;
-      }
+      if (!self->reported)
+        report (dev);
+      fpi_device_verify_complete (dev, NULL);
+      break;
     case FPI_DEVICE_ACTION_IDENTIFY:
-      {
-        GPtrArray *gallery;
-        FpPrint *found = NULL;
-        guint identifier = 0;
-        if (self->result == 3)
-          {
-            fpi_device_identify_report (dev, NULL, NULL,
-                                       fpi_device_retry_new (FP_DEVICE_RETRY_TOO_SHORT));
-            fpi_device_identify_complete (dev, NULL);
-            break;
-          }
-        fpi_device_get_identify_data (dev, &gallery);
-        for (guint i = 0; !self->result && self->identifier && !found && i < gallery->len; i++)
-          if (print_identifier (g_ptr_array_index (gallery, i), &identifier) &&
-              identifier == self->identifier)
-            found = g_ptr_array_index (gallery, i);
-        fpi_device_identify_report (dev, found, NULL, NULL);
-        fpi_device_identify_complete (dev, NULL);
-        break;
-      }
+      if (!self->reported)
+        report (dev);
+      fpi_device_identify_complete (dev, NULL);
+      break;
     case FPI_DEVICE_ACTION_LIST:
       fpi_device_list_complete (dev, g_steal_pointer (&prints), NULL);
       break;
@@ -279,8 +325,10 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
     }
   else if (!strcmp (line, "UFF1 suspend-busy") && self->suspending)
     sleep_complete (dev, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
-  else if (!self->result_seen && length <= 80 && sscanf (line, "UFF1 power %u%n", &value, &consumed) == 1 &&
+  /* After a reported result, only the cleanup's quiescent record. */
+  else if (length <= 80 && sscanf (line, "UFF1 power %u%n", &value, &consumed) == 1 &&
       consumed == (int) length && matching (dev) &&
+      (!self->result_seen || (self->reported && value != 1 && self->power_phase == 2)) &&
       ((value == 0 && (self->power_phase == 0 || self->power_phase == 1 || self->power_phase == 2)) ||
        (value == 1 && self->power_phase == 1) ||
        (value == 2 && (self->power_phase == 0 || self->power_phase == 2))))
@@ -290,6 +338,10 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
       /* Idle is either rail-off (0) or signed-firmware sleep (2).
        * Only active capture (1) contributes to the thermal model. */
       fpi_device_update_temp (dev, value == 1);
+      /* A power-on record follows a physical contact; expose that contact
+       * to fprintd while capture is active, then clear it on cleanup. */
+      fpi_device_report_finger_status (dev, value == 1 ? FP_FINGER_STATUS_PRESENT :
+                                       self->power_phase == 1 ? FP_FINGER_STATUS_NEEDED : FP_FINGER_STATUS_NONE);
       if (self->deadline)
         { g_source_destroy (self->deadline); self->deadline = NULL; }
       if (self->power_phase != 1)
@@ -302,8 +354,13 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
       self->stages = value;
       fpi_device_enroll_progress (dev, value, NULL, NULL);
     }
+  else if (!self->result_seen && g_str_equal (line, "UFF1 retry") &&
+           fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_ENROLL)
+    fpi_device_enroll_progress (dev, self->stages, NULL,
+                                fpi_device_retry_new (FP_DEVICE_RETRY_CENTER_FINGER));
   else if (!self->result_seen && length <= 80 && sscanf (line, "UFF1 item %u%n", &identifier, &consumed) == 1 &&
-           consumed == (int) length && identifier && self->prints && self->prints->len < 5 &&
+           consumed == (int) length && identifier && self->prints &&
+           self->prints->len < sensor (dev)->prints &&
            fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_LIST)
     {
       gboolean duplicate = FALSE;
@@ -319,7 +376,12 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
     }
   else if (length <= 80 && sscanf (line, "UFF1 result %u %u%n", &value, &identifier, &consumed) == 2 &&
            consumed == (int) length && !self->result_seen)
-    { self->result = value; self->identifier = identifier; self->result_seen = TRUE; }
+    {
+      self->result = value; self->identifier = identifier; self->result_seen = TRUE;
+      if (matching (dev) && !self->cancelled && !self->failed &&
+          (value == 0 || value == 1 || value == 3) && (value != 0 || identifier))
+        report (dev);
+    }
   else
     {
       self->failed = TRUE;
@@ -333,7 +395,9 @@ cancel (FpDevice *dev)
 {
   FpiDeviceUff *self = (FpiDeviceUff *) dev;
   self->cancelled = TRUE;
-  if (self->worker) g_subprocess_send_signal (self->worker, SIGTERM);
+  /* Once the result is reported only cleanup is left: it runs to its end,
+   * so the sensor's power state stays confirmed. */
+  if (self->worker && !self->reported) g_subprocess_send_signal (self->worker, SIGTERM);
 }
 
 static void
@@ -375,6 +439,33 @@ failed:
   return NULL;
 }
 
+/* The kernel's sched_attr, up to the utilization clamps. */
+struct helper_sched_attr {
+  guint32 size, policy;
+  guint64 flags;
+  gint32 nice;
+  guint32 priority;
+  guint64 runtime, deadline, period;
+  guint32 util_min, util_max;
+};
+
+/* The helper's secure calls run on the core that makes them. A full
+ * utilization floor puts the helper and its children on the fastest core
+ * at its top clock while they run; while they wait it costs nothing.
+ * Without clamp support the helper runs as before. */
+static void
+helper_setup (gpointer unused)
+{
+  struct helper_sched_attr attr = {
+    .size = sizeof (attr),
+    /* Keep policy and parameters; set only the minimum clamp. */
+    .flags = 0x08 | 0x10 | 0x20,
+    .util_min = 1024,
+  };
+  (void) unused;
+  syscall (SYS_sched_setattr, 0, &attr, 0);
+}
+
 static void
 start (FpDevice *dev)
 {
@@ -397,7 +488,21 @@ start (FpDevice *dev)
         operation = "verify";
         break;
       }
-    case FPI_DEVICE_ACTION_IDENTIFY: operation = "verify"; break;
+    case FPI_DEVICE_ACTION_IDENTIFY:
+      {
+        GPtrArray *gallery;
+        fpi_device_get_identify_data (dev, &gallery);
+        /* No enrolled print can match an empty gallery. This also lets
+         * fprintd proceed with its duplicate check for the first enrollment. */
+        if (fpi_device_get_driver_data (dev) == 1 && gallery->len == 0)
+          {
+            fpi_device_identify_report (dev, NULL, NULL, NULL);
+            fpi_device_identify_complete (dev, NULL);
+            return;
+          }
+        operation = "verify";
+        break;
+      }
     case FPI_DEVICE_ACTION_LIST: operation = "list"; break;
     case FPI_DEVICE_ACTION_DELETE:
       {
@@ -417,17 +522,18 @@ start (FpDevice *dev)
       g_assert_not_reached ();
     }
   g_assert (operation != NULL);
-  self->cancelled = self->failed = self->result_seen = FALSE;
+  self->cancelled = self->failed = self->result_seen = self->reported = FALSE;
   self->suspending = self->resuming = self->suspended = FALSE;
   self->result = self->identifier = self->stages = self->power_phase = 0;
   self->prints = g_ptr_array_new_with_free_func (g_object_unref);
   g_autoptr(GSubprocessLauncher) launcher = g_subprocess_launcher_new (
     G_SUBPROCESS_FLAGS_STDOUT_PIPE);
   g_subprocess_launcher_setenv (launcher, "UFF_SUSPEND_PROTOCOL", "1", TRUE);
+  g_subprocess_launcher_set_child_setup (launcher, helper_setup, NULL, NULL);
   self->control = open_control (launcher, &error);
   if (self->control)
     self->worker = g_subprocess_launcher_spawn (launcher, &error,
-                                             UFF_HELPER, operation, argument, NULL);
+                                             helper (dev), operation, argument, NULL);
   if (!self->worker)
     {
       g_clear_object (&self->control);
@@ -446,7 +552,7 @@ static void
 fpi_device_uff_class_init (FpiDeviceUffClass *klass)
 {
   klass->id = "uff";
-  klass->full_name = "UFF G7s UFF native platform sensor (experimental)";
+  klass->full_name = "UFF1 native platform sensor (experimental)";
   klass->type = FP_DEVICE_TYPE_UDEV;
   klass->id_table = id_table;
   klass->nr_enroll_stages = 20;
