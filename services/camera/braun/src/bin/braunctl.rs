@@ -45,11 +45,14 @@ fn list() {
     for camera in &discovery.cameras {
         println!("{} ({})", camera.id, camera.entity);
         println!(
-            "  {} camera{}",
+            "  {} camera{}{}",
             camera.facing.name(),
             camera
                 .role
-                .map_or(String::new(), |role| format!(", {}", role.name()))
+                .map_or(String::new(), |role| format!(", {}", role.name())),
+            camera.zoom.map_or(String::new(), |zoom| format!(
+                ", sees as the main camera at {zoom}x"
+            ))
         );
         println!(
             "  {}x{} {:?} through {}, turned {} clockwise{}",
@@ -111,7 +114,7 @@ fn list() {
 fn cameras() -> Result<(), String> {
     for camera in client::cameras().map_err(|error| format!("braun: {error}"))? {
         println!(
-            "{}: {} {}{} {}x{}{}{}",
+            "{}: {} {}{}{} {}x{}{}{}",
             camera.id,
             camera.name,
             camera.facing,
@@ -120,6 +123,9 @@ fn cameras() -> Result<(), String> {
             } else {
                 format!(" {}", camera.role)
             },
+            camera
+                .zoom
+                .map_or(String::new(), |zoom| format!(" {zoom}x")),
             camera.width,
             camera.height,
             if camera.lens { ", focus" } else { "" },

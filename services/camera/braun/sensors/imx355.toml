@@ -1,0 +1,5 @@
+# Sony IMX355. Gain is 1024 / (1024 - code), as its kernel driver has it.
+black = 64
+white = 1000
+analogue_gain = { m0 = 0, c0 = 1024, m1 = -1, c1 = 1024 }
+max_gain = 16

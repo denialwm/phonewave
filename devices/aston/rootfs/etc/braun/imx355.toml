@@ -1,0 +1,4 @@
+# The Ace 3's ultrawide: the Sunny IMX355 module.
+role = "ultrawide"
+# 112 degrees across the diagonal, against 84 for the main camera (24 mm).
+zoom = 0.6

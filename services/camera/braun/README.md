@@ -26,7 +26,7 @@ What it does not say comes from two kinds of file:
 | File | Holds | Comes with |
 |---|---|---|
 | `/usr/share/braun/sensors/<driver>.toml` | A sensor model's black and white level, how its gain codes map to gain, the most gain auto exposure uses | braun (`sensors/`) |
-| `/etc/braun/<id>.toml` | One phone's camera: its role, a rotation where the device tree is wrong, the focus travel, the illuminant locus, colour matrices and lens shading | the device (`devices/<codename>/rootfs/etc/braun/`) |
+| `/etc/braun/<id>.toml` | One phone's camera: its role, how wide it sees, a rotation where the device tree is wrong, the focus travel, the illuminant locus, colour matrices and lens shading | the device (`devices/<codename>/rootfs/etc/braun/`) |
 
 A camera's id is its driver's name, with the sensor's address after a `-`
 when a phone has two of the same sensor. A camera without a calibration
@@ -50,6 +50,7 @@ sensors describe it. A calibration file:
 
 ```toml
 role = "main"            # main, ultrawide, telephoto or auxiliary
+zoom = 1.0               # the main camera's zoom that shows what this one does
 rotation = 270           # optional, as camera_sensor_rotation states it
 
 [focus]
@@ -160,7 +161,7 @@ root, the `video` group, and the user of an active local session.
 
 | Member | Type | Meaning |
 |---|---|---|
-| `Cameras` | `aa{sv}` | Each camera: `id`, `name`, `facing` (`front`, `back`, `external`), `role` (empty when the device does not say), `width` and `height` upright, `lens` (it can focus), `tuned` (it has a calibration) |
+| `Cameras` | `aa{sv}` | Each camera: `id`, `name`, `facing` (`front`, `back`, `external`), `role` (empty when the device does not say), `zoom` (only when the device says; 1 for the main camera), `width` and `height` upright, `lens` (it can focus), `tuned` (it has a calibration) |
 | `Connect()` | `h` | A session socket of the caller's own |
 
 A session is a `SOCK_SEQPACKET` socket, one message a packet,
@@ -202,5 +203,5 @@ and focus settle.
 
 | Device | Cameras |
 |---|---|
-| `aston` (OnePlus Ace 3) | IMX890 main with DW9719 focus, S5K3P9 front; both calibrated from the stock tuning |
+| `aston` (OnePlus Ace 3) | IMX890 main with DW9719 focus, S5K3P9 front, both calibrated from the stock tuning; IMX355 ultrawide, untuned |
 | `nx809j` (RedMagic 11 Pro) | OV50E40 main with DW9785 focus, OV50D40 ultrawide, OV02F10 auxiliary, OV16A1Q front; untuned |

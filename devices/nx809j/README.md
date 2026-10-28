@@ -161,8 +161,9 @@ braun (services/camera/braun), installed with its `make install`, finds the
 OV50E40 main camera, the OV50D40 ultrawide, the OV02F10 auxiliary camera and
 the OV16A1Q front camera, and develops the Camera app's photos. rootfs/
 carries `/etc/braun/ov50e40.toml`, `ov50d40.toml` and `ov02f10.toml`: each
-camera's role, and the main camera's focus travel through its DW9785. None
-has colour calibration yet. Never run the DW9785's firmware download: it
+camera's role, the ultrawide's zoom against the main camera (0.5x, 120
+against about 84 degrees across the diagonal) and the main camera's focus
+travel through its DW9785. None has colour calibration yet. Never run the DW9785's firmware download: it
 rewrites the motor's eFlash.
 
 ## Fingerprint

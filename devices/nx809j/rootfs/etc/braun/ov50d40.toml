@@ -1,2 +1,4 @@
 # The RedMagic 11 Pro's ultrawide.
 role = "ultrawide"
+# 120 degrees across the diagonal, against about 84 for the main camera.
+zoom = 0.5

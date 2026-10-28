@@ -206,6 +206,9 @@ pub struct Camera {
     pub phy: String,
     pub facing: Facing,
     pub role: Option<Role>,
+    /// The zoom at which the main camera shows what this one does; 1 for
+    /// the main camera, none when the device does not say.
+    pub zoom: Option<f32>,
     pub width: u32,
     pub height: u32,
     pub bayer: Bayer,
@@ -430,6 +433,7 @@ fn probe(graph: &Graph, media: &Path, entity: &Entity) -> Result<Camera, String>
         phy,
         facing,
         role: None,
+        zoom: None,
         width: format.width,
         height: format.height,
         bayer,
@@ -458,6 +462,9 @@ fn clockwise(correction: u32) -> u32 {
 
 fn calibrate(camera: &mut Camera, calibration: &Calibration) {
     camera.role = calibration.role;
+    camera.zoom = calibration
+        .zoom
+        .or((calibration.role == Some(Role::Main)).then_some(1.0));
     if let Some(rotation) = calibration.rotation {
         camera.rotation = clockwise(rotation);
     }

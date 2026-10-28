@@ -36,16 +36,17 @@ impl Service {
     }
 
     /// Each camera: its `id`, `name`, `facing` (front, back or external),
-    /// `role` (main, ultrawide, telephoto, auxiliary, or empty), its frame
-    /// upright (`width`, `height`), whether it has a `lens` to focus and
-    /// whether it is `tuned`.
+    /// `role` (main, ultrawide, telephoto, auxiliary, or empty), the `zoom`
+    /// at which the main camera shows what it does (when the device says),
+    /// its frame upright (`width`, `height`), whether it has a `lens` to
+    /// focus and whether it is `tuned`.
     #[zbus(property)]
     fn cameras(&self) -> Vec<HashMap<String, OwnedValue>> {
         session::cameras(false)
             .iter()
             .map(|camera| {
                 let (width, height) = camera.upright();
-                HashMap::from([
+                let mut description = HashMap::from([
                     ("id".to_string(), owned(camera.id.as_str())),
                     ("name".to_string(), owned(camera.name.as_str())),
                     ("facing".to_string(), owned(camera.facing.name())),
@@ -57,7 +58,11 @@ impl Service {
                     ("height".to_string(), owned(height)),
                     ("lens".to_string(), owned(camera.lens.is_some())),
                     ("tuned".to_string(), owned(camera.tuned)),
-                ])
+                ]);
+                if let Some(zoom) = camera.zoom {
+                    description.insert("zoom".to_string(), owned(f64::from(zoom)));
+                }
+                description
             })
             .collect()
     }

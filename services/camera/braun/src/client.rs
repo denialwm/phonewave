@@ -19,6 +19,9 @@ pub struct Info {
     /// main, ultrawide, telephoto, auxiliary, or empty when the device does
     /// not say.
     pub role: String,
+    /// The zoom at which the main camera shows what this one does; none
+    /// when the device does not say.
+    pub zoom: Option<f32>,
     /// The frame, upright.
     pub width: u32,
     pub height: u32,
@@ -60,6 +63,10 @@ pub fn cameras() -> zbus::Result<Vec<Info>> {
                 name: text("name"),
                 facing: text("facing"),
                 role: text("role"),
+                zoom: camera
+                    .get("zoom")
+                    .and_then(|value| f64::try_from(value).ok())
+                    .map(|zoom| zoom as f32),
                 width: number("width"),
                 height: number("height"),
                 lens: flag("lens"),

@@ -5,7 +5,7 @@
 //! come with braun, one file per driver name, in `/usr/share/braun/sensors`.
 //!
 //! A calibration file holds what one phone's module adds: its role among
-//! the phone's cameras, the focus travel worth sweeping, the colour of its
+//! the phone's cameras, how wide it sees, the focus travel worth sweeping, the colour of its
 //! light under known illuminants, its colour matrices and its lens shading.
 //! It comes with the device, one file per camera, in `/etc/braun`. Without
 //! one the camera still works, untuned.
@@ -46,6 +46,9 @@ pub struct GainModel {
 #[serde(deny_unknown_fields)]
 pub struct Calibration {
     pub role: Option<Role>,
+    /// The zoom at which the main camera shows what this one does: 0.6 for
+    /// an ultrawide that sees as far around as the main camera at 0.6x.
+    pub zoom: Option<f32>,
     /// Overrides the kernel's `camera_sensor_rotation` (counter-clockwise
     /// correction, as the kernel states it) where the device tree is wrong.
     pub rotation: Option<u32>,

@@ -154,8 +154,9 @@ finds the IMX890 main camera, the IMX355 ultrawide and the S5K3P9 front
 camera, and develops the Camera app's photos. rootfs/ carries
 `/etc/braun/imx890.toml` and `s5k3p9.toml`: the IMX890's role, its rotation
 (270, where the device tree says 90) and focus travel, and for both the
-stock tuning's illuminant locus, colour matrices and lens shading. The
-IMX355 has neither a calibration nor a sensor profile yet.
+stock tuning's illuminant locus, colour matrices and lens shading.
+`imx355.toml` names the IMX355 the ultrawide, at the main camera's 0.6x
+(112 against 84 degrees across the diagonal); it has no colour tuning yet.
 
 Radio addresses: the ABL passes no Wi-Fi or Bluetooth address, so the
 WCN7850 reports its firmware's shared default MAC and its Bluetooth
