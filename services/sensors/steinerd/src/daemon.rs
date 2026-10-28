@@ -325,7 +325,11 @@ impl State {
                     if let Some(o) = self.classifier.feed(x, y, z, ns) {
                         self.props.orientation = o;
                     }
-                    if due(&mut self.acceleration_at, e.timestamp, MOTION_TICKS) {
+                    // Orientation runs the accelerometer too; its claimants
+                    // must not be woken by readings they never asked for.
+                    if self.claims.get(&Kind::Accel).is_some_and(|c| !c.is_empty())
+                        && due(&mut self.acceleration_at, e.timestamp, MOTION_TICKS)
+                    {
                         self.props.acceleration = (x.into(), y.into(), z.into());
                     }
                 }

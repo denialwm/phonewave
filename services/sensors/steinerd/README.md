@@ -56,7 +56,8 @@ System bus name `org.steinerd`, object `/org/steinerd`, interface
 
 A sensor runs while any client holds a claim and stops with the last one. A
 claim also ends when its client leaves the bus. Values change only while
-their sensor runs; properties announce changes with `PropertiesChanged`.
+their own sensor is claimed: an orientation claim leaves Acceleration as it
+was. Properties announce changes with `PropertiesChanged`.
 
 Orientation comes from the accelerometer at its lowest rate. Lying flat keeps
 the last orientation; a new one must hold for 300 ms, and near a diagonal the
