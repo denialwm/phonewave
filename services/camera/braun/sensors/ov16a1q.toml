@@ -1,0 +1,5 @@
+# OmniVision OV16A1Q, Quad Bayer, binned. Gain is code / 256 from 0x0100,
+# to 0x0f80 (15.5x).
+black = 64
+white = 1000
+analogue_gain = { m0 = 1, c0 = 0, m1 = 0, c1 = 256 }

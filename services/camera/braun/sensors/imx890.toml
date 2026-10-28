@@ -1,0 +1,5 @@
+# Sony IMX890. Gain is 16384 / (16384 - code), as libcamera's helper has it.
+black = 64
+white = 1000
+analogue_gain = { m0 = 0, c0 = 16384, m1 = -1, c1 = 16384 }
+max_gain = 16

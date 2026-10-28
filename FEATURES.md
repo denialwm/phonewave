@@ -53,7 +53,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
-| Camera | partial | 2026-10-28, devices-152, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. Camera app (untuned): main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (devices-152; OIS off), not yet checked by the user; front OV16A1Q 2304x1728 binned (Quad Bayer) (user). Ultrawide OV50D40 4096x3072 (user) is in the app only without the main camera. Auxiliary OV02F10 1600x1200 streams, not in the app |
+| Camera | partial | 2026-10-28, devices-152, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user). Ultrawide OV50D40 4096x3072 (user) is in the app only without the main camera. Auxiliary OV02F10 1600x1200 streams, not in the app. The app on braun is installed, not yet checked by the user |
 | Video decode | not started | | No Iris for Kaanapali |
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
@@ -97,7 +97,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | |
-| Camera | works | 2026-10-22, user | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app. No 50 MP mode |
+| Camera | partial | 2026-10-28, devices73 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; opening the S5K3P9 right after it timed out in RPMh (camss interconnect vote, `Error sending AMC RPMH requests (-110)`), and every interconnect vote blocked from then on, until a hard reboot. Cause unknown |
 | Video decode | works | 2026-10-28, devices-73, probe | Iris: H.264, HEVC and VP9 at 1080p decode bit-exact against software, 12 to 18 times real time. VP9 logs decode errors without losing frames. AV1 is listed, not tried |
 | Rotation | not started | | steinerd needs the phone's stock sensor files |
 | Light and proximity | not started | | |

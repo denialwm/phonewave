@@ -1,0 +1,8 @@
+# The RedMagic 11 Pro's main camera: the OV50E40 and its DW9785 focus motor.
+role = "main"
+
+# A shelf at 3 m is sharp from 0x600 to 0x800, a chart at 12 cm from 0x880
+# to 0xb00; the sweep goes past both.
+[focus]
+travel = [0x500, 0xc00]
+start = 0x700

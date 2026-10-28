@@ -1,0 +1,33 @@
+[package]
+name = "braun"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Camera service: finds a phone's cameras and turns their raw frames into previews and photos"
+license = "MIT"
+
+[features]
+default = ["service"]
+# The daemon and braunctl. Without it the crate is the client side only,
+# for apps: the bus names, the session protocol and its shared frames.
+service = ["dep:image", "dep:serde", "dep:toml"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg"], optional = true }
+libc = "0.2"
+serde = { version = "1", features = ["derive"], optional = true }
+toml = { version = "0.9", optional = true }
+zbus = "5.18"
+
+[[bin]]
+name = "braun"
+required-features = ["service"]
+
+[[bin]]
+name = "braunctl"
+required-features = ["service"]
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1

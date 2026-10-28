@@ -155,6 +155,16 @@ The files it serves are the phone's own and never enter this repo:
 install steinerd with its `make install` layout and enable `steinerd.service`;
 `steinerctl list accel proximity ambient_light` shows the three sensors.
 
+## Camera
+
+braun (services/camera/braun), installed with its `make install`, finds the
+OV50E40 main camera, the OV50D40 ultrawide, the OV02F10 auxiliary camera and
+the OV16A1Q front camera, and develops the Camera app's photos. rootfs/
+carries `/etc/braun/ov50e40.toml`, `ov50d40.toml` and `ov02f10.toml`: each
+camera's role, and the main camera's focus travel through its DW9785. None
+has colour calibration yet. Never run the DW9785's firmware download: it
+rewrites the motor's eFlash.
+
 ## Fingerprint
 
 The stock Goodix ultrasonic stack uses `goodixfp64`; the kernel provides

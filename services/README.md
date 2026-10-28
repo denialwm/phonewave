@@ -14,6 +14,7 @@ tests, packaging and README.
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
+| [`camera/braun`](camera/braun) | Finds the cameras and gives apps previews and photos, raw to JPEG in its own pipeline | any with qcom-camss |
 | [`sensors/steinerd`](sensors/steinerd) | Orientation, motion, compass, light and proximity from the Snapdragon Sensor Core | `nx809j` |
 | [`modem/dmail`](modem/dmail) | Modem service replacing ModemManager: SIM, registration, data, SMS | `aston`, `roadstr` |
 

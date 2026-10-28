@@ -1,0 +1,5 @@
+# Samsung S5K3P9. Gain is code / 32.
+black = 64
+white = 1000
+analogue_gain = { m0 = 1, c0 = 0, m1 = 0, c1 = 32 }
+max_gain = 16

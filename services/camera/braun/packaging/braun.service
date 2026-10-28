@@ -1,0 +1,27 @@
+[Unit]
+Description=Camera service
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.braun
+ExecStart=/usr/bin/braun
+User=braun
+Group=braun
+SupplementaryGroups=video
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

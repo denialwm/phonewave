@@ -1,0 +1,5 @@
+# OmniVision OV50E40. Gain is code / 1024 from 0x0400; measured linear to
+# 0x4000, 16x.
+black = 64
+white = 1000
+analogue_gain = { m0 = 1, c0 = 0, m1 = 0, c1 = 1024 }
