@@ -1,0 +1,6 @@
+# In power save the WCN7850 holds a frame that arrives after a quiet gap
+# until its next wake, up to a quarter of a second. Denial keeps power save
+# off while a screen is lit and allows it again when every screen is dark, so
+# the seat group may write power_save_allowed.
+ACTION=="add|bind", SUBSYSTEM=="pci", DRIVER=="ath12k_wifi7_pci", TEST=="power_save_allowed", \
+  RUN+="/usr/bin/chgrp seat /sys%p/power_save_allowed", RUN+="/usr/bin/chmod g+w /sys%p/power_save_allowed"
