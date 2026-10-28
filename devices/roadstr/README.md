@@ -32,8 +32,10 @@ modules are still installed and vendor_boot_b and dtbo_b were never changed.
 
 Deploying Denial: the phone runs denial-mainline.service from a set under
 /var/lib/moto70-denial chosen by the mainline-current symlink.
-`tools/moto70-build-denial` builds an AArch64 candidate from /mnt/development/denial-os/denial,
-and `DENIAL_CANDIDATE=DIR tools/moto70-deploy-denial` stages it beside the running
+`tools/moto70-build-denial` builds an AArch64 candidate from a Denial checkout; agents
+run it through the workspace's `tools/build start denial roadstr`, which builds the
+dev branch into /mnt/development/denial-os/builds/roadstr/denial/latest.
+`DENIAL_CANDIDATE=DIR tools/moto70-deploy-denial` stages it beside the running
 set, selects it and restarts the service. `tools/moto70-shell-loop` rebuilds and
 reloads Dart-only shell changes in place. Neither rolls back by itself; both
 print the previous set. They use roadstr-wifi; set MOTO_HOST=roadstr for USB.
