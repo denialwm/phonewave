@@ -69,6 +69,43 @@ tree. On such a boot:
 
 A kernel that never reaches userspace needs fastboot.
 
+## Denial on perpetua
+
+`tb373fu-perpetua-denial.service` runs Denial on perpetua boots only; the
+reference kernel keeps its own `tb373fu-denial.service`. It is enabled
+(`systemctl enable tb373fu-perpetua-denial`) and starts at boot; its
+condition on the handoff marker keeps it off on the reference kernel. It
+opens the
+display and the GPU by path (`platform-14000000.display-controller-card`,
+`platform-13000000.gpu-render`), because their DRM minors swap between
+boots, and uses the Mesa in `/usr/local`, the one that drives the
+Mali-G615. Its output configuration starts from
+`/usr/share/tb373fu/outputs.conf`.
+
+It runs the set that `/var/lib/tb373fu-denial/current` names. To install
+a build of the `dev` stream (`tools/build start denial aston` builds the
+same AArch64 candidate for every phone):
+
+```sh
+B=$(readlink -f /mnt/development/denial-os/builds/aston/denial/latest)
+id=denial-${B##*/}
+ssh tb373fu mkdir -p /var/lib/tb373fu-denial/.staging-$id
+rsync -a --chown=root:root $B/native $B/shell $B/settings $B/SHA256SUMS \
+    $B/manifest.json $B/source-manifest.json $B/source.patch \
+    $B/flutter.patch $B/skia.patch $B/build-recipe.py \
+    tb373fu:/var/lib/tb373fu-denial/.staging-$id/
+ssh tb373fu "set -e; cd /var/lib/tb373fu-denial
+    (cd .staging-$id && sha256sum --quiet -c SHA256SUMS && chmod -R a-w .)
+    mv -T .staging-$id $id; echo previous=\$(readlink current)
+    ln -sfn $id .current.new; mv -T .current.new current
+    systemctl restart tb373fu-perpetua-denial"
+```
+
+Perpetua has the touchscreen, the pen and the keys: power and volume-down
+on the PMIC (`mtk-pmic-keys`), volume-up on the SoC keypad
+(`mt6779-keypad`). Denial owns the power key; `logind.conf.d/tb373fu.conf`
+keeps logind from powering off on it.
+
 ## Fastboot
 
 The keys: Vol-Down + Power, held until fastboot appears. The tablet is

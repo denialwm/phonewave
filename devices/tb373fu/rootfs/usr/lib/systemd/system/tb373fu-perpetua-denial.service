@@ -1,0 +1,63 @@
+[Unit]
+Description=Denial on the Idea Tab Pro (perpetua kernel)
+# Perpetua boots only; the reference kernel runs tb373fu-denial.service.
+ConditionPathExists=/sys/firmware/devicetree/base/chosen/linux,fdt-handoff
+After=systemd-logind.service systemd-user-sessions.service dbus.service systemd-udev-trigger.service
+# The session owns tty1 like a login does: logind only places a session on
+# seat0, which has VTs, when it comes with one.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=120
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=logix
+Group=logix
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=/home/logix
+Environment=HOME=/home/logix
+Environment=XDG_RUNTIME_DIR=/run/user/1001
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1001/bus
+Environment=XDG_CONFIG_HOME=/home/logix/.config
+Environment=XDG_STATE_HOME=/home/logix/.local/state
+Environment=XDG_CACHE_HOME=/home/logix/.cache
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_SESSION_CLASS=user
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=LIBSEAT_BACKEND=logind
+Environment=EGL_PLATFORM=gbm
+Environment=RUST_LOG=deniald=info,smithay=warn
+Environment=DENIA_SHELL_PROFILE=mobile
+# The Mesa in /usr/local drives the Mali-G615; the system Mesa does not.
+Environment=LD_LIBRARY_PATH=/usr/local/lib
+Environment=LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+Environment=GBM_BACKENDS_PATH=/usr/local/lib/gbm
+Environment=__EGL_VENDOR_LIBRARY_FILENAMES=/usr/local/share/glvnd/egl_vendor.d/50_mesa.json
+# Its panvk, which the native apps render with, runs on this GPU only on request.
+Environment=PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1
+# Denial writes its output configuration atomically into this directory.
+StateDirectory=tb373fu-perpetua
+StateDirectoryMode=0755
+ExecStartPre=+/bin/sh -c 'test -e /var/lib/tb373fu-perpetua/outputs.conf || install -o logix -g logix -m 0644 /usr/share/tb373fu/outputs.conf /var/lib/tb373fu-perpetua/'
+# The display and the GPU by path: their DRM minors swap between boots.
+# The deployment is the one /var/lib/tb373fu-denial/current names.
+ExecStart=/var/lib/tb373fu-denial/current/native/deniald --device /dev/dri/by-path/platform-14000000.display-controller-card --render-device /dev/dri/by-path/platform-13000000.gpu-render --output-config /var/lib/tb373fu-perpetua/outputs.conf --wayland --flutter-bundle /var/lib/tb373fu-denial/current/shell
+AmbientCapabilities=CAP_SYS_NICE
+LimitRTPRIO=10
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
