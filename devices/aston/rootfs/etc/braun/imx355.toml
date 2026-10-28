@@ -2,3 +2,5 @@
 role = "ultrawide"
 # 112 degrees across the diagonal, against 84 for the main camera (24 mm).
 zoom = 0.6
+# The device tree says 90; the frame is upright turned 90 degrees clockwise.
+rotation = 270
