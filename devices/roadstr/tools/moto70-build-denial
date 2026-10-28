@@ -18,6 +18,9 @@ os.environ['LC_ALL'] = 'C'  # Machine-readable ELF/tool diagnostics, independent
 TARGET = 'aarch64-unknown-linux-gnu'
 ARM_NAME = 'denial_linux_arm64_release'
 HOST_NAME = 'denial_host_release'
+# A fork commit leaves the Flutter tool and the host engine graph behind.
+PREPARE = ('tools/build prepares both; by hand, in the Denial checkout: '
+           'tools/denial-pc bootstrap, then tools/denial-flutter-engine prepare-graph')
 
 def run(args, **kwargs):
     print('+', ' '.join(map(str, args)), flush=True)
@@ -54,7 +57,8 @@ def verify_args(path, flutter, skia, cpu):
                     shell_enable_vulkan='false', test_enable_vulkan='false', skia_use_vulkan='false')
     for key, value in expected.items():
         if args.get(key) != value:
-            raise RuntimeError(f'{path}: {key} expected {value}, got {args.get(key)}')
+            hint = f'; {PREPARE}' if key in ('engine_version', 'skia_version') else ''
+            raise RuntimeError(f'{path}: {key} expected {value}, got {args.get(key)}{hint}')
     return args
 
 def elf(path, machine):
@@ -85,14 +89,14 @@ def flutter_ready(flutter, expected_head):
     if os.environ.get('FLUTTER_TOOL_ARGS') or os.environ.get('FLUTTER_PREBUILT_ENGINE_VERSION') or os.environ.get('FLUTTER_REALM'):
         raise RuntimeError('Flutter launcher overrides are unsupported; unset them')
     if (cache / 'flutter_tools.stamp').read_text().strip() != expected_head + ':':
-        raise RuntimeError('Flutter tool stamp stale; bootstrap canonically as a separate operation')
+        raise RuntimeError(f'Flutter tool stamp stale; {PREPARE}')
     if (tools / 'pubspec.yaml').stat().st_mtime_ns > (tools / 'pubspec.lock').stat().st_mtime_ns:
         raise RuntimeError('Flutter tool pubspec newer than lock; prepare tool separately')
     if (cache / 'engine-dart-sdk.stamp').read_text().strip() != (flutter / 'bin/internal/engine.version').read_text().strip():
         raise RuntimeError('Flutter Dart cache is not ready')
     version = json.loads((cache / 'flutter.version.json').read_text())
     if version['frameworkRevision'] != expected_head:
-        raise RuntimeError('Flutter version metadata does not describe canonical HEAD')
+        raise RuntimeError(f'Flutter version metadata does not describe canonical HEAD; {PREPARE}')
 
 def canonical_gn_policy(source):
     script = (source / 'tools/denial-flutter-engine').read_text()
