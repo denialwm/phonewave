@@ -5,6 +5,18 @@ the files installed for this device, at their install path and byte for byte as
 on the phone. boot/ packages a kernel release; tools/ runs on the host, reaches
 the phone as root through `ssh aston` and writes to ~/.cache/phonewave/aston.
 
+When userspace comes up broken (black screen, no Wi-Fi), the USB gadget
+still carries a serial console: `picocom -b 115200 /dev/ttyACM0` on the host
+gives a getty. Logged in, `sudo ip addr add 172.16.42.2/24 dev usb0`, `sudo
+ip link set usb0 up` and `sudo systemctl start sshd` open the USB network;
+the host's `nyx-usb-ncm` profile takes 172.16.42.1, and
+`ssh -o HostName=172.16.42.2 aston` reaches the phone. As root, `systemctl`
+works without D-Bus.
+
+After installing files on the phone, run `sync` before anything that can
+hang it: a forced reboot keeps the new names and loses their data, and an
+empty D-Bus policy file stops dbus-broker, and with it the whole session.
+
 Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/aston`:
 boot/ the installed and rollback boot images with the evidence each package
 chains on, and the init_boot image; backups/ partition copies, among them the
