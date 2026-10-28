@@ -51,6 +51,19 @@ restarts fprintd). stage_compositor.py stages the deniald named by the cached
 compositor-build.json; activate_compositor.py selects it through
 denial.service.d/zz-fingerprint.conf and restarts the graphical session.
 
+Deploying Denial: denial.service runs a set under
+/var/lib/denial/engine-candidates, named by the drop-in that sorts last in
+denial.service.d. Build it from Denial's dev branch with the workspace's
+`tools/build start denial aston`; the candidate is
+/mnt/development/denial-os/builds/aston/denial/latest. Copy native/, shell/ and
+settings/ into a new set with `rsync --chown=root:root --link-dest=` the
+running set, then the candidate's SHA256SUMS, manifest.json,
+source-manifest.json, the three patches and build-recipe.py, and run
+`sha256sum -c SHA256SUMS` in it. Add a drop-in that sorts after the others,
+with ExecStart (deniald and `--flutter-bundle` from the set) and
+`DENIAL_SETTINGS_BINARY`, then reload systemd and restart denial.service.
+Deleting that drop-in returns to the one before it.
+
 Charging: since devices59 the kernel's `sc8517-charger` owns the SuperVOOC
 PHY, the PM8550B USB switches and negotiation. It loads from the device tree;
 no charging service or live-node/autostart module is needed. Since devices61 it
@@ -94,6 +107,14 @@ with its `make install` layout, then run `systemd-sysusers`, reload systemd
 and D-Bus and enable `dmail.service`. The unit names match the cellular kit's
 transient units, so `modem-setup` never starts a second rmtfs next to them.
 
+DNS: systemd-resolved, so that dmail can give it the carrier's servers for
+`rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
+resolv.conf holds Wi-Fi's servers only. rootfs/ links `/etc/resolv.conf` to
+resolved's stub, enables resolved from `/usr` and turns LLMNR and mDNS off
+(`50-aston-unicast-only.conf`). The image masks resolved in
+`/etc/systemd/system`: remove that link once, then reload systemd and
+NetworkManager.
+
 Lock screen: wallpaper-depth (services/wallpaper/wallpaper-depth) is installed
 with float16 weights, cross-built as its README says; Denial runs it when
 the wallpaper picker closes. Removing it turns the cut off.
@@ -107,14 +128,6 @@ DSP volume control's dB metadata is invalid, as on the Pad 4.
 
 Microphones: the WCD9380 takes AMIC1 on ADC1 (TX SMIC SWR_MIC0) and AMIC5
 on ADC4, input INP5 (SWR_MIC1), the handset pair of the stock
-DNS: systemd-resolved, so that dmail can give it the carrier's servers for
-`rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
-resolv.conf holds Wi-Fi's servers only. rootfs/ links `/etc/resolv.conf` to
-resolved's stub, enables resolved from `/usr` and turns LLMNR and mDNS off
-(`50-aston-unicast-only.conf`). The image masks resolved in
-`/etc/systemd/system`: remove that link once, then reload systemd and
-NetworkManager.
-
 mixer_paths.xml. ADC1/2 and ADC3/4 share one SoundWire master port, so one
 mic records at a time: UCM devices Mic1 and Mic2 conflict, and PipeWire
 offers them as the profiles "HiFi (Mic1, Speaker)" (default) and
