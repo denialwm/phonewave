@@ -10,14 +10,21 @@
 //! captures into ffmpeg as given, for other formats and sizes.
 
 mod capture;
+mod v4l2;
 
 use std::error::Error;
 use std::fs::{self, File};
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 
-/// x264 at its fastest preset on one thread: its own threading costs more
-/// CPU than it saves at this size.
+/// The shorter side of a recording.
+const SIZE: u32 = 1080;
+const FPS: u32 = 60;
+/// What the hardware encoder aims at: screen text stays sharp at 1080p60.
+const BITRATE: u32 = 20_000_000;
+
+/// Without a hardware encoder, x264 at its fastest preset, which keeps
+/// 1080p60 on one big core with room to spare.
 const ENCODE: [&str; 10] = [
     "-c:v",
     "libx264",
@@ -108,17 +115,20 @@ fn record(_lock: File) -> Result<(), Box<dyn Error>> {
         format!("{}\n{}\n", std::process::id(), file.display()),
     )?;
     fs::rename(&written, &state)?;
-    let mut ffmpeg: Vec<String> = ENCODE.iter().map(|arg| (*arg).to_owned()).collect();
-    ffmpeg.extend([
-        "-movflags".into(),
-        "+faststart".into(),
-        "-y".into(),
-        file.display().to_string(),
-    ]);
     let result = capture::run(capture::Options {
-        size: 720,
-        fps: 60,
-        ffmpeg,
+        size: SIZE,
+        fps: FPS,
+        hardware: v4l2::find_h264_encoder().map(|device| capture::Hardware {
+            device,
+            bitrate: std::env::var("SR_BITRATE").ok().and_then(|b| b.parse().ok()).unwrap_or(BITRATE),
+        }),
+        codec: ENCODE.iter().map(|arg| (*arg).to_owned()).collect(),
+        ffmpeg: vec![
+            "-movflags".into(),
+            "+faststart".into(),
+            "-y".into(),
+            file.display().to_string(),
+        ],
     });
     // A recording stopped before the screen showed anything leaves no video.
     if fs::metadata(&file).is_ok_and(|meta| meta.len() == 0) {

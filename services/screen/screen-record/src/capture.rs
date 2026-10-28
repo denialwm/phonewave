@@ -3,8 +3,10 @@
 //!
 //! Frames arrive through `ext-image-copy-capture-v1` in DMA-BUFs, so Denial
 //! only blits on the GPU. Each frame is box-filtered down to the target size
-//! on the GPU, read back at that size and piped to ffmpeg as constant-rate
-//! raw video timed by Denial's presentation timestamps.
+//! on the GPU and written at a constant rate timed by Denial's presentation
+//! timestamps. With a hardware encoder the GPU draws NV12 straight into the
+//! encoder's buffers and ffmpeg only muxes its H.264; without one, frames are
+//! read back at the target size and ffmpeg encodes them.
 //!
 //! `--size` is the shorter side of the recording, so 720 means 720p on a
 //! landscape or portrait output.
@@ -16,6 +18,7 @@ use std::fs::File;
 use std::io::Write;
 use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
@@ -40,8 +43,12 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
 };
 
+use crate::v4l2;
+
 const RENDER_NODE: &str = "/dev/dri/renderD128";
 const XRGB8888: u32 = u32::from_le_bytes(*b"XR24");
+const R8: u32 = u32::from_le_bytes(*b"R8  ");
+const GR88: u32 = u32::from_le_bytes(*b"GR88");
 /// How often a stopped capture asks Denial again whether the output is on.
 const RETRY: Duration = Duration::from_millis(250);
 
@@ -86,7 +93,18 @@ struct State {
 pub struct Options {
     pub size: u32,
     pub fps: u32,
+    /// A hardware H.264 encoder, used when it opens.
+    pub hardware: Option<Hardware>,
+    /// ffmpeg arguments that encode raw frames when no hardware encoder is
+    /// used.
+    pub codec: Vec<String>,
+    /// ffmpeg output arguments.
     pub ffmpeg: Vec<String>,
+}
+
+pub struct Hardware {
+    pub device: PathBuf,
+    pub bitrate: u32,
 }
 
 /// `[--size N] [--fps N] -- <ffmpeg output arguments>`.
@@ -94,6 +112,8 @@ pub fn parse_options(mut args: impl Iterator<Item = String>) -> Result<Options, 
     let mut options = Options {
         size: 720,
         fps: 60,
+        hardware: None,
+        codec: Vec::new(),
         ffmpeg: Vec::new(),
     };
     while let Some(arg) = args.next() {
@@ -134,12 +154,38 @@ struct CaptureBuffer {
     _bo: BufferObject<()>,
 }
 
+/// Where scaled frames are drawn: one framebuffer read back into memory, or
+/// the hardware encoder's NV12 buffers.
+enum Targets {
+    Readback(glow::Framebuffer),
+    Nv12(Vec<Nv12Target>),
+}
+
+/// One encoder buffer: framebuffers on its luma plane and on its
+/// interleaved chroma plane.
+struct Nv12Target {
+    luma: glow::Framebuffer,
+    chroma: glow::Framebuffer,
+}
+
+/// A frame on its way to the encoder: read-back pixels, or the index of an
+/// encoder buffer drawn on the GPU.
+enum Image {
+    Pixels(Vec<u8>),
+    Slot(usize),
+}
+
 struct Gpu {
     egl: egl::DynamicInstance<egl::EGL1_5>,
     display: egl::Display,
     gl: glow::Context,
     image_target_texture: extern "system" fn(u32, *const c_void),
     gbm: gbm::Device<File>,
+    tap_offset: glow::UniformLocation,
+    conversion: glow::UniformLocation,
+    width: u32,
+    height: u32,
+    targets: Targets,
 }
 
 const VERTEX_SHADER: &str = r#"#version 300 es
@@ -153,11 +199,13 @@ void main() {
 
 // Four bilinear taps a quarter output pixel from the centre average a
 // footprint about one output pixel wide, which keeps small text legible
-// at a 3x reduction where a single tap would alias.
+// at a 3x reduction where a single tap would alias. `conversion` turns the
+// average into the target's channels.
 const FRAGMENT_SHADER: &str = r#"#version 300 es
 precision highp float;
 uniform sampler2D source;
 uniform vec2 tap_offset;
+uniform mat4 conversion;
 in vec2 uv;
 out vec4 colour;
 void main() {
@@ -165,12 +213,71 @@ void main() {
              + texture(source, uv + vec2(tap_offset.x, -tap_offset.y)).rgb
              + texture(source, uv + vec2(-tap_offset.x, tap_offset.y)).rgb
              + texture(source, uv + vec2(tap_offset.x, tap_offset.y)).rgb;
-    colour = vec4(sum * 0.25, 1.0);
+    colour = conversion * vec4(sum * 0.25, 1.0);
 }
 "#;
 
+/// Row-major conversions of (R, G, B, 1).
+const RGB: [f32; 16] = [
+    1.0, 0.0, 0.0, 0.0, //
+    0.0, 1.0, 0.0, 0.0, //
+    0.0, 0.0, 1.0, 0.0, //
+    0.0, 0.0, 0.0, 1.0,
+];
+const KR: f32 = 0.2126;
+const KB: f32 = 0.0722;
+const KG: f32 = 1.0 - KR - KB;
+/// Limited-range BT.709, the colour the encoder signals.
+const LUMA_SCALE: f32 = 219.0 / 255.0;
+const CHROMA_SCALE: f32 = 224.0 / 255.0;
+const LUMA_BLACK: f32 = 16.0 / 255.0;
+const CHROMA_ZERO: f32 = 128.0 / 255.0;
+const LUMA: [f32; 16] = [
+    KR * LUMA_SCALE,
+    KG * LUMA_SCALE,
+    KB * LUMA_SCALE,
+    LUMA_BLACK, //
+    0.0,
+    0.0,
+    0.0,
+    0.0, //
+    0.0,
+    0.0,
+    0.0,
+    0.0, //
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+];
+/// Cb into red and Cr into green: NV12's chroma bytes in GR88 order.
+const CHROMA: [f32; 16] = [
+    -KR / (2.0 - 2.0 * KB) * CHROMA_SCALE,
+    -KG / (2.0 - 2.0 * KB) * CHROMA_SCALE,
+    0.5 * CHROMA_SCALE,
+    CHROMA_ZERO,
+    0.5 * CHROMA_SCALE,
+    -KG / (2.0 - 2.0 * KR) * CHROMA_SCALE,
+    -KB / (2.0 - 2.0 * KR) * CHROMA_SCALE,
+    CHROMA_ZERO,
+    0.0,
+    0.0,
+    0.0,
+    0.0, //
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+];
+
 impl Gpu {
-    fn new(width: u32, height: u32) -> Result<Self, Box<dyn Error>> {
+    /// A GPU that scales to `width`x`height`, into the encoder buffers in
+    /// `nv12` or else into a framebuffer it reads back.
+    fn new(
+        width: u32,
+        height: u32,
+        nv12: Option<(&[OwnedFd], v4l2::Layout)>,
+    ) -> Result<Self, Box<dyn Error>> {
         let node = File::options().read(true).write(true).open(RENDER_NODE)?;
         let gbm = gbm::Device::new(node)?;
         // SAFETY: loads the system EGL library; all later calls go through it.
@@ -186,7 +293,7 @@ impl Gpu {
         egl.initialize(display)?;
         egl.bind_api(egl::OPENGL_ES_API)?;
         // EGL_KHR_no_config_context and EGL_KHR_surfaceless_context: all
-        // rendering goes to a framebuffer object.
+        // rendering goes to framebuffer objects.
         // SAFETY: a null config is EGL_NO_CONFIG_KHR.
         let config = unsafe { egl::Config::from_ptr(std::ptr::null_mut()) };
         let context = egl.create_context(
@@ -211,7 +318,7 @@ impl Gpu {
             unsafe { std::mem::transmute(image_target_texture) };
 
         // SAFETY: the context is current; every object belongs to it.
-        unsafe {
+        let (tap_offset, conversion, readback) = unsafe {
             let program = gl.create_program()?;
             for (kind, source) in [
                 (glow::VERTEX_SHADER, VERTEX_SHADER),
@@ -234,35 +341,159 @@ impl Gpu {
             let tap_offset = gl
                 .get_uniform_location(program, "tap_offset")
                 .ok_or("tap_offset uniform missing")?;
-            gl.uniform_2_f32(Some(&tap_offset), 0.25 / width as f32, 0.25 / height as f32);
+            let conversion = gl
+                .get_uniform_location(program, "conversion")
+                .ok_or("conversion uniform missing")?;
             gl.bind_vertex_array(Some(gl.create_vertex_array()?));
-
-            let target = gl.create_renderbuffer()?;
-            gl.bind_renderbuffer(glow::RENDERBUFFER, Some(target));
-            gl.renderbuffer_storage(glow::RENDERBUFFER, glow::RGBA8, width as i32, height as i32);
-            let framebuffer = gl.create_framebuffer()?;
-            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
-            gl.framebuffer_renderbuffer(
-                glow::FRAMEBUFFER,
-                glow::COLOR_ATTACHMENT0,
-                glow::RENDERBUFFER,
-                Some(target),
-            );
-            if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
-                return Err("output framebuffer is incomplete".into());
-            }
-            gl.viewport(0, 0, width as i32, height as i32);
             gl.pixel_store_i32(glow::PACK_ALIGNMENT, 1);
-            // The program, framebuffer and vertex array stay bound for the
-            // context's lifetime.
-            Ok(Self {
-                egl,
-                display,
-                gl,
-                image_target_texture,
-                gbm,
-            })
-        }
+            // The program and vertex array stay bound for the context's
+            // lifetime.
+            let readback = if nv12.is_none() {
+                let target = gl.create_renderbuffer()?;
+                gl.bind_renderbuffer(glow::RENDERBUFFER, Some(target));
+                gl.renderbuffer_storage(
+                    glow::RENDERBUFFER,
+                    glow::RGBA8,
+                    width as i32,
+                    height as i32,
+                );
+                let framebuffer = gl.create_framebuffer()?;
+                gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+                gl.framebuffer_renderbuffer(
+                    glow::FRAMEBUFFER,
+                    glow::COLOR_ATTACHMENT0,
+                    glow::RENDERBUFFER,
+                    Some(target),
+                );
+                if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE {
+                    return Err("output framebuffer is incomplete".into());
+                }
+                Some(framebuffer)
+            } else {
+                None
+            };
+            (tap_offset, conversion, readback)
+        };
+        let mut gpu = Self {
+            egl,
+            display,
+            gl,
+            image_target_texture,
+            gbm,
+            tap_offset,
+            conversion,
+            width,
+            height,
+            targets: Targets::Nv12(Vec::new()),
+        };
+        gpu.targets = match (readback, nv12) {
+            (Some(framebuffer), _) => Targets::Readback(framebuffer),
+            (None, Some((buffers, layout))) => Targets::Nv12(
+                buffers
+                    .iter()
+                    .map(|fd| gpu.nv12_target(fd, layout))
+                    .collect::<Result<_, _>>()?,
+            ),
+            (None, None) => unreachable!("a readback target exists without NV12 buffers"),
+        };
+        Ok(gpu)
+    }
+
+    /// Imports a DMA-BUF image as a texture.
+    fn import(
+        &self,
+        attributes: &[egl::Attrib],
+    ) -> Result<(egl::Image, glow::Texture), Box<dyn Error>> {
+        // SAFETY: EGL dups the plane fds; null context and buffer are what
+        // EGL_LINUX_DMA_BUF_EXT requires.
+        let image = self.egl.create_image(
+            self.display,
+            unsafe { egl::Context::from_ptr(egl::NO_CONTEXT) },
+            EGL_LINUX_DMA_BUF_EXT,
+            unsafe { egl::ClientBuffer::from_ptr(std::ptr::null_mut()) },
+            attributes,
+        )?;
+        // SAFETY: the context is current and `image` is a live EGLImage.
+        let texture = unsafe {
+            let texture = self.gl.create_texture()?;
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            for (parameter, value) in [
+                (glow::TEXTURE_MIN_FILTER, glow::LINEAR),
+                (glow::TEXTURE_MAG_FILTER, glow::LINEAR),
+                (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE),
+                (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE),
+            ] {
+                self.gl
+                    .tex_parameter_i32(glow::TEXTURE_2D, parameter, value as i32);
+            }
+            (self.image_target_texture)(glow::TEXTURE_2D, image.as_ptr());
+            if self.gl.get_error() != glow::NO_ERROR {
+                let _ = self.egl.destroy_image(self.display, image);
+                return Err("could not bind a DMA-BUF image as a texture".into());
+            }
+            texture
+        };
+        Ok((image, texture))
+    }
+
+    fn nv12_target(
+        &self,
+        fd: &OwnedFd,
+        layout: v4l2::Layout,
+    ) -> Result<Nv12Target, Box<dyn Error>> {
+        let plane = |format: u32, width: u32, height: u32, offset: u32| {
+            let [fd_key, offset_key, pitch_key, low_key, high_key] = EGL_PLANE_ATTRIBUTES[0];
+            let (_, texture) = self.import(&[
+                egl::WIDTH as egl::Attrib,
+                width as egl::Attrib,
+                egl::HEIGHT as egl::Attrib,
+                height as egl::Attrib,
+                EGL_LINUX_DRM_FOURCC_EXT,
+                format as egl::Attrib,
+                fd_key,
+                fd.as_raw_fd() as egl::Attrib,
+                offset_key,
+                offset as egl::Attrib,
+                pitch_key,
+                layout.stride as egl::Attrib,
+                // DRM_FORMAT_MOD_LINEAR
+                low_key,
+                0,
+                high_key,
+                0,
+                egl::ATTRIB_NONE,
+            ])?;
+            // SAFETY: the context is current and the texture is ours.
+            let framebuffer = unsafe {
+                let framebuffer = self.gl.create_framebuffer()?;
+                self.gl
+                    .bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+                self.gl.framebuffer_texture_2d(
+                    glow::FRAMEBUFFER,
+                    glow::COLOR_ATTACHMENT0,
+                    glow::TEXTURE_2D,
+                    Some(texture),
+                    0,
+                );
+                if self.gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
+                {
+                    return Err::<_, Box<dyn Error>>(
+                        "an encoder buffer cannot be rendered to".into(),
+                    );
+                }
+                framebuffer
+            };
+            Ok(framebuffer)
+        };
+        Ok(Nv12Target {
+            luma: plane(R8, layout.width, layout.height, 0)?,
+            chroma: plane(
+                GR88,
+                layout.width / 2,
+                layout.height / 2,
+                layout.chroma_offset,
+            )?,
+        })
     }
 
     fn create_buffer(
@@ -345,34 +576,7 @@ impl Gpu {
         );
         params.destroy();
 
-        // SAFETY: EGL dups the plane fds; null context and buffer are what
-        // EGL_LINUX_DMA_BUF_EXT requires.
-        let image = self.egl.create_image(
-            self.display,
-            unsafe { egl::Context::from_ptr(egl::NO_CONTEXT) },
-            EGL_LINUX_DMA_BUF_EXT,
-            unsafe { egl::ClientBuffer::from_ptr(std::ptr::null_mut()) },
-            &attributes,
-        )?;
-        // SAFETY: the context is current and `image` is a live EGLImage.
-        let texture = unsafe {
-            let texture = self.gl.create_texture()?;
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-            for (parameter, value) in [
-                (glow::TEXTURE_MIN_FILTER, glow::LINEAR),
-                (glow::TEXTURE_MAG_FILTER, glow::LINEAR),
-                (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE),
-                (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE),
-            ] {
-                self.gl
-                    .tex_parameter_i32(glow::TEXTURE_2D, parameter, value as i32);
-            }
-            (self.image_target_texture)(glow::TEXTURE_2D, image.as_ptr());
-            if self.gl.get_error() != glow::NO_ERROR {
-                return Err("could not bind the capture buffer as a texture".into());
-            }
-            texture
-        };
+        let (image, texture) = self.import(&attributes)?;
         eprintln!("screen-record: capture buffer {width}x{height} modifier {modifier:#x}");
         Ok(CaptureBuffer {
             wl_buffer,
@@ -389,21 +593,89 @@ impl Gpu {
         buffer.wl_buffer.destroy();
     }
 
-    /// Scales `buffer` into the output framebuffer and reads it back.
-    fn scale(&self, buffer: &CaptureBuffer, width: u32, height: u32, pixels: &mut [u8]) {
-        // SAFETY: the context is current and `pixels` holds width*height RGBA.
+    /// Draws `source` scaled into `framebuffer`, `width`x`height`.
+    fn draw(
+        &self,
+        source: glow::Texture,
+        framebuffer: glow::Framebuffer,
+        width: u32,
+        height: u32,
+        conversion: &[f32; 16],
+    ) {
+        // SAFETY: the context is current; all objects belong to it.
         unsafe {
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(buffer.texture));
-            self.gl.draw_arrays(glow::TRIANGLES, 0, 3);
-            self.gl.read_pixels(
-                0,
-                0,
-                width as i32,
-                height as i32,
-                glow::RGBA,
-                glow::UNSIGNED_BYTE,
-                glow::PixelPackData::Slice(Some(pixels)),
+            self.gl
+                .bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+            self.gl.viewport(0, 0, width as i32, height as i32);
+            self.gl.uniform_2_f32(
+                Some(&self.tap_offset),
+                0.25 / width as f32,
+                0.25 / height as f32,
             );
+            self.gl
+                .uniform_matrix_4_f32_slice(Some(&self.conversion), true, conversion);
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(source));
+            self.gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        }
+    }
+
+    /// Scales `buffer` into `image`. An encoder buffer is complete on return.
+    fn scale(&self, buffer: &CaptureBuffer, image: &mut Image) {
+        let (width, height) = (self.width, self.height);
+        match (&self.targets, image) {
+            (Targets::Readback(framebuffer), Image::Pixels(pixels)) => {
+                self.draw(buffer.texture, *framebuffer, width, height, &RGB);
+                // SAFETY: the context is current and `pixels` holds
+                // width*height RGBA.
+                unsafe {
+                    self.gl.read_pixels(
+                        0,
+                        0,
+                        width as i32,
+                        height as i32,
+                        glow::RGBA,
+                        glow::UNSIGNED_BYTE,
+                        glow::PixelPackData::Slice(Some(pixels)),
+                    );
+                }
+            }
+            (Targets::Nv12(targets), Image::Slot(index)) => {
+                let target = &targets[*index];
+                self.draw(buffer.texture, target.luma, width, height, &LUMA);
+                self.draw(
+                    buffer.texture,
+                    target.chroma,
+                    width / 2,
+                    height / 2,
+                    &CHROMA,
+                );
+                // SAFETY: the context is current.
+                unsafe { self.gl.finish() };
+            }
+            _ => unreachable!("an image of another target kind"),
+        }
+    }
+
+    /// Fills `image` with black.
+    fn black(&self, image: &mut Image) {
+        match (&self.targets, image) {
+            (_, Image::Pixels(pixels)) => pixels.fill(0),
+            (Targets::Nv12(targets), Image::Slot(index)) => {
+                let target = &targets[*index];
+                // SAFETY: the context is current; the framebuffers are ours.
+                unsafe {
+                    for (framebuffer, value) in
+                        [(target.luma, LUMA_BLACK), (target.chroma, CHROMA_ZERO)]
+                    {
+                        self.gl
+                            .bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+                        self.gl.clear_color(value, value, 0.0, 1.0);
+                        self.gl.clear(glow::COLOR_BUFFER_BIT);
+                    }
+                    self.gl.finish();
+                }
+            }
+            _ => unreachable!("an image of another target kind"),
         }
     }
 }
@@ -463,46 +735,122 @@ impl ConstantRate {
 
 enum Encode {
     /// Makes this the image that later writes repeat.
-    Show(Vec<u8>),
+    Show(Image),
     /// Writes the current image this many times.
     Write(u64),
 }
 
-/// Feeds ffmpeg from its own thread, so encoding never delays a capture
+/// Where the encoder thread sends frames.
+enum Output {
+    /// Raw frames into ffmpeg, which encodes them.
+    Raw(ChildStdin),
+    /// Encoder buffers into the hardware encoder, whose H.264 goes to
+    /// ffmpeg.
+    Hardware {
+        encoder: v4l2::Encoder,
+        pipe: ChildStdin,
+    },
+}
+
+impl Output {
+    /// Takes back `old`, which `current` replaced. An input the hardware
+    /// encoder still holds is waited for: left to the next write, it could
+    /// stay out of circulation while the capture waits for a free image.
+    fn release(
+        &mut self,
+        old: Image,
+        current: &Image,
+        free: &SyncSender<Image>,
+    ) -> std::io::Result<()> {
+        match (self, old) {
+            // Released by the device, `old` is freed like any non-current input.
+            (Output::Hardware { encoder, pipe }, Image::Slot(index)) if encoder.holds(index) => {
+                encoder.reclaim(index, pipe, &mut release_unless(current, free))?;
+            }
+            (_, old) => {
+                let _ = free.send(old);
+            }
+        }
+        Ok(())
+    }
+
+    fn write(
+        &mut self,
+        image: &Image,
+        count: u64,
+        free: &SyncSender<Image>,
+    ) -> std::io::Result<()> {
+        match (self, image) {
+            (Output::Raw(pipe), Image::Pixels(pixels)) => {
+                for _ in 0..count {
+                    pipe.write_all(pixels)?;
+                }
+            }
+            (Output::Hardware { encoder, pipe }, &Image::Slot(index)) => {
+                for _ in 0..count {
+                    encoder.encode(index, pipe, &mut release_unless(image, free))?;
+                }
+            }
+            _ => unreachable!("an image of another output kind"),
+        }
+        Ok(())
+    }
+
+    /// Writes everything left, then closes ffmpeg's input.
+    fn finish(self) -> std::io::Result<()> {
+        match self {
+            Output::Raw(_) => Ok(()),
+            Output::Hardware { encoder, mut pipe } => encoder.finish(&mut pipe, &mut |_| {}),
+        }
+    }
+}
+
+/// Frees each input the hardware encoder releases, except the current one,
+/// which later writes repeat.
+fn release_unless<'a>(current: &'a Image, free: &'a SyncSender<Image>) -> impl FnMut(usize) + 'a {
+    move |done| {
+        if !matches!(current, &Image::Slot(index) if index == done) {
+            let _ = free.send(Image::Slot(done));
+        }
+    }
+}
+
+/// Feeds the output from its own thread, so encoding never delays a capture
 /// request. Images circulate between the two threads instead of being
 /// allocated per frame.
 struct Encoder {
     messages: SyncSender<Encode>,
-    free: Receiver<Vec<u8>>,
+    free: Receiver<Image>,
     thread: JoinHandle<std::io::Result<()>>,
     stopped: bool,
 }
 
 impl Encoder {
-    fn start(mut pipe: ChildStdin, frame_bytes: usize) -> Self {
-        const IMAGES: usize = 4;
+    /// Starts with `images` free to draw into and `current` shown.
+    fn start(mut output: Output, images: Vec<Image>, current: Option<Image>) -> Self {
         let (messages, inbox) = sync_channel(16);
-        let (recycle, free) = sync_channel(IMAGES);
-        for _ in 1..IMAGES {
-            recycle
-                .send(vec![0u8; frame_bytes])
-                .expect("free image queue");
+        let (recycle, free) = sync_channel(images.len() + 1);
+        for image in images {
+            recycle.send(image).expect("free image queue");
         }
         let thread = std::thread::spawn(move || {
-            let mut image = vec![0u8; frame_bytes];
+            let mut current = current;
             for message in inbox {
                 match message {
                     Encode::Show(next) => {
-                        let _ = recycle.send(std::mem::replace(&mut image, next));
+                        let old = current.replace(next);
+                        if let (Some(old), Some(shown)) = (old, &current) {
+                            output.release(old, shown, &recycle)?;
+                        }
                     }
                     Encode::Write(count) => {
-                        for _ in 0..count {
-                            pipe.write_all(&image)?;
+                        if let Some(image) = &current {
+                            output.write(image, count, &recycle)?;
                         }
                     }
                 }
             }
-            Ok(())
+            output.finish()
         });
         Self {
             messages,
@@ -517,13 +865,13 @@ impl Encoder {
     }
 
     /// A free image to draw into, or None once the encoder has stopped.
-    fn image(&mut self) -> Option<Vec<u8>> {
+    fn image(&mut self) -> Option<Image> {
         let image = self.free.recv().ok();
         self.stopped |= image.is_none();
         image
     }
 
-    fn show(&mut self, image: Vec<u8>) {
+    fn show(&mut self, image: Image) {
         self.send(Encode::Show(image));
     }
 
@@ -606,30 +954,88 @@ pub fn run(options: Options) -> Result<(), Box<dyn Error>> {
     let shorter = source_width.min(source_height) as u64;
     let scaled = |side: u32| ((side as u64 * options.size as u64 / shorter) as u32 + 1) & !1;
     let (width, height) = (scaled(source_width), scaled(source_height));
+    let fps = options.fps.to_string();
+    // A hardware encoder that does not open leaves the encoding to ffmpeg.
+    let hardware = options.hardware.as_ref().and_then(|hardware| {
+        v4l2::Encoder::open(
+            &hardware.device,
+            width,
+            height,
+            options.fps,
+            hardware.bitrate,
+        )
+        .inspect_err(|error| {
+            eprintln!(
+                "screen-record: {} does not encode: {error}",
+                hardware.device.display()
+            )
+        })
+        .ok()
+    });
+    let mut ffmpeg = Command::new("ffmpeg");
+    ffmpeg.args(["-hide_banner", "-loglevel", "warning", "-nostdin"]);
+    if hardware.is_some() {
+        // Each frame takes the next tick, and the stream's own timing says
+        // so: H.264 ticks at twice the frame rate, which Iris writes as the
+        // frame rate itself.
+        let tick = format!("1/({fps}*TB)");
+        ffmpeg
+            .args(["-f", "h264", "-i", "pipe:0", "-c:v", "copy", "-bsf:v"])
+            .arg(format!(
+                "h264_metadata=tick_rate={},setts=ts=N*{tick}:duration={tick}",
+                options.fps * 2
+            ))
+            .args(["-video_track_timescale", &fps]);
+    } else {
+        ffmpeg
+            .args(["-f", "rawvideo", "-pixel_format", "rgb0"])
+            .args(["-video_size", &format!("{width}x{height}")])
+            .args(["-framerate", &fps, "-i", "pipe:0"])
+            .args(&options.codec);
+    }
     eprintln!(
-        "screen-record: {source_width}x{source_height} -> {width}x{height} at {} fps",
-        options.fps
+        "screen-record: {source_width}x{source_height} -> {width}x{height} at {fps} fps, {}",
+        match (&hardware, &options.hardware) {
+            (Some(_), Some(device)) => format!("H.264 on {}", device.device.display()),
+            _ => "encoded by ffmpeg".to_owned(),
+        }
     );
 
-    let gpu = Gpu::new(width, height)?;
+    let gpu = Gpu::new(
+        width,
+        height,
+        hardware
+            .as_ref()
+            .map(|(_, buffers, layout)| (buffers.as_slice(), *layout)),
+    )?;
     let mut buffers = [
         Some(gpu.create_buffer(&constraints, &dmabuf, &qh)?),
         Some(gpu.create_buffer(&constraints, &dmabuf, &qh)?),
     ];
     let mut constraints = constraints;
 
-    let mut ffmpeg = Command::new("ffmpeg")
-        .args(["-hide_banner", "-loglevel", "warning", "-nostdin"])
-        .args(["-f", "rawvideo", "-pixel_format", "rgb0"])
-        .args(["-video_size", &format!("{width}x{height}")])
-        .args(["-framerate", &options.fps.to_string(), "-i", "pipe:0"])
+    let mut ffmpeg = ffmpeg
         .args(&options.ffmpeg)
         .stdin(Stdio::piped())
         // Terminal Ctrl+C reaches only this process; ffmpeg ends at EOF.
         .process_group(0)
         .spawn()?;
     let pipe = ffmpeg.stdin.take().ok_or("ffmpeg has no stdin")?;
-    let mut encoder = Encoder::start(pipe, width as usize * height as usize * 4);
+    let mut encoder = match hardware {
+        Some((encoder, buffers, _)) => Encoder::start(
+            Output::Hardware { encoder, pipe },
+            (0..buffers.len()).map(Image::Slot).collect(),
+            None,
+        ),
+        None => {
+            let image = || Image::Pixels(vec![0u8; width as usize * height as usize * 4]);
+            Encoder::start(
+                Output::Raw(pipe),
+                (1..4).map(|_| image()).collect(),
+                Some(image()),
+            )
+        }
+    };
     let mut rate = ConstantRate {
         period_ns: 1_000_000_000 / options.fps as u64,
         start_ns: None,
@@ -688,12 +1094,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn Error>> {
             let Some(mut image) = encoder.image() else {
                 break;
             };
-            gpu.scale(
-                buffers[index].as_ref().expect("capture buffer"),
-                width,
-                height,
-                &mut image,
-            );
+            gpu.scale(buffers[index].as_ref().expect("capture buffer"), &mut image);
             encoder.show(image);
             encoder.repeat(1);
         }
@@ -711,7 +1112,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn Error>> {
             let Some(mut black) = encoder.image() else {
                 break;
             };
-            black.fill(0);
+            gpu.black(&mut black);
             encoder.show(black);
             retry_ns = monotonic_ns() + RETRY.as_nanos() as u64;
             if !std::mem::replace(&mut dark, true) {
@@ -786,12 +1187,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn Error>> {
     if let Some(index) = captured_buffer.take()
         && let Some(mut image) = encoder.image()
     {
-        gpu.scale(
-            buffers[index].as_ref().expect("capture buffer"),
-            width,
-            height,
-            &mut image,
-        );
+        gpu.scale(buffers[index].as_ref().expect("capture buffer"), &mut image);
         encoder.show(image);
         encoder.repeat(1);
     }
@@ -841,8 +1237,10 @@ impl Dispatch<session_v1::ExtImageCopyCaptureSessionV1, ()> for State {
             }
             session_v1::Event::DmabufFormat { format, modifiers } if format == XRGB8888 => {
                 state.pending.modifiers = modifiers
-                    .chunks_exact(8)
-                    .map(|bytes| u64::from_ne_bytes(bytes.try_into().expect("8 bytes")))
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .map(|bytes| u64::from_ne_bytes(*bytes))
                     .collect();
             }
             session_v1::Event::Done => {
