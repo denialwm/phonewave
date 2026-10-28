@@ -53,7 +53,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
-| Camera | partial | 2026-10-28, devices-146 | Raw frames through CAMSS at 30 fps. Ultrawide OV50D40 4096x3072, picture checked by the user, Camera app untuned. Auxiliary OV02F10 1600x1200 and front OV16A1Q 4608x3456 stream; the front's colour order and orientation are unchecked. Main OV50E40 needs C-PHY |
+| Camera | partial | 2026-10-28, devices-147, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. Camera app (untuned): ultrawide OV50D40 4096x3072 (user), front OV16A1Q 2304x1728 binned (Quad Bayer). Auxiliary OV02F10 1600x1200 streams, not in the app. Main OV50E40 needs C-PHY |
 | Video decode | not started | | No Iris for Kaanapali |
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
