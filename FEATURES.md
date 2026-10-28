@@ -60,7 +60,7 @@ last.
 | Compass and gyroscope | works | 2026-10-28, devices-141, user | steinerd; Sensors app |
 | Fingerprint | works | 2026-10-28, devices-141, user | Goodix GUM5228, about 220 ms from touch to result. After an early lift, tries fail for about 5 s |
 | Suspend | untested | | |
-| Cooling | partial | devices-137, probe | Fan and pump follow the CPU trip points; the policy needs tuning |
+| Cooling | works | 2026-10-28, devices-153, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
 | Android apps | ? | | |
