@@ -13,6 +13,31 @@ not in linux-perpetua yet, so this does not run on it; the vendor sources are in
 `kernel-devicetree/qcom/kera-roadstr-fingerprint-overlay.dtsi` and
 `vendor-qcom-opensource-securemsm-kernel` (`/dev/smcinvoke`).
 
+## Porting to linux-perpetua
+
+Four pieces. Each has a model in our tree already:
+
+1. Control driver. `anc_fps_mmi` (`jiiov_platform.c`: power, reset, the
+   interrupt, `/dev/jiiov_fp`, netlink events) becomes a small misc driver
+   with a binding, like the nx809j Goodix one (`drivers/misc/goodix-tee-fp.c`,
+   5c9fbb6c26c9) and aston's (`drivers/misc/oplus-uff-fp.c`, 92fed9a7f4f6).
+   Pins, supplies and the interrupt come from
+   `kera-roadstr-fingerprint-overlay.dtsi`; the node goes in
+   `eliza-motorola-roadstr.dts`.
+2. TEE transport. The worker reaches QTEE through the vendor `/dev/smcinvoke`.
+   linux-perpetua has the upstream qcomtee driver instead (`CONFIG_QCOMTEE=y`
+   in the roadstr build), used through quic-teec's libqcomtee as
+   `services/fingerprint/goodix/` does.
+3. libfprint. aston and nx809j share the UFF driver
+   (`services/fingerprint/uff/`); the worker moves behind it, in place of the
+   JIIOV patch series here.
+4. Illumination. Denial lights the sensor area through
+   `denial-fingerprint-v1` (`denial-presentation.c`). On aston the panel
+   driver also had to light it (609fb4c7861d).
+
+The trusted app needs no change: `assemble-firmware.py` builds it from the
+vault as before.
+
 ## Files
 
 | File | Role |
