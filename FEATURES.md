@@ -53,7 +53,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
-| Camera | not started | | CAMSS has no Kaanapali support |
+| Camera | partial | 2026-10-28, devices-144, user | OV50D40 ultrawide: 4096x3072 raw at 30 fps through CAMSS, Camera app untuned. Front, auxiliary and main (C-PHY) not started |
 | Video decode | not started | | No Iris for Kaanapali |
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
