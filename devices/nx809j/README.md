@@ -106,12 +106,12 @@ builds the same AArch64 candidate for every phone):
 ```sh
 B=$(readlink -f /mnt/development/denial-os/builds/aston/denial/latest)
 id=denial-${B##*/}
-ssh root@10.77.73.2 mkdir -p /var/lib/nx809j-denial/.staging-$id
+ssh nx809j mkdir -p /var/lib/nx809j-denial/.staging-$id
 rsync -a --chown=root:root $B/native $B/shell $B/settings $B/SHA256SUMS \
     $B/manifest.json $B/source-manifest.json $B/source.patch \
     $B/flutter.patch $B/skia.patch $B/build-recipe.py \
-    root@10.77.73.2:/var/lib/nx809j-denial/.staging-$id/
-ssh root@10.77.73.2 "set -e; cd /var/lib/nx809j-denial
+    nx809j:/var/lib/nx809j-denial/.staging-$id/
+ssh nx809j "set -e; cd /var/lib/nx809j-denial
     (cd .staging-$id && sha256sum --quiet -c SHA256SUMS && chmod -R a-w .)
     mv -T .staging-$id $id; echo previous=\$(readlink current)
     ln -sfn $id .current.new; mv -T .current.new current
