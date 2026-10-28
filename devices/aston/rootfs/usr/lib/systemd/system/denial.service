@@ -27,7 +27,6 @@ Environment=DESKTOP_SESSION=Denial
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
 Environment=LIBSEAT_BACKEND=logind
 Environment=DENIA_SHELL_PROFILE=mobile
-Environment=DENIA_RENDER_AUDIT=1
 Environment=RUST_LOG=deniald=info,smithay=warn
 ExecStart=/usr/bin/deniald --device /dev/dri/card0 --render-device /dev/dri/renderD128 --output-config /home/logix/.config/denial/outputs.conf --wayland --flutter-bundle /home/logix/denial/bundles/0f06dba7-b2f6f44f-f66112e5 --flutter-offscreen-blit
 Restart=on-failure
