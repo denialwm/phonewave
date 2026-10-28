@@ -239,8 +239,3 @@ last.
 | Pen | partial | devices-43 | Registered; coordinates not transformed |
 | CPU frequency | works | devices-47 | mediatek-cpufreq-hw |
 | Cover sensor | not started | | |
-
-## lavender: Xiaomi Redmi Note 7 (SDM660)
-
-Booted (release 16). Unsupported for the time being, so it has no feature
-table.
