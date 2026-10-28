@@ -53,7 +53,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
-| Camera | partial | 2026-10-28, devices-152, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user). Ultrawide OV50D40 4096x3072 (user) is in the app only without the main camera. Auxiliary OV02F10 1600x1200 streams, not in the app. The app on braun is installed, not yet checked by the user |
+| Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |
 | Video decode | not started | | No Iris for Kaanapali |
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
@@ -97,7 +97,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | |
-| Camera | partial | 2026-10-28, devices74 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; either camera reopens at once, and the S5K3P9 opens right after the IMX890, 6 out of 6. Before devices74 a reopen within a second of a close timed out in RPMh and stopped the phone: camss dropped its camera NoC votes while the CCI kept TITAN_TOP powered |
+| Camera | partial | 2026-10-28, devices74 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; either camera reopens at once, and the S5K3P9 opens right after the IMX890, 6 out of 6, and the IMX890 right after the IMX355 or the S5K3P9, 12 out of 12. Before devices74 a reopen within a second of a close timed out in RPMh and stopped the phone: camss dropped its camera NoC votes while the CCI kept TITAN_TOP powered |
 | Video decode | works | 2026-10-28, devices-73, probe | Iris: H.264, HEVC and VP9 at 1080p decode bit-exact against software, 12 to 18 times real time. VP9 logs decode errors without losing frames. AV1 is listed, not tried |
 | Rotation | not started | | steinerd needs the phone's stock sensor files |
 | Light and proximity | not started | | |
