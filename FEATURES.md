@@ -97,7 +97,7 @@ last.
 | VoLTE | not started | | |
 | GNSS | ? | | |
 | NFC | ? | | |
-| Camera | partial | 2026-10-28, devices73 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; opening the S5K3P9 right after it timed out in RPMh (camss interconnect vote, `Error sending AMC RPMH requests (-110)`), and every interconnect vote blocked from then on, until a hard reboot. Cause unknown |
+| Camera | partial | 2026-10-28, devices73 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; the S5K3P9 alone opens and streams. Opening the S5K3P9 right after the IMX890 times out in RPMh (camss interconnect vote, `Error sending AMC RPMH requests (-110)`), twice out of twice, and every interconnect vote blocks from then on, until a reboot. Cause unknown |
 | Video decode | works | 2026-10-28, devices-73, probe | Iris: H.264, HEVC and VP9 at 1080p decode bit-exact against software, 12 to 18 times real time. VP9 logs decode errors without losing frames. AV1 is listed, not tried |
 | Rotation | not started | | steinerd needs the phone's stock sensor files |
 | Light and proximity | not started | | |
