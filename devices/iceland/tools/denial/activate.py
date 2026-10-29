@@ -31,7 +31,9 @@ assert sha(plugin / 'lib/libapp.so') == data['app_sha256'] == deployment['plugin
 native_sha = sha(target / 'native/deniald')
 
 old_pid = int(subprocess.check_output(['systemctl', 'show', 'pad4-denial.service', '-p', 'MainPID', '--value']))
-assert old_pid and Path(f'/proc/{old_pid}/exe').resolve() == previous / 'native/deniald'
+# After a failed candidate nothing runs: the unit is failed and there is nothing to stop.
+old_state = subprocess.check_output(['systemctl', 'show', 'pad4-denial.service', '-p', 'ActiveState', '--value'], text=True).strip()
+assert (old_pid and Path(f'/proc/{old_pid}/exe').resolve() == previous / 'native/deniald') or (not old_pid and old_state == 'failed')
 backup = results / (target.name + '-attempt-' + str(time.monotonic_ns()))
 backup.mkdir(mode=0o700)
 shutil.copy2(launcher, backup / 'pad4-denial-login')
@@ -109,6 +111,8 @@ try:
     subprocess.run(['runuser', '-u', 'logix', '--', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus',
                     'systemctl', '--user', 'daemon-reload'], check=True, timeout=15)
     os.sync()
+    if old_state == 'failed':
+        subprocess.run(['systemctl', 'reset-failed', 'pad4-denial.service'], check=True, timeout=10)
     subprocess.run(['systemctl', 'start', '--no-block', 'pad4-denial.service'], check=True, timeout=10)
     deadline = time.monotonic() + 45
     ui = None
