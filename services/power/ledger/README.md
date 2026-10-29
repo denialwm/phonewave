@@ -28,7 +28,7 @@ growth with the state:
 
 | What | From |
 |---|---|
-| CPU busy time and frequency, per cluster | `cpuidle` state times, cpufreq `stats/time_in_state` |
+| CPU busy time and frequency, per cluster | `/proc/stat`, cpufreq `stats/time_in_state` |
 | CPU power, per cluster | the kernel's energy model in debugfs, when it is in µW: busy time times the mean power over the frequencies used |
 | Devices powered: GPU, storage, display controller, Wi-Fi card | `power/runtime_active_time` and `runtime_suspended_time` |
 | DDR time per frequency | debugfs `qcom_stats/ddr_stats` |

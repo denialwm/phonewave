@@ -1,5 +1,5 @@
 //! The kernel's running totals of what the hardware did: CPU time at each
-//! frequency, idle time, how long devices were powered, DDR frequencies,
+//! frequency, busy time, how long devices were powered, DDR frequencies,
 //! how long the Qualcomm subsystems slept, wake-up sources and network
 //! bytes. Two readings make a [`Usage`].
 
@@ -31,8 +31,6 @@ struct Policy {
 /// Where the counters are on this phone, found once.
 #[derive(Debug)]
 pub struct Hardware {
-    /// CPU number and its directory.
-    cpus: Vec<(u32, PathBuf)>,
     policies: Vec<Policy>,
     /// A label and the device's `power/` directory.
     devices: Vec<(String, PathBuf)>,
@@ -42,9 +40,8 @@ pub struct Hardware {
 /// One reading of every counter.
 #[derive(Clone, Debug, Default)]
 pub struct Counters {
-    mono: f64,
-    /// Microseconds idle, for each online CPU.
-    idle: BTreeMap<u32, u64>,
+    /// Clock ticks busy, for each online CPU, from /proc/stat.
+    busy: BTreeMap<u32, u64>,
     /// For each policy, kHz to time in 10 ms units.
     time_in_state: Vec<BTreeMap<u32, u64>>,
     /// Milliseconds active and suspended, for each device.
@@ -120,13 +117,6 @@ fn grew(before: u64, after: u64) -> u64 {
 
 impl Hardware {
     pub fn find() -> Hardware {
-        let cpus = entries("/sys/devices/system/cpu")
-            .into_iter()
-            .filter_map(|p| {
-                let id = sysfs::name(&p).strip_prefix("cpu")?.parse().ok()?;
-                p.join("cpuidle").exists().then_some((id, p))
-            })
-            .collect();
         let models = energy_models();
         let policies = entries("/sys/devices/system/cpu/cpufreq")
             .into_iter()
@@ -152,26 +142,13 @@ impl Hardware {
             })
             .collect();
         Hardware {
-            cpus,
             policies,
             devices: devices(),
             qcom_stats: Path::new(QCOM_STATS).exists(),
         }
     }
 
-    pub fn read(&self, mono: f64) -> Counters {
-        let mut idle = BTreeMap::new();
-        for (id, dir) in &self.cpus {
-            if read(dir.join("online")).as_deref() == Some("0") {
-                continue;
-            }
-            let total = entries(dir.join("cpuidle"))
-                .iter()
-                .filter(|s| sysfs::name(s).starts_with("state"))
-                .filter_map(|s| number::<u64>(s.join("time")))
-                .sum();
-            idle.insert(*id, total);
-        }
+    pub fn read(&self) -> Counters {
         let time_in_state = self
             .policies
             .iter()
@@ -202,8 +179,7 @@ impl Hardware {
             Default::default()
         };
         Counters {
-            mono,
-            idle,
+            busy: read("/proc/stat").map(|s| busy(&s)).unwrap_or_default(),
             time_in_state,
             devices,
             ddr,
@@ -215,7 +191,8 @@ impl Hardware {
 
     /// What happened between `a` and `b`.
     pub fn usage(&self, a: &Counters, b: &Counters) -> Usage {
-        let seconds = (b.mono - a.mono).max(0.0);
+        // SAFETY: sysconf has no preconditions.
+        let tick = 1.0 / unsafe { libc::sysconf(libc::_SC_CLK_TCK) }.max(1) as f64;
         let mut usage = Usage::default();
         for (i, policy) in self.policies.iter().enumerate() {
             let (Some(ta), Some(tb)) = (a.time_in_state.get(i), b.time_in_state.get(i)) else {
@@ -224,8 +201,8 @@ impl Hardware {
             let busy: f64 = policy
                 .cpus
                 .iter()
-                .filter_map(|c| Some((a.idle.get(c)?, b.idle.get(c)?)))
-                .map(|(ia, ib)| (seconds - grew(*ia, *ib) as f64 * 1e-6).max(0.0))
+                .filter_map(|c| Some(grew(*a.busy.get(c)?, *b.busy.get(c)?)))
+                .map(|ticks| ticks as f64 * tick)
                 .sum();
             let mut at = BTreeMap::new();
             for (khz, t) in tb {
@@ -340,6 +317,20 @@ impl Usage {
             mine.tx += b.tx;
         }
     }
+}
+
+/// Each CPU's ticks in user, nice, system, irq, softirq and steal time;
+/// idle and iowait are left out.
+fn busy(stat: &str) -> BTreeMap<u32, u64> {
+    stat.lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let cpu = it.next()?.strip_prefix("cpu")?.parse().ok()?;
+            let v: Vec<u64> = it.filter_map(|n| n.parse().ok()).collect();
+            let at = |i: usize| v.get(i).copied().unwrap_or(0);
+            Some((cpu, at(0) + at(1) + at(2) + at(5) + at(6) + at(7)))
+        })
+        .collect()
 }
 
 /// Lines of two numbers, as in `time_in_state`.
@@ -510,6 +501,18 @@ mod tests {
                     Accumulated Duration: 60114139596\n";
         assert_eq!(accumulated(text), Some(60114139596));
         assert_eq!(accumulated(""), None);
+    }
+
+    #[test]
+    fn reads_proc_stat() {
+        let stat = "cpu  278883 75882 81241 5590903 5650 37453 5958 1659 0 0\n\
+                    cpu0 10 1 2 1000 50 3 4 0 0 0\n\
+                    cpu6 5 0 1 2000 0 0 0 1 0 0\n\
+                    intr 1 2 3\n";
+        let b = busy(stat);
+        assert_eq!(b.len(), 2);
+        assert_eq!(b[&0], 20);
+        assert_eq!(b[&6], 7);
     }
 
     #[test]

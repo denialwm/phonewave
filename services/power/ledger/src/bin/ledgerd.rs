@@ -93,7 +93,7 @@ fn run() -> Result<(), String> {
         open: book::load_open(run),
     };
     let mut before = Sample::read(&power, &screen);
-    let mut counters = hardware.read(before.mono);
+    let mut counters = hardware.read();
     let mut trimmed_day = i64::MIN;
     eprintln!(
         "ledgerd: battery {}, booking {}",
@@ -103,7 +103,7 @@ fn run() -> Result<(), String> {
 
     while !wait(signals) {
         let now = Sample::read(&power, &screen);
-        let next = hardware.read(now.mono);
+        let next = hardware.read();
         let usage = hardware.usage(&counters, &next);
         book.account(&before, &now, usage, &build(&tags));
         before = now;
