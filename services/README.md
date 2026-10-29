@@ -11,6 +11,7 @@ tests, packaging and README.
 | [`memory/zram-swap`](memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
 | [`wallpaper/wallpaper-depth`](wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | [`screen/screen-record`](screen/screen-record) | Records the screen; Denial's shade starts and stops it | any with GBM and EGL |
+| [`power/ledger`](power/ledger) | Books where the battery goes, per screen state, hour and build | any with a battery |
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |

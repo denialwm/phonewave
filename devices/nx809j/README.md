@@ -166,6 +166,13 @@ against about 84 degrees across the diagonal) and the main camera's focus
 travel through its DW9785. None has colour calibration yet. Never run the DW9785's firmware download: it
 rewrites the motor's eFlash.
 
+## Battery ledger
+
+ledger (services/power/ledger), installed with its `make install`, books
+the battery per state, hour and build; enable `ledgerd.service`. rootfs/
+carries `/etc/ledger/tags`, which names the Denial set
+`/var/lib/nx809j-denial/current` points at.
+
 ## Fingerprint
 
 The stock Goodix ultrasonic stack uses `goodixfp64`; the kernel provides

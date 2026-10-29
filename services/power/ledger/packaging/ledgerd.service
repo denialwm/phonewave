@@ -1,0 +1,24 @@
+[Unit]
+Description=Battery ledger
+
+[Service]
+ExecStart=/usr/bin/ledgerd
+Restart=on-failure
+RestartSec=5
+StateDirectory=ledger
+StateDirectoryMode=0755
+RuntimeDirectory=ledger
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+UMask=0022
+
+[Install]
+WantedBy=multi-user.target
