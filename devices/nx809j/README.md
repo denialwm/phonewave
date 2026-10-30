@@ -88,6 +88,11 @@ leases 10.77.73.1 to the host, without a router, DNS or NTP. Enable `sshd`
 and `systemd-networkd`; root and `logix` log in with keys only. Install the
 exact release's module tree under `/usr/lib/modules`.
 
+`usr/lib/sysctl.d/60-nx809j-hang.conf` panics on a soft or hard lockup and
+reboots 10 s later; the ramoops console keeps the kernel log up to the
+panic. Kernels from devices-160 carry the hard lockup and CSD lock wait
+detectors.
+
 ## Denial
 
 `nx809j-denial.service` runs Denial as `logix` on tty1, in a logind
