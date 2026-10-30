@@ -123,6 +123,19 @@ ssh nx809j "set -e; cd /var/lib/nx809j-denial
     systemctl restart nx809j-denial"
 ```
 
+## Always-on display
+
+The RM692H5 driver (kernels from devices-161) can blank into the panel's
+idle mode instead of display-off: the panel keeps showing its last frame,
+dimmed, from its own memory while the display hardware is off.
+`usr/lib/tmpfiles.d/nx809j-ambient-display.conf` turns that on at boot
+(`/sys/module/panel_raydium_rm692h5/parameters/ambient`), and
+`/etc/denial/ambient-display.json` points Denial at it: before DSI-1 goes
+dark, the lock screen fades everything but the time, the date, the
+wallpaper's subject and the fingerprint mark to black. Write `N` to the
+parameter for a plain screen-off; `ambient_brightness` sets the level
+(stock 0x0120 = 288).
+
 ## Modem
 
 dmail (services/modem/dmail) owns it. rootfs/ carries
