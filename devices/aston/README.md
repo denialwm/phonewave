@@ -171,6 +171,16 @@ stock tuning's illuminant locus, colour matrices and lens shading.
 `imx355.toml` names the IMX355 the ultrawide, at the main camera's 0.6x
 (112 against 84 degrees across the diagonal); it has no colour tuning yet.
 
+Always-on display: the AA551 slows a still frame down to 1 Hz in normal
+mode, so from devices77 the driver's always-on blank keeps the panel lit at
+that refresh floor instead of turning the display off: the lock screen's
+always-on picture stays exactly as Denial drew it, at the same backlight
+code, while the display hardware is off. `/etc/denial/ambient-display.json`
+names the switch and that code (`brightness`); Denial sets the switch for
+each always-on blank, lights the output once a minute for the clock, and
+clears it on wake. `80-aston-ambient-display.rules` lets the video group
+write it.
+
 Radio addresses: the ABL passes no Wi-Fi or Bluetooth address, so the
 WCN7850 reports its firmware's shared default MAC and its Bluetooth
 controller stays unconfigured. radio-addr (services/radio/radio-addr),

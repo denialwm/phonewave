@@ -1,0 +1,5 @@
+{
+  "output": "DSI-1",
+  "switch": "/sys/module/panel_oneplus_aston_aa551/parameters/ambient",
+  "brightness": 60
+}

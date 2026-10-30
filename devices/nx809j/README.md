@@ -125,18 +125,21 @@ ssh nx809j "set -e; cd /var/lib/nx809j-denial
 
 ## Always-on display
 
-The RM692H5 driver (kernels from devices-161) can blank into the panel's
-idle mode instead of display-off: the panel keeps showing its last frame,
-dimmed, from its own memory while the display hardware is off.
-`usr/lib/tmpfiles.d/nx809j-ambient-display.conf` turns that on at boot
-(`/sys/module/panel_raydium_rm692h5/parameters/ambient`), and
-`/etc/denial/ambient-display.json` points Denial at it: before DSI-1 goes
-dark, the lock screen keeps the time, the date, the wallpaper's subject
-and the fingerprint mark, darkens the rest of the wallpaper and lets both
-fade into black below the clock, while the backlight fades to
-`ambient_brightness` (stock 0x0120 = 288) and back on wake. From
-devices-162 the backlight keeps that level across idle mode, so neither
-way shows a dark frame. Write `N` to the parameter for a plain screen-off.
+The RM692H5 cannot refresh slower than 60 Hz in normal mode, so its
+driver's always-on blank uses the panel's idle mode instead of display-off:
+the panel keeps showing its last frame from its own memory, at
+`ambient_brightness` (stock 0x0120 = 288), while the display hardware is
+off. `/etc/denial/ambient-display.json` names the switch, the normal-mode
+code whose picture looks like idle mode's (`brightness`, 400) and how long
+the finished picture holds still before the switch (`settle_ms`, 1000; a
+switch at full rate draws a wave). Before DSI-1 goes dark the lock screen
+keeps the time, the date, the wallpaper's subject and the fingerprint mark,
+darkens the rest of the wallpaper and lets both fade into black below the
+clock, while the backlight fades to that code. Denial sets the switch for
+each always-on blank, lights the output once a minute for the clock while
+the panel stays in idle mode, and clears it on wake, which leaves idle
+mode at the backlight's level. `80-nx809j-ambient-display.rules` lets the
+video group write it. Kernels from devices166.
 
 ## Modem
 

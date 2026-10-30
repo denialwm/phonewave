@@ -1,0 +1,6 @@
+# Always-on display: Denial sets the RM692H5 switch while its lock screen
+# shows the always-on picture (/etc/denial/ambient-display.json), so the
+# video group may write it.
+ACTION=="add", SUBSYSTEM=="module", KERNEL=="panel_raydium_rm692h5", \
+  RUN+="/usr/bin/chgrp video /sys%p/parameters/ambient", \
+  RUN+="/usr/bin/chmod g+w /sys%p/parameters/ambient"
