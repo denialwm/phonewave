@@ -58,7 +58,7 @@ last.
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
 | Compass and gyroscope | works | 2026-10-28, devices-141, user | steinerd; Sensors app |
-| Fingerprint | works | 2026-10-28, devices-141, user | Goodix GUM5228, about 220 ms from touch to result. After an early lift, tries fail for about 5 s |
+| Fingerprint | works | 2026-10-30, devices-160, user | Goodix GUM5228, about 220 ms from touch to result. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
 | Suspend | partial | 2026-10-29, devices-159 | s2idle, woken by the RTC; CX and DDR sleep, XO does not. Wi-Fi reassociates about 8 s after resume. The fingerprint driver refuses suspend while a verify holds the sensor (the test stopped it by hand); nothing suspends the phone on its own yet |
 | Cooling | works | 2026-10-28, devices-153, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C |
 | Denial | works | 2026-10-28, user | |
