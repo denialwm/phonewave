@@ -172,6 +172,9 @@ int goodix_worker_irq(struct goodix_worker *w)
     int ret = wake(w, 0);
     uint32_t query[9] = {0, 1002, 5};
     if (!ret) ret = send_packet(w, query, sizeof(query));
+    if (!ret)
+        fprintf(stderr, "Goodix interrupt status %08x %08x %08x %08x %08x %08x\n",
+                query[3], query[4], query[5], query[6], query[7], query[8]);
     if (!ret && (query[8] & 2)) {
         if (restore_sleep) (void)simple(w, 1002, 12);
         ret = -EIO; /* Unexpected reset: fail the operation, never reset/retry blindly. */
