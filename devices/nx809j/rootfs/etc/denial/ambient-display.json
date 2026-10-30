@@ -1,4 +1,5 @@
 {
   "output": "DSI-1",
-  "switch": "/sys/module/panel_raydium_rm692h5/parameters/ambient"
+  "switch": "/sys/module/panel_raydium_rm692h5/parameters/ambient",
+  "brightness": "/sys/module/panel_raydium_rm692h5/parameters/ambient_brightness"
 }

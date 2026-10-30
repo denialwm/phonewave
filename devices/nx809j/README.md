@@ -131,10 +131,12 @@ dimmed, from its own memory while the display hardware is off.
 `usr/lib/tmpfiles.d/nx809j-ambient-display.conf` turns that on at boot
 (`/sys/module/panel_raydium_rm692h5/parameters/ambient`), and
 `/etc/denial/ambient-display.json` points Denial at it: before DSI-1 goes
-dark, the lock screen fades everything but the time, the date, the
-wallpaper's subject and the fingerprint mark to black. Write `N` to the
-parameter for a plain screen-off; `ambient_brightness` sets the level
-(stock 0x0120 = 288).
+dark, the lock screen keeps the time, the date, the wallpaper's subject
+and the fingerprint mark, darkens the rest of the wallpaper and lets both
+fade into black below the clock, while the backlight fades to
+`ambient_brightness` (stock 0x0120 = 288) and back on wake. From
+devices-162 the backlight keeps that level across idle mode, so neither
+way shows a dark frame. Write `N` to the parameter for a plain screen-off.
 
 ## Modem
 
