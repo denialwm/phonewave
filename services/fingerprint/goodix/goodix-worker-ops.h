@@ -16,11 +16,17 @@ struct goodix_worker {
     int (*control)(void *, char *, size_t, int);
     int (*hat)(void *, uint8_t[GOODIX_HAT_SIZE]);
     int (*authorize)(void *, uint64_t, uint8_t[GOODIX_HAT_SIZE]);
+    /* Optional: true while a touch waits to be served; a base is never
+     * taken under a finger. */
+    bool (*contact)(void *);
     FILE *records;
     uint32_t ids[GOODIX_MAX_PRINTS], count, identifier, code, total;
     uint32_t attempt;
     uint8_t calibration_state;
-    bool sleeping, initialized, ui_ready_required, slide_enroll, base_pending;
+    bool sleeping, initialized, ui_ready_required, slide_enroll;
+    /* A base update failed: the sensor's requests are left alone until it
+     * is prepared again, so a failing flow cannot repeat every interrupt. */
+    bool base_blocked;
     /* The template group is selected and listed: verify needs no reload. */
     bool loaded;
     /* An operation's session is open: a capture follows, so an interrupt

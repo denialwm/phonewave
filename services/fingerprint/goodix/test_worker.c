@@ -12,6 +12,7 @@ struct fake {
     unsigned fail_target,fail_command;int failure;
     bool foreign,duplicate,bad_count,missing_hat,reject_hat,unknown_match,capture_retry,continuation;
     unsigned add_retry;
+    uint32_t irq_flags;unsigned base_capture,base_update;bool touch;
 };
 static int exchange(void *opaque,uint32_t *p,size_t size)
 {
@@ -48,8 +49,17 @@ static int exchange(void *opaque,uint32_t *p,size_t size)
         for (unsigned i=0;i<69;i++) assert(((uint8_t *)p)[0x25+i]==0xaa);
         if (f->reject_hat) return 1059;
     }
+    if (p[1]==1002 && p[2]==5) p[8]=0x80000000u|f->irq_flags;
+    if (p[1]==1002 && p[2]==3 && p[9]==9) {
+        f->base_capture++;assert(!p[8] && ((uint8_t *)p)[0x2c]==9 && ((uint8_t *)p)[0x2e]==1);
+        ((uint8_t *)p)[0x2e]=0;return 0;
+    }
+    if (p[1]==1001 && p[2]==22) {
+        f->base_update++;assert(!p[8] && p[9]==9 && ((char *)p)[0x2c]);
+        for (unsigned i=0xac;i<428;i++) assert(!((uint8_t *)p)[i]);
+    }
     if (p[1]==1002 && p[2]==3) {
-        f->capture++;assert(p[9]==1 || p[9]==2);
+        f->capture++;assert((p[9]==1 || p[9]==2) && !((uint8_t *)p)[0x2c]);
         if (f->capture_retry && f->capture==1) return 1112;
         ((uint8_t *)p)[0x2e]=f->continuation;
     }
@@ -97,6 +107,7 @@ static int authorize(void *opaque,uint64_t challenge,uint8_t token[69])
     assert(challenge==1234);
     return hat(opaque,token);
 }
+static bool contact(void *opaque) {return ((struct fake *)opaque)->touch;}
 static struct goodix_worker worker(struct fake *f,FILE *records)
 {
     return (struct goodix_worker){.context=f,.exchange=exchange,.control=control,.hat=hat,.records=records,.slide_enroll=true};
@@ -173,6 +184,20 @@ int main(void)
     w.active=true;f.wakes=f.sleeps=0;
     assert(!goodix_worker_irq(&w) && !w.sleeping && f.wakes==1 && !f.sleeps);
     puts("PASS: an interrupt during an open session leaves the sensor awake for its capture");
+    f=(struct fake){.irq_flags=1};w=worker(&f,records);w.contact=contact;w.initialized=w.sleeping=true;
+    assert(!goodix_worker_irq(&w) && f.base_capture==1 && f.base_update==1 && w.sleeping && f.sleeps==1 && !w.base_blocked);
+    f=(struct fake){.irq_flags=1};w=worker(&f,records);w.initialized=w.sleeping=w.active=true;
+    assert(!goodix_worker_irq(&w) && !f.base_capture && !f.base_update);
+    f=(struct fake){.irq_flags=1,.touch=true};w=worker(&f,records);w.contact=contact;w.initialized=w.sleeping=true;
+    assert(!goodix_worker_irq(&w) && !f.base_capture && !f.base_update && w.sleeping && !w.base_blocked);
+    f=(struct fake){.irq_flags=3};w=worker(&f,records);w.initialized=w.sleeping=true;
+    assert(goodix_worker_irq(&w)==-EIO && !f.base_capture);
+    puts("PASS: an idle base-update interrupt takes and hands over a base; a session or a touch defers it");
+    f=(struct fake){.irq_flags=1,.fail_target=1001,.fail_command=22,.failure=1004};w=worker(&f,records);w.initialized=w.sleeping=true;
+    assert(!goodix_worker_irq(&w) && w.base_blocked && w.sleeping && f.base_capture==1);
+    assert(!goodix_worker_irq(&w) && f.base_capture==1);
+    assert(!goodix_worker_prepare(&w) && !w.base_blocked);
+    puts("PASS: a failed base update stops further bases until the sensor is prepared again");
     FILE *matched=tmpfile();assert(matched);
     f=(struct fake){.count=1,.ids={11},.records=matched,.controls={"capture","finish"}};w=worker(&f,matched);
     assert(!goodix_worker_operate(&w,"verify",0) && w.identifier==11 && f.postmatch==1 && f.postmatch_after_sample);

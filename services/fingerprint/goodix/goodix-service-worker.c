@@ -33,6 +33,8 @@ struct worker_device {
     struct goodix_storage storage;
     struct goodix_worker operation;
     int control,hat_fd;
+    /* Where the next touch arrives while resting; otherwise the control stream. */
+    int rest_listener;
     uint32_t sequence;
     bool powered,cleanup_ok;
 };
@@ -73,6 +75,14 @@ static int worker_exchange(void *opaque,uint32_t *packet,size_t size)
     explicit_bzero(mapping,2u*1024*1024);
     explicit_bzero(request_out,sizeof(request_out));
     return ret;
+}
+
+/* Any pending input means a touch, or the operation it starts, is waiting. */
+static bool worker_contact(void *opaque)
+{
+    struct worker_device *d=opaque;
+    struct pollfd p={.fd=d->rest_listener>=0?d->rest_listener:worker_control_fd,.events=POLLIN};
+    return poll(&p,1,0)>0 && (p.revents&POLLIN);
 }
 
 static int worker_control(void *opaque,char *line,size_t capacity,int timeout_ms)
@@ -280,6 +290,7 @@ static int worker_rest(struct worker_device *d,FILE *records)
     umask(mask);
     if (!ret && (fprintf(records,"UFW1 resting\n")<0 || fflush(records))) ret=-EPIPE;
     int64_t deadline=milliseconds()+GOODIX_WARM_MS;
+    d->rest_listener=listener;
     while (!ret && bridge<0) {
         int64_t now=milliseconds();
         if (worker_stopping) ret=-ECANCELED;
@@ -302,6 +313,7 @@ static int worker_rest(struct worker_device *d,FILE *records)
                 size!=sizeof(peer) || peer.uid)) {close(bridge);bridge=-1;}
         }
     }
+    d->rest_listener=-1;
     /* No second bridge can reach a worker that is leaving or adopted. */
     unlink(GOODIX_WARM_SOCKET);
     close(listener);
@@ -316,7 +328,7 @@ static int worker_rest(struct worker_device *d,FILE *records)
 static int worker_run(const char *firmware,const char *operation,uint32_t identifier,FILE *records)
 {
     bool verify=!strcmp(operation,"verify"),enroll=!strcmp(operation,"enroll");
-    struct worker_device d={.control=-1,.hat_fd=-1};
+    struct worker_device d={.control=-1,.hat_fd=-1,.rest_listener=-1};
     const char *hat_fd=getenv("GOODIX_HAT_FD");
     if (hat_fd) {
         char *end;errno=0;long fd=strtol(hat_fd,&end,10);
@@ -324,7 +336,7 @@ static int worker_run(const char *firmware,const char *operation,uint32_t identi
         d.hat_fd=(int)fd;
     }
     d.operation=(struct goodix_worker){.context=&d,.exchange=worker_exchange,
-        .control=worker_control,.hat=worker_hat,.records=records};
+        .control=worker_control,.hat=worker_hat,.contact=worker_contact,.records=records};
     if ((enroll || !strcmp(operation,"check-enroll")) && !hat_fd && authorization_available())
         d.operation.authorize=worker_authorize;
     int status=worker_preload(&d,firmware);

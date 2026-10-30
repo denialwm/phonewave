@@ -35,6 +35,7 @@ int goodix_wire_valid(const uint32_t *p, size_t size)
         case 0: return size == 312;
         case 1: return size == 536;
         case 2: return size == 584;
+        case 22: return size == 428;
         default: return 0;
         }
     }
@@ -94,6 +95,7 @@ static int timestamp(char *output, size_t size)
 int goodix_worker_prepare(struct goodix_worker *w)
 {
     w->sleeping = true;
+    w->base_blocked = false;
     int ret = wake(w, 255);
     uint32_t init[10] = {0, 1002, 0};
     time_t now = time(NULL);
@@ -166,6 +168,45 @@ int goodix_worker_database(struct goodix_worker *w)
     return ret;
 }
 
+/* Sensor capture, 1002/3: verification (mode 2), enrollment (1) or a base
+ * (9), repeated while the reply asks for continuation at 0x2e. */
+static int sensor_capture(struct goodix_worker *w, uint32_t mode, uint8_t trigger, bool base)
+{
+    int ret = wake(w, 0);
+    uint32_t packet[12] = {0, 1002, 3};
+    packet[8] = mode == 2 ? w->attempt : 0;
+    packet[9] = mode;
+    ((uint8_t *)packet)[0x2c] = trigger;
+    ((uint8_t *)packet)[0x2e] = 1;
+    for (unsigned loop = 0; !ret && loop < 11; loop++) {
+        if (base && w->contact && w->contact(w->context)) return -EAGAIN;
+        ((uint8_t *)packet)[0x2d] = loop;
+        ret = send_packet(w, packet, sizeof(packet));
+        if (!ret && !((uint8_t *)packet)[0x2e]) return 0;
+    }
+    return ret ? ret : -ETIMEDOUT;
+}
+
+/* Stock's background base flow for a base-update interrupt (trigger 9):
+ * capture a base, then hand it to the algorithm. The diagnostic
+ * environment and host base status stay zero, as in the comparison. */
+static int base_update(struct goodix_worker *w)
+{
+    int ret = sensor_capture(w, 9, 9, true);
+    int captured = ret;
+    if (!ret) {
+        uint32_t update[107] = {0, 1001, 22};
+        update[9] = 9;
+        ret = timestamp((char *)update + 0x2c, 128);
+        if (!ret) ret = send_packet(w, update, sizeof(update));
+        clear(update, sizeof(update));
+    }
+    /* A touch outranks the base; the sensor asks again. */
+    if (ret != -EAGAIN) w->base_blocked = ret != 0;
+    fprintf(stderr, "Goodix base update capture=%d status=%d\n", captured, ret);
+    return ret == -EAGAIN ? 0 : ret;
+}
+
 int goodix_worker_irq(struct goodix_worker *w)
 {
     bool restore_sleep = w->sleeping && !w->active;
@@ -178,7 +219,11 @@ int goodix_worker_irq(struct goodix_worker *w)
     if (!ret && (query[8] & 2)) {
         if (restore_sleep) (void)simple(w, 1002, 12);
         ret = -EIO; /* Unexpected reset: fail the operation, never reset/retry blindly. */
-    } else if (!ret && (query[8] & 1)) w->base_pending = true;
+    } else if (!ret && (query[8] & 1) && !w->active && !w->base_blocked) {
+        /* During an operation the request waits: the sensor repeats it. A
+         * failed base never fails the operation the worker is waiting for. */
+        (void)base_update(w);
+    }
     int parked = restore_sleep ? goodix_worker_sleep(w) : 0;
     return ret ? ret : parked;
 }
@@ -199,20 +244,6 @@ static int record(struct goodix_worker *w, const char *message)
     return fprintf(w->records, "%s\n", message) < 0 || fflush(w->records) ? -EPIPE : 0;
 }
 
-static int capture(struct goodix_worker *w, bool enroll)
-{
-    int ret = wake(w, 0);
-    uint32_t packet[12] = {0, 1002, 3};
-    packet[8] = enroll ? 0 : w->attempt;
-    packet[9] = enroll ? 1 : 2;
-    ((uint8_t *)packet)[0x2e] = 1;
-    for (unsigned loop = 0; !ret && loop < 11; loop++) {
-        ((uint8_t *)packet)[0x2d] = loop;
-        ret = send_packet(w, packet, sizeof(packet));
-        if (!ret && !((uint8_t *)packet)[0x2e]) return 0;
-    }
-    return ret ? ret : -ETIMEDOUT;
-}
 
 static int enroll_begin(struct goodix_worker *w, bool *challenged)
 {
@@ -324,7 +355,7 @@ int goodix_worker_operate(struct goodix_worker *w, const char *operation, uint32
         ret = control(w, "capture", verify);
         if (ret) break;
         uint32_t remaining = last_remaining, id = 0, code = 3, finish[13] = {0};
-        ret = capture(w, enroll);
+        ret = sensor_capture(w, enroll ? 1 : 2, 0, false);
         /* The image is taken: the finger may lift while it is compared. */
         if (!ret) ret = record(w, "UFW1 captured");
         if (ret == 1112) ret = 0;
