@@ -167,7 +167,7 @@ last.
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
 | Video out (USB-C) | works | 2026-10-15, user | DisplayPort |
-| Charging | partial | 2026-10-28, devices-14, user | Slow |
+| Charging | partial | 2026-10-31, devices-19 + battmgr 3ec0a300c75d, probe | 2 A at 5 V on a 10 W wall charger; no SuperVOOC or PD 9 V yet |
 | Battery | works | 2026-10-28, devices-14, user | |
 | Wi-Fi | works | user | ath12k |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
