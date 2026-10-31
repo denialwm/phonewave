@@ -187,7 +187,7 @@ last.
 | Light and proximity | not started | | |
 | Compass and gyroscope | not started | | |
 | Fingerprint | none | | |
-| Suspend | ? | | |
+| Suspend | broken | 2026-10-31, devices-14, probe | Each boot ends at `PM: suspend entry (deep)` and the tablet boots again |
 | Cooling | ? | | GPU thermal service installed |
 | Denial | works | user | |
 | Native apps | works | 2026-10-28, devices-14, user | |
