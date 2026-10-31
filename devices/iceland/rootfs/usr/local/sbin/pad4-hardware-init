@@ -27,5 +27,11 @@ fi
 /usr/local/sbin/pad4-display-init
 modprobe spi-geni-qcom
 modprobe nt36536_ts
-grep -q 'NVTCapacitiveTouchScreen' /proc/bus/input/devices
+# The touch probe defers until the panel is up, then registers a moment later.
+tries=20
+until grep -q 'NVTCapacitiveTouchScreen' /proc/bus/input/devices; do
+    tries=$((tries - 1))
+    test "$tries" -gt 0
+    sleep 0.1
+done
 echo 'Display, GPU firmware search path, and touchscreen drivers ready.'
