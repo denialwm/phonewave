@@ -32,7 +32,7 @@ last.
 | Brightness | works | 2026-10-28, devices-141, user | |
 | Wake from screen off | works | 2026-10-28, devices-141, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms |
 | GPU | works | 2026-10-27, devices-126, user | Adreno 840: freedreno GLES 3.2, turnip |
-| Touch | works | 2026-10-27, devices-127, user | Synaptics S3910 |
+| Touch | works | 2026-10-31, devices-168, user | Synaptics S3910, reporting at 240 Hz; its firmware starts at 120 Hz |
 | Keys | works | 2026-10-28, devices-141, user | |
 | Haptics | works | devices-130, user | AW86938, hapticd |
 | Storage | works | | UFS |
@@ -63,7 +63,7 @@ last.
 | Cooling | works | 2026-10-28, devices-153, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | works | 2026-10-28, devices-155, user | Droidloom ce52723; Android ready in 4 s, GLES on freedreno, Play Store |
+| Android apps | works | 2026-10-31, devices-168, user | Droidloom 3732e87; Android ready in 4 s, GLES on freedreno, Play Store; Firefox scrolls and moves its panel smoothly |
 | Shoulder triggers | ? | | |
 | RGB light | ? | | |
 
