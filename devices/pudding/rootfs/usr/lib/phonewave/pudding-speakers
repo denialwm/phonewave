@@ -1,0 +1,53 @@
+#!/bin/bash
+# Run both CS35L43 amplifiers as stock does: Cirrus's speaker protection on
+# each amplifier's DSP, given the phone's factory calibration, top (T) on the
+# left channel and bottom (B) on the right. The speakers stay muted unless
+# both amplifiers read their calibration back.
+set -eu
+cal=/var/lib/pudding-speakers/crus_calr.bin
+c() { amixer -q -c Xiaomi17 cset name="$1" "$2"; }
+# A firmware control's four bytes, big-endian, as a number.
+r() {
+    local b
+    b=$(amixer -c Xiaomi17 cget name="$1" | sed -n 's/^  : values=//p')
+    IFS=, read -r b0 b1 b2 b3 <<<"$b"
+    echo $(( (b0 << 24) | (b1 << 16) | (b2 << 8) | b3 ))
+}
+mute() {
+    for a in B T; do
+        c "$a AMP Enable Switch" off
+        c "$a PCM Source" Zero
+    done
+}
+mute
+[[ -r $cal ]] || { echo "no factory calibration at $cal" >&2; exit 1; }
+for a in B T; do
+    c "$a DSP1 Firmware" Protection
+    c "$a DSP1 Preload Switch" on
+done
+c "PRIMARY_MI2S_RX Audio Mixer MultiMedia1" on,on
+c "T ASPRX1 Slot Position" 0
+c "B ASPRX1 Slot Position" 1
+# crus_calr.bin holds two little-endian u32 resistances, T first, then B.
+i=0
+for a in T B; do
+    calr=$(od -An -tu4 -j $((i * 4)) -N4 "$cal" | tr -d ' ')
+    i=$((i + 1))
+    ambient=$(r "$a DSP1 Protection 5f210 CAL_AMBIENT")
+    # struct cirrus_amp_cal_data: targets and times unused, ambient, status 1, R.
+    c "$a CAL_DATA" "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,$ambient,1,$((calr & 255)),$((calr >> 8))"
+    if [[ $(r "$a DSP1 Protection 5f210 CAL_R") != "$calr" ||
+          $(r "$a DSP1 Protection 5f210 CAL_STATUS") != 1 ]]; then
+        mute
+        echo "$a amplifier did not take its calibration" >&2
+        exit 1
+    fi
+done
+for a in B T; do
+    c "$a DSP RX1 Source" ASPRX1
+    c "$a DSP RX2 Source" ASPRX1
+    c "$a Amp Gain" 18
+    c "$a Digital PCM Volume" 409
+    c "$a PCM Source" DSP
+    c "$a AMP Enable Switch" on
+done

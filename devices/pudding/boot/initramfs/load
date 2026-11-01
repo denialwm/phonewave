@@ -1,0 +1,10 @@
+#!/pudding-rescue/bin/busybox sh
+# Pudding rescue loader, the kernel's rdinit. The bootloader appends
+# init_boot's Android ramdisk after this one, and its files replace ours
+# (/init among them). The rescue therefore travels in /pudding-rescue and
+# starts from a copy of that directory on a fresh tmpfs.
+b=/pudding-rescue/bin/busybox
+$b mkdir -p /rescue-root
+$b mount -t tmpfs -o mode=0755 tmpfs /rescue-root
+$b cp -a /pudding-rescue/. /rescue-root/
+exec $b switch_root /rescue-root /init

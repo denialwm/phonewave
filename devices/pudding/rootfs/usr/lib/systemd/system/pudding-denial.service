@@ -1,0 +1,53 @@
+[Unit]
+Description=Denial on the Xiaomi 17
+After=systemd-logind.service systemd-user-sessions.service dbus.service systemd-udev-trigger.service
+# The session owns tty1 like a login does: logind only places a session on
+# seat0, which has VTs, when it comes with one.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=120
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=logix
+Group=logix
+SupplementaryGroups=audio input render video
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=/home/logix
+Environment=HOME=/home/logix
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_SESSION_CLASS=user
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=LIBSEAT_BACKEND=logind
+Environment=RUST_LOG=deniald=info,smithay=warn
+Environment=DENIAL_SHELL_PROFILE=mobile
+# Denial writes its output configuration atomically into this directory.
+StateDirectory=pudding
+StateDirectoryMode=0755
+ExecStartPre=+/bin/sh -c 'test -e /var/lib/pudding/outputs.conf || install -o logix -g logix -m 0644 /usr/share/pudding/outputs.conf /var/lib/pudding/'
+# The deployment is the one /var/lib/pudding-denial/current names. The
+# panel is the display controller's; the GPU, a DRM device of its own,
+# renders.
+ExecStart=/var/lib/pudding-denial/current/native/deniald --device /dev/dri/by-path/platform-9801000.display-controller-card --render-device /dev/dri/by-path/platform-3d00000.gpu-render --output-config /var/lib/pudding/outputs.conf --wayland --flutter-bundle /var/lib/pudding-denial/current/shell
+Environment=DENIAL_SETTINGS_BINARY=/var/lib/pudding-denial/current/settings/denial-settings
+AmbientCapabilities=CAP_SYS_NICE
+LimitRTPRIO=10
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

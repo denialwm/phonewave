@@ -1,0 +1,13 @@
+[Unit]
+Description=Xiaomi 17 USB network and serial gadget
+After=systemd-udevd.service
+Before=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave/pudding-usb
+RemainAfterExit=yes
+TimeoutStartSec=35
+
+[Install]
+WantedBy=multi-user.target

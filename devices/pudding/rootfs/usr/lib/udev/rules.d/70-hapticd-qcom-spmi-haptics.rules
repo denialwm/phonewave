@@ -1,0 +1,2 @@
+# Let hapticd drive the haptics of the Qualcomm PMIC (PMIH0108 on the Xiaomi 17).
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="qcom-spmi-haptics", ENV{HAPTICD_DEVICE}="1", ENV{HAPTICD_ID}="builtin"

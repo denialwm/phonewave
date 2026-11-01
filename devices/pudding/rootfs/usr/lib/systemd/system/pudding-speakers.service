@@ -1,0 +1,8 @@
+[Unit]
+Description=Xiaomi 17 speaker protection
+After=alsa-restore.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave/pudding-speakers
+RemainAfterExit=yes

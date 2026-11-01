@@ -239,3 +239,45 @@ last.
 | Pen | partial | devices-43 | Registered; coordinates not transformed |
 | CPU frequency | works | devices-47 | mediatek-cpufreq-hw |
 | Cover sensor | not started | | |
+
+## pudding: Xiaomi 17 (SM8850)
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-01, devices-198 | `boot_b` and `init_boot_b`; Arch on its own partition beside Android on slot A |
+| Display | works | 2026-11-01, devices-191, user | Xiaomi P3 OLED, our panel driver, 120 Hz, DSC |
+| Brightness | ? | | |
+| Wake from screen off | works | 2026-11-01, devices-210, user | Power key; also double tap. The touch controller stays in gesture mode with the screen off |
+| GPU | works | 2026-11-01, devices-181, user | Adreno 840: freedreno GLES 3.2, desktop GL 4.6 |
+| Touch | works | 2026-11-01, devices-196, user | Synaptics S3910 with Xiaomi's THP firmware: the driver finds the fingers in raw frames; 265 Hz |
+| Keys | works | 2026-11-01, devices-203, user | Power and volume down (PMIC), volume up (gpio-keys) |
+| Haptics | works | 2026-11-01, devices-203, user | PMIH0108 HAP530, qcom-spmi-haptics, hapticd |
+| Storage | works | | UFS |
+| USB device | works | probe | SSH over USB |
+| USB host | ? | | |
+| Video out (USB-C) | ? | | |
+| Charging | ? | | |
+| Battery | works | 2026-11-01, devices-207, user | bq27z561 fuel gauge (bq27xxx); Settings shows charge, capacity and cycles |
+| Wi-Fi | works | 2026-11-01, devices-202, probe | WCN7860, ath12k; country from `/etc/conf.d/wireless-regdom` (IT: 2.4, 5 and 6 GHz). Joined a 5 GHz network on devices-198 (user) |
+| Bluetooth | not started | | |
+| Speakers | works | 2026-11-02, devices-217, user | Two CS35L43, top left and bottom right; stock speaker protection with the factory calibration; PipeWire |
+| Microphones | not started | | |
+| Headphone jack | ? | | |
+| Mobile data | works | 2026-11-01, devices-203, probe | dmail at boot, IPA; Iliad 5G NSA (LTE B3 + NR leg during transfers), shown as 5G as on Android; 20 MB at 1.0 MB/s, stock Android 1.46 MB/s at the same spot |
+| SMS | ? | | |
+| Calls | ? | | |
+| Call audio | ? | | |
+| VoLTE | ? | | |
+| GNSS | ? | | |
+| NFC | ? | | |
+| Camera | not started | | |
+| Video decode | not started | | No Iris for Kaanapali |
+| Rotation | ? | | |
+| Light and proximity | works | 2026-11-01, devices-211, user | Goodix glsx light, proximity; steinerd; Sensors app |
+| Compass and gyroscope | works | 2026-11-01, devices-211, user | steinerd: lsm6dsv accelerometer and gyroscope, qmc6309h magnetometer; Sensors app |
+| Fingerprint | ? | | |
+| Suspend | ? | | |
+| Cooling | ? | | |
+| Denial | works | 2026-11-01, user | |
+| Native apps | works | 2026-11-01, user | Settings joins Wi-Fi |
+| Android apps | ? | | |

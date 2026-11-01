@@ -1,0 +1,7 @@
+[data]
+ipa_netdev = "rmnet_ipa0"
+dpm = { ep_type = "embedded", iface = 1, rx = 2, tx = 24 }
+qmap = "v5"
+dl_datagrams = 16
+dl_datagram_size = 8192
+mtu_max = 1492

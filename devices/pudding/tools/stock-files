@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Copy the sensor configuration and the speaker firmware from the stock partitions.
+
+Runs on the phone as root. Reads vendor_a and odm_a inside super, Android's
+slot, and persist, all read-only, and writes:
+
+- the hexagonrpcd tree that pudding-sensors-hexagonrpcd.service serves.
+  Xiaomi keeps the sensor JSON files on odm and points the ADSP at
+  /odm/etc/sensors/config; hexagonrpcd serves that from odm/sensors/config.
+- the CS35L43 speaker protection firmware and each amplifier's tuning, under
+  the names the amplifiers' firmware UID asks for.
+- this phone's speaker calibration from persist.
+
+Restart the phone afterwards: the ADSP reads the sensor files only when it
+starts.
+"""
+import os
+import shutil
+import struct
+import subprocess
+import tempfile
+
+ROOT = "/usr/share/qcom/kaanapali/Xiaomi/pudding"
+SPEAKER_FIRMWARE = "/usr/lib/firmware/cirrus/cs35l43-dsp1-spk-prot-xiaomi-pudding"
+CALIBRATION = "/var/lib/pudding-speakers/crus_calr.bin"
+SUPER = "/dev/disk/by-partlabel/super"
+PERSIST = "/dev/disk/by-partlabel/persist"
+DM_PREFIX = "pudding-stock-files-"
+
+
+def linear_table(device, partition):
+    """The device-mapper table of one logical partition in super."""
+    with open(device, "rb") as f:
+        f.seek(4096)
+        geometry = f.read(4096)
+        magic, = struct.unpack_from("<I", geometry, 0)
+        if magic != 0x616C4467:
+            raise SystemExit("super has no LP geometry")
+        metadata_size, = struct.unpack_from("<I", geometry, 40)
+        slot = 1 if partition.endswith("_b") else 0
+        f.seek(4096 + 2 * 4096 + slot * metadata_size)
+        meta = f.read(metadata_size)
+    if struct.unpack_from("<I", meta, 0)[0] != 0x414C5030:
+        raise SystemExit("super has no LP metadata")
+    header_size, = struct.unpack_from("<I", meta, 8)
+    tables = meta[header_size:]
+    parts = struct.unpack_from("<III", meta, 80)
+    extents = struct.unpack_from("<III", meta, 92)
+    for i in range(parts[1]):
+        name, _attrs, first, count, _group = struct.unpack_from(
+            "<36sIIII", tables, parts[0] + i * parts[2])
+        if name.rstrip(b"\0").decode() != partition:
+            continue
+        lines, start = [], 0
+        for e in range(first, first + count):
+            sectors, kind, data, source = struct.unpack_from(
+                "<QIQI", tables, extents[0] + e * extents[2])
+            if kind != 0 or source != 0:
+                raise SystemExit(f"{partition}: extent type {kind} on device {source}")
+            lines.append(f"{start} {sectors} linear {device} {data}")
+            start += sectors
+        return "\n".join(lines) + "\n"
+    raise SystemExit(f"no {partition} in super")
+
+
+def main():
+    super_dev = os.path.realpath(SUPER)
+    tables = {name: linear_table(super_dev, f"{name}_a") for name in ("vendor", "odm")}
+    with tempfile.TemporaryDirectory() as work:
+        persist = os.path.join(work, "persist")
+        os.mkdir(persist)
+        mounted = []
+        try:
+            for name, table in tables.items():
+                mount = os.path.join(work, name)
+                os.mkdir(mount)
+                subprocess.run(["dmsetup", "create", "--readonly", DM_PREFIX + name],
+                               input=table, text=True, check=True)
+                mounted.append(name)
+                subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{DM_PREFIX}{name}", mount],
+                               check=True)
+            vendor = os.path.join(work, "vendor")
+            odm = os.path.join(work, "odm")
+            # noload: never replay persist's journal.
+            subprocess.run(["mount", "-o", "ro,noload", PERSIST, persist], check=True)
+            for tree in ("sensors", "odm"):
+                shutil.rmtree(os.path.join(ROOT, tree), ignore_errors=True)
+            sensors = os.path.join(ROOT, "sensors")
+            os.makedirs(sensors)
+            shutil.copytree(os.path.join(vendor, "etc/sensors/config"),
+                            os.path.join(sensors, "config"))
+            shutil.copyfile(os.path.join(vendor, "etc/sensors/sns_reg_config"),
+                            os.path.join(sensors, "sns_reg.conf"))
+            shutil.copytree(os.path.join(persist, "sensors/registry/registry"),
+                            os.path.join(sensors, "registry"))
+            shutil.copytree(os.path.join(odm, "etc/sensors/config"),
+                            os.path.join(ROOT, "odm/sensors/config"))
+            os.makedirs(os.path.join(ROOT, "dsp"), exist_ok=True)
+            os.makedirs(os.path.dirname(SPEAKER_FIRMWARE), exist_ok=True)
+            shutil.copyfile(os.path.join(odm, "firmware/cs35l43-dsp1-spk-prot.wmfw"),
+                            SPEAKER_FIRMWARE + ".wmfw")
+            for amp in ("B", "T"):
+                shutil.copyfile(os.path.join(odm, f"firmware/{amp}-cs35l43-dsp1-spk-prot.bin"),
+                                f"{SPEAKER_FIRMWARE}-{amp.lower()}.bin")
+            os.makedirs(os.path.dirname(CALIBRATION), exist_ok=True)
+            shutil.copyfile(os.path.join(persist, "audio/crus_calr.bin"), CALIBRATION)
+        finally:
+            subprocess.run(["umount", persist], check=False)
+            for name in reversed(mounted):
+                subprocess.run(["umount", os.path.join(work, name)], check=False)
+                subprocess.run(["dmsetup", "remove", DM_PREFIX + name], check=False)
+    print(f"sensor files in {ROOT}, speaker firmware in {os.path.dirname(SPEAKER_FIRMWARE)},")
+    print(f"calibration in {CALIBRATION}; restart the phone")
+
+
+if __name__ == "__main__":
+    main()

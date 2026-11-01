@@ -1,0 +1,3 @@
+# The amplifiers belong to the sound card: set them up once it registers,
+# after alsa-utils restores its state.
+ACTION=="add", SUBSYSTEM=="sound", KERNEL=="card*", ATTR{id}=="Xiaomi17", TAG+="systemd", ENV{SYSTEMD_WANTS}+="pudding-speakers.service"
