@@ -1,0 +1,180 @@
+#!/bin/sh
+# Marks the Linux slot of an A/B Qualcomm device as booted successfully once
+# the boot has proved itself, so the bootloader stops spending its retries on
+# it. Until then each boot uses one retry, and when they run out the bootloader
+# falls back to the other slot. The slot attributes are read from the GPT;
+# they are written only through qbootctl.
+set -eu
+
+conf=${SLOT_SUCCESS_CONF:-/etc/slot-success.conf}
+qbootctl=${SLOT_SUCCESS_QBOOTCTL:-/usr/lib/slot-success/qbootctl}
+bootconfig=${SLOT_SUCCESS_BOOTCONFIG:-/proc/bootconfig}
+cmdline=${SLOT_SUCCESS_CMDLINE:-/proc/cmdline}
+uptime=${SLOT_SUCCESS_UPTIME:-/proc/uptime}
+partlabels=${SLOT_SUCCESS_PARTLABELS:-/dev/disk/by-partlabel}
+# How long mark waits for systemd to finish starting, after the settle time.
+startup_limit=300
+
+fail() {
+    echo "$*" >&2
+    exit 2
+}
+
+setting() {
+    sed -n "s/^$1=//p" "$conf" | tail -n 1
+}
+
+read_conf() {
+    [ -r "$conf" ] || fail "Cannot read $conf."
+    slot=$(setting slot)
+    units=$(setting units)
+    settle=$(setting settle)
+    settle=${settle:-60}
+    case $slot in
+    a | b) ;;
+    *) fail "$conf: slot must be a or b, not '$slot'." ;;
+    esac
+    case $settle in
+    '' | *[!0-9]*) fail "$conf: settle must be seconds, not '$settle'." ;;
+    esac
+}
+
+# The slot the bootloader started, as bootconfig or the command line name it.
+# A kernel with a built-in command line and no bootconfig gets neither; then
+# the running slot is the active one, as qbootctl also assumes.
+running_slot() {
+    suffix=$(sed -n 's/^androidboot\.slot_suffix = "_\([ab]\)"$/\1/p' "$bootconfig" 2>/dev/null || true)
+    if [ -z "$suffix" ]; then
+        suffix=$(tr ' ' '\n' <"$cmdline" | sed -n 's/^androidboot\.slot_suffix=_\([ab]\)$/\1/p')
+    fi
+    if [ -z "$suffix" ]; then
+        for candidate in a b; do
+            read_bits "$candidate"
+            if has_bit 50; then suffix="$suffix$candidate"; fi
+        done
+        case $suffix in
+        a | b) ;;
+        *) suffix= ;;
+        esac
+    fi
+    echo "$suffix"
+}
+
+# The GPT attribute bits of boot_<slot>, as sfdisk lists them: 48-49 priority,
+# 50 active, 51-53 retries left, 54 successful, 55 unbootable.
+read_bits() {
+    part=$(readlink -f "$partlabels/boot_$1") || fail "No boot_$1 partition."
+    [ -e "$part" ] || fail "No boot_$1 partition."
+    disk=$(lsblk -ndo PKNAME "$part")
+    [ -n "$disk" ] || fail "Cannot find the disk holding $part."
+    dump=$(sfdisk --dump "/dev/$disk") || fail "Cannot read the GPT of /dev/$disk."
+    bits=" $(printf '%s\n' "$dump" |
+        sed -n "s/.*name=\"boot_$1\".*attrs=\"\([^\"]*\)\".*/\1/p" |
+        tr ' ' '\n' | sed -n 's/^GUID://p' | tr ',' ' ') "
+}
+
+has_bit() {
+    case $bits in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+    esac
+}
+
+retries() {
+    n=0
+    if has_bit 51; then n=$((n + 1)); fi
+    if has_bit 52; then n=$((n + 2)); fi
+    if has_bit 53; then n=$((n + 4)); fi
+    echo "$n"
+}
+
+# Exit 0 only when another boot of the slot costs no retry.
+status() {
+    read_conf
+    read_bits "$slot"
+    if has_bit 55; then
+        echo "Slot $slot: unbootable."
+        return 1
+    fi
+    if has_bit 54; then
+        echo "Slot $slot: marked successful."
+        return 0
+    fi
+    left=$(retries)
+    if [ "$left" = 1 ]; then
+        echo "Slot $slot: not marked successful, 1 boot try left."
+    else
+        echo "Slot $slot: not marked successful, $left boot tries left."
+    fi
+    return 1
+}
+
+# A boot counts once the system has been up for the settle time and systemd
+# reports it running: every unit started and none failed.
+wait_settled() {
+    up=$(cut -d. -f1 "$uptime")
+    if [ "$up" -lt "$settle" ]; then
+        sleep $((settle - up))
+    fi
+    waited=0
+    while :; do
+        state=$(systemctl is-system-running 2>/dev/null || true)
+        case $state in
+        initializing | starting) ;;
+        *) break ;;
+        esac
+        if [ "$waited" -ge "$startup_limit" ]; then
+            echo "The system is still $state after $waited s; slot $slot stays unmarked." >&2
+            return 1
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+    if [ "$state" != running ]; then
+        echo "The system is $state; slot $slot stays unmarked." >&2
+        return 1
+    fi
+}
+
+mark() {
+    read_conf
+    running=$(running_slot)
+    if [ "$running" != "$slot" ]; then
+        echo "Running from slot ${running:-unknown}, not Linux's slot $slot; leaving the slots alone."
+        return 0
+    fi
+    read_bits "$slot"
+    if has_bit 54; then
+        echo "Slot $slot: already marked successful."
+        return 0
+    fi
+    wait_settled
+    for unit in $units; do
+        if ! systemctl is-active --quiet "$unit"; then
+            echo "$unit is not active; slot $slot stays unmarked." >&2
+            return 1
+        fi
+    done
+    if [ "$slot" = a ]; then number=0; else number=1; fi
+    "$qbootctl" -m "$number"
+    read_bits "$slot"
+    if ! has_bit 54; then
+        echo "qbootctl ran, but slot $slot still reads unmarked." >&2
+        return 1
+    fi
+    echo "Slot $slot: marked successful."
+}
+
+case ${1-} in
+status) status ;;
+mark) mark ;;
+running)
+    running=$(running_slot)
+    [ -n "$running" ] || fail "Cannot tell which slot is running."
+    echo "$running"
+    ;;
+*)
+    echo "usage: slot-success status|mark|running" >&2
+    exit 2
+    ;;
+esac

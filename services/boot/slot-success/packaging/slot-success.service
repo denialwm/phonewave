@@ -1,0 +1,10 @@
+[Unit]
+Description=Mark the Linux boot slot successful once the boot has proved itself
+ConditionPathExists=/etc/slot-success.conf
+After=multi-user.target
+
+[Service]
+# exec, not oneshot: mark waits for systemd to report the system running, and
+# a oneshot start job would keep it starting.
+Type=exec
+ExecStart=/usr/bin/slot-success mark

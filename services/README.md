@@ -9,6 +9,7 @@ tests, packaging and README.
 | [`haptics/hapticd`](haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
 | [`clock/rtc-offset`](clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | [`memory/zram-swap`](memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
+| [`boot/slot-success`](boot/slot-success) | Marks the Linux slot booted successfully once the boot has proved itself, so the bootloader keeps booting it | any A/B Qualcomm |
 | [`wallpaper/wallpaper-depth`](wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | [`screen/screen-record`](screen/screen-record) | Records the screen; Denial's shade starts and stops it | any with GBM and EGL |
 | [`power/ledger`](power/ledger) | Books where the battery goes, per screen state, hour and build | any with a battery |
