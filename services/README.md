@@ -17,7 +17,8 @@ tests, packaging and README.
 | [`fingerprint/uff`](fingerprint/uff) | OPLUS UFF (Goodix G7s) optical fingerprint | `aston` |
 | [`modem/qmi-tools`](modem/qmi-tools) | Small QMI clients for cellular bring-up | `aston` |
 | [`camera/braun`](camera/braun) | Finds the cameras and gives apps previews and photos, raw to JPEG in its own pipeline | any with qcom-camss |
-| [`sensors/steinerd`](sensors/steinerd) | Orientation, motion, compass, light and proximity from the Snapdragon Sensor Core | `nx809j` |
+| [`sensors/steinerd`](sensors/steinerd) | Orientation, motion, compass, light and proximity from the Snapdragon Sensor Core | `nx809j`, `pudding` |
+| [`sensors/hexagonrpcd`](sensors/hexagonrpcd) | Serves the ADSP's sensor drivers their configuration: linux-msm's hexagonrpcd with Phonewave's patches | `nx809j`, `pudding` |
 | [`modem/dmail`](modem/dmail) | Modem service replacing ModemManager: SIM, registration, data, SMS | `aston`, `roadstr` |
 
 A service that works on any device never hard-codes one. It reads

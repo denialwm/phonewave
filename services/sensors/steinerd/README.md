@@ -16,10 +16,13 @@ sensor core and nothing more.
   start, over FastRPC. `hexagonrpcd -s` serves it to the sensors PD from the
   phone's stock files: `sensors/config` and `sensors/sns_reg.conf` from the
   vendor partition (`/vendor/etc/sensors/config`, `sns_reg_config`), and
-  `sensors/registry` from persist (`sensors/registry/registry`). It has to
-  run from boot: drivers that found no configuration when the ADSP came up
-  stay missing until the ADSP restarts. The device's `rootfs/` carries the
-  unit; the files are the phone's own and are not in this repository.
+  `sensors/registry` from persist (`sensors/registry/registry`). Xiaomi's
+  phones also read `odm/sensors/config` from odm (`/odm/etc/sensors/config`),
+  which takes Phonewave's build, [`../hexagonrpcd`](../hexagonrpcd).
+  hexagonrpcd has to run from boot: drivers that found no configuration
+  when the ADSP came up stay missing until the ADSP restarts. The device's
+  `rootfs/` carries the unit; the files are the phone's own and are not in
+  this repository.
 
 `steinerctl list` shows what the core offers. If it lists only platform
 sensors (`steinerctl list registry timer` answers, `accel` says none), the
