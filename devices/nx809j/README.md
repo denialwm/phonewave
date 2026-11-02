@@ -109,6 +109,12 @@ and each step of 64 is 6 dB. Stock protects the speakers in Android's audio
 DSP, which has no counterpart here, so stay at or under 959. PipeWire sets
 the volume in software.
 
+Three analog microphones sit on the WCD939x: AMIC1 (stock's handset and
+speakerphone mic, the default), AMIC4 (stock's game mic) and AMIC3. AMIC2
+and AMIC5 have none. The profile records one at a time through ADC1 or ADC3
+into MultiMedia3, at stock's gains (ADC 12, decimators 84). Capture needs
+linux-perpetua 9ba37ef1db70 (devices-223).
+
 ## Denial
 
 `nx809j-denial.service` runs Denial as `logix` on tty1, in a logind

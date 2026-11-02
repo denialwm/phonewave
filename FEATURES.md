@@ -44,7 +44,7 @@ last.
 | Wi-Fi | works | devices-128, user | WCN7860, ath12k |
 | Bluetooth | works | devices-130, probe | RX and TX checked with btmon |
 | Speakers | works | 2026-10-28, devices-138 | Tested at near-zero volume |
-| Microphones | broken | 2026-10-28, devices-139, probe | Capture starts but no data arrives; aston too. Suspect 7c8cc30d7fc4 |
+| Microphones | works | 2026-11-02, devices-223, probe | AMIC1 (default), AMIC4 and AMIC3 through PipeWire; each hears a tone from the speakers |
 | Headphone jack | not started | | Reixo0's patches 0068 and on |
 | Mobile data | works | devices-137, probe | dmail, IPA |
 | SMS | works | 2026-10-28, user | dmail |
@@ -88,7 +88,7 @@ last.
 | Wi-Fi | works | devices-73, probe | WCN7850, ath12k; power save only while every screen is dark |
 | Bluetooth | works | 2026-10-28, devices-73, user | |
 | Speakers | works | devices-42, user | 2x TFA9873, left and right checked |
-| Microphones | broken | devices-73, probe | Worked on 2026-10-22; capture stalls now, as on nx809j |
+| Microphones | broken | devices-73, probe | Worked on 2026-10-22; capture stalls now. Cause found on nx809j and fixed in linux-perpetua 9ba37ef1db70; not built for aston yet |
 | Headphone jack | none | | |
 | Mobile data | works | 2026-10-25, probe | dmail, carrier DNS through resolved |
 | SMS | works | 2026-10-21, user | dmail |
