@@ -13,7 +13,7 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--generation',type=int,default=27)
 parser.add_argument('--previous-generation',type=int,default=24)
 ARGS=parser.parse_args();GENERATION=ARGS.generation
-assert 27<=GENERATION<=99
+assert 27<=GENERATION<=999
 RELEASE=f'7.3.0-devices{GENERATION}-aston'
 IMAGE=ROOT/f'boot_b-devices{GENERATION}.img'
 UPDATER=Path(__file__).resolve().parent/'remote_boot_flash.py'

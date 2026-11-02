@@ -4,7 +4,7 @@ import argparse,hashlib,json,os,subprocess
 from pathlib import Path
 B=Path(os.environ.get('PHONEWAVE_VAULT','/mnt/development/denial-os/device-vault'))/'aston/boot'
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--generation',type=int,required=True);p.add_argument('--previous',type=int,required=True);args=p.parse_args()
-n=args.generation;previous=args.previous;assert 30<=previous<n<=99
+n=args.generation;previous=args.previous;assert 30<=previous<n<=999
 old=json.loads((B/f'kernel-flash-evidence-devices{previous}.json').read_text())
 template=B/f'boot_b-devices{previous}.img';assert hashlib.sha256(template.read_bytes()).hexdigest()==old['readback_sha256']
 image=B/f'boot_b-devices{n}.img';evidence=B/f'boot-evidence-devices{n}';evidence.mkdir(exist_ok=True)

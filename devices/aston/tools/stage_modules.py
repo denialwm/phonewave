@@ -7,7 +7,7 @@ SSH=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','aston']
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--generation',type=int,default=27)
 GENERATION=parser.parse_args().generation
-assert 27<=GENERATION<=99
+assert 27<=GENERATION<=999
 RELEASE=f'7.3.0-devices{GENERATION}-aston'
 SOURCE=Path(f'/mnt/development/denial-os/linux-perpetua-build/releases/devices-{GENERATION}-aston/modules-root/lib/modules')/RELEASE
 REMOTE=r'''

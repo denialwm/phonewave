@@ -88,7 +88,7 @@ last.
 | Wi-Fi | works | devices-73, probe | WCN7850, ath12k; power save only while every screen is dark |
 | Bluetooth | works | 2026-10-28, devices-73, user | |
 | Speakers | works | devices-42, user | 2x TFA9873, left and right checked |
-| Microphones | broken | devices-73, probe | Worked on 2026-10-22; capture stalls now. Cause found on nx809j and fixed in linux-perpetua 9ba37ef1db70; not built for aston yet |
+| Microphones | works | 2026-11-03, devices-224, probe | Mic1 and Mic2 record through PipeWire; the stall is fixed in linux-perpetua 9ba37ef1db70 |
 | Headphone jack | none | | |
 | Mobile data | works | 2026-10-25, probe | dmail, carrier DNS through resolved |
 | SMS | works | 2026-10-21, user | dmail |
