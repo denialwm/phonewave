@@ -48,7 +48,7 @@ last.
 | Headphone jack | not started | | Reixo0's patches 0068 and on |
 | Mobile data | works | devices-137, probe | dmail, IPA |
 | SMS | works | 2026-10-28, user | dmail |
-| Calls | untested | | dmail Voice1, as on aston |
+| Calls | partial | 2026-11-03, user | Incoming calls ring over VoLTE; answering with call audio not done |
 | Call audio | not started | | |
 | VoLTE | partial | 2026-11-03, devices-223, probe | dmail registers IMS on Iliad, IMS bearer on IPv6. Two incoming calls rang over it with the phone on 4G throughout; none answered, no call audio yet |
 | GNSS | ? | | |
