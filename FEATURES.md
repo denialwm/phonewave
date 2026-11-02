@@ -246,7 +246,7 @@ last.
 | --- | --- | --- | --- |
 | Boot | works | 2026-11-01, devices-198 | `boot_b` and `init_boot_b`; Arch on its own partition beside Android on slot A |
 | Display | works | 2026-11-01, devices-191, user | Xiaomi P3 OLED, our panel driver, 120 Hz, DSC |
-| Brightness | ? | | |
+| Brightness | works | 2026-11-02, devices-217, user | |
 | Wake from screen off | works | 2026-11-01, devices-210, user | Power key; also double tap. The touch controller stays in gesture mode with the screen off |
 | GPU | works | 2026-11-01, devices-181, user | Adreno 840: freedreno GLES 3.2, desktop GL 4.6 |
 | Touch | works | 2026-11-01, devices-196, user | Synaptics S3910 with Xiaomi's THP firmware: the driver finds the fingers in raw frames; 265 Hz |
@@ -256,15 +256,15 @@ last.
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
 | Video out (USB-C) | ? | | |
-| Charging | ? | | |
+| Charging | partial | 2026-11-02, devices-217, probe | Charges from a USB-PD wall charger (PPS offered) at a flat 0.5 A into the battery; no fast charging |
 | Battery | works | 2026-11-01, devices-207, user | bq27z561 fuel gauge (bq27xxx); Settings shows charge, capacity and cycles |
 | Wi-Fi | works | 2026-11-01, devices-202, probe | WCN7860, ath12k; country from `/etc/conf.d/wireless-regdom` (IT: 2.4, 5 and 6 GHz). Joined a 5 GHz network on devices-198 (user) |
-| Bluetooth | not started | | |
+| Bluetooth | works | 2026-11-02, devices-220, probe | WCN7860 with Xiaomi's Brahma firmware; finds 15-17 devices nearby; this computer's adapter heard at -33 dBm and hears the phone at -24 dBm; radio-addr gives the address |
 | Speakers | works | 2026-11-02, devices-217, user | Two CS35L43, top left and bottom right; stock speaker protection with the factory calibration; PipeWire |
 | Microphones | not started | | |
 | Headphone jack | ? | | |
 | Mobile data | works | 2026-11-01, devices-203, probe | dmail at boot, IPA; Iliad 5G NSA (LTE B3 + NR leg during transfers), shown as 5G as on Android; 20 MB at 1.0 MB/s, stock Android 1.46 MB/s at the same spot |
-| SMS | ? | | |
+| SMS | works | 2026-11-02, devices-217, user | dmail |
 | Calls | ? | | |
 | Call audio | ? | | |
 | VoLTE | ? | | |
@@ -272,7 +272,7 @@ last.
 | NFC | ? | | |
 | Camera | not started | | |
 | Video decode | not started | | No Iris for Kaanapali |
-| Rotation | ? | | |
+| Rotation | works | 2026-11-02, devices-217, user | steinerd |
 | Light and proximity | works | 2026-11-01, devices-211, user | Goodix glsx light, proximity; steinerd; Sensors app |
 | Compass and gyroscope | works | 2026-11-01, devices-211, user | steinerd: lsm6dsv accelerometer and gyroscope, qmc6309h magnetometer; Sensors app |
 | Fingerprint | ? | | |

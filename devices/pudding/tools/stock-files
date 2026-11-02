@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Copy the sensor configuration and the speaker firmware from the stock partitions.
+"""Copy the sensor configuration and the speaker and Bluetooth firmware from the stock partitions.
 
 Runs on the phone as root. Reads vendor_a and odm_a inside super, Android's
-slot, and persist, all read-only, and writes:
+slot, persist and bluetooth_a, all read-only, and writes:
 
 - the hexagonrpcd tree that pudding-sensors-hexagonrpcd.service serves.
   Xiaomi keeps the sensor JSON files on odm and points the ADSP at
@@ -11,6 +11,7 @@ slot, and persist, all read-only, and writes:
 - the CS35L43 speaker protection firmware and each amplifier's tuning, under
   the names the amplifiers' firmware UID asks for.
 - this phone's speaker calibration from persist.
+- the Bluetooth patch and RF settings the device tree names.
 
 Restart the phone afterwards: the ADSP reads the sensor files only when it
 starts.
@@ -26,6 +27,8 @@ SPEAKER_FIRMWARE = "/usr/lib/firmware/cirrus/cs35l43-dsp1-spk-prot-xiaomi-puddin
 CALIBRATION = "/var/lib/pudding-speakers/crus_calr.bin"
 SUPER = "/dev/disk/by-partlabel/super"
 PERSIST = "/dev/disk/by-partlabel/persist"
+BLUETOOTH = "/dev/disk/by-partlabel/bluetooth_a"
+BLUETOOTH_FIRMWARE = "/usr/lib/firmware/qca"
 DM_PREFIX = "pudding-stock-files-"
 
 
@@ -70,6 +73,8 @@ def main():
     with tempfile.TemporaryDirectory() as work:
         persist = os.path.join(work, "persist")
         os.mkdir(persist)
+        bluetooth = os.path.join(work, "bluetooth")
+        os.mkdir(bluetooth)
         mounted = []
         try:
             for name, table in tables.items():
@@ -84,6 +89,7 @@ def main():
             odm = os.path.join(work, "odm")
             # noload: never replay persist's journal.
             subprocess.run(["mount", "-o", "ro,noload", PERSIST, persist], check=True)
+            subprocess.run(["mount", "-o", "ro", BLUETOOTH, bluetooth], check=True)
             for tree in ("sensors", "odm"):
                 shutil.rmtree(os.path.join(ROOT, tree), ignore_errors=True)
             sensors = os.path.join(ROOT, "sensors")
@@ -105,13 +111,19 @@ def main():
                                 f"{SPEAKER_FIRMWARE}-{amp.lower()}.bin")
             os.makedirs(os.path.dirname(CALIBRATION), exist_ok=True)
             shutil.copyfile(os.path.join(persist, "audio/crus_calr.bin"), CALIBRATION)
+            os.makedirs(BLUETOOTH_FIRMWARE, exist_ok=True)
+            for name in ("brhbtfw20.tlv", "brhbtnv20.b3e"):
+                shutil.copyfile(os.path.join(bluetooth, "image", name),
+                                os.path.join(BLUETOOTH_FIRMWARE, name))
         finally:
+            subprocess.run(["umount", bluetooth], check=False)
             subprocess.run(["umount", persist], check=False)
             for name in reversed(mounted):
                 subprocess.run(["umount", os.path.join(work, name)], check=False)
                 subprocess.run(["dmsetup", "remove", DM_PREFIX + name], check=False)
     print(f"sensor files in {ROOT}, speaker firmware in {os.path.dirname(SPEAKER_FIRMWARE)},")
-    print(f"calibration in {CALIBRATION}; restart the phone")
+    print(f"calibration in {CALIBRATION}, Bluetooth firmware in {BLUETOOTH_FIRMWARE};")
+    print("restart the phone")
 
 
 if __name__ == "__main__":

@@ -126,6 +126,21 @@ as `WIRELESS_REGDOM` in `/etc/conf.d/wireless-regdom`: wireless-regdb's udev
 rule passes it on when cfg80211 loads, and the kernel (devices-202 on)
 hands it to the firmware as the Wi-Fi radio registers.
 
+## Bluetooth
+
+The combo's Bluetooth half runs on hci_qca over SE18's high-speed UART
+(`ttyHS1`). Xiaomi's stock `bluetooth_a` carries Brahma firmware rather
+than the Ganges files the driver asks for by default, and the controller
+reports board 0, so the device tree names the files: the patch
+`brhbtfw20.tlv` and board 0x3e's RF settings `brhbtnv20.b3e`.
+`tools/stock-files` copies both to `/usr/lib/firmware/qca/`. With the
+generic `brhbtnv20.bin` the receiver is some 50 dB deaf.
+
+The controller has no address of its own: install radio-addr
+(services/radio/radio-addr, built with the workspace cross compiler), which
+`rootfs/` wants from `bluetooth.target`, and BlueZ (`bluez`,
+`bluez-utils`), and enable `bluetooth.service`.
+
 ## Haptics
 
 The PMIH0108's HAP530 drives the LRA through `qcom-spmi-haptics`
