@@ -167,7 +167,7 @@ last.
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
 | Video out (USB-C) | works | 2026-10-15, user | DisplayPort |
-| Charging | works | 2026-10-31, devices-23, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; a USB-PD charger (PPS offered, 3 A contract) stays at 5 V and the input holds at 0.89–0.95 A whatever the input limit (2026-11-03), so heavy load drains the battery; no PD 9 V request yet |
+| Charging | works | 2026-11-03, devices-225, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; USB-PD chargers raised to 9 V at 1.5 A (8.89 V × 1.49 A, 13.2 W in, battery +2.6 A at 14 %; still +0.1 A under full CPU load) |
 | Battery | works | 2026-10-28, devices-14, user | |
 | Wi-Fi | works | user | ath12k |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
