@@ -164,7 +164,8 @@ async fn status() -> Result {
 
     let nas = client(service::NAS).await?;
     let s = network::serving(&nas).await?;
-    println!("network: {}", network_line(&s));
+    let technology = network::shown_technology(&nas, &s).await?;
+    println!("network: {}", network_line(&s, technology));
     let (usage, voice) = network::voice_preference(&nas).await?;
     println!(
         "usage {usage:?} (1 voice, 2 data centric), voice domain {voice:?} (2 cs, 3 ps preferred)"
@@ -182,11 +183,11 @@ async fn status() -> Result {
     Ok(())
 }
 
-fn network_line(s: &network::Serving) -> String {
+fn network_line(s: &network::Serving, technology: network::Technology) -> String {
     format!(
         "{}, {}, packet {}",
         registration(s.registration),
-        s.technology().as_str(),
+        technology.as_str(),
         if s.packet_attached() {
             "attached"
         } else {
@@ -208,7 +209,8 @@ async fn watch() -> Result {
     };
     let mut last = String::new();
     loop {
-        let line = network_line(&network::serving(&nas).await?);
+        let s = network::serving(&nas).await?;
+        let line = network_line(&s, network::shown_technology(&nas, &s).await?);
         if line != last {
             let reject = network::sim_reject_state(&nas).await?;
             println!("{} {line}, sim reject state {reject:?}", stamp());

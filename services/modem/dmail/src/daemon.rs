@@ -823,7 +823,14 @@ impl Life {
     async fn refresh_network(&mut self, d: &Daemon<'_>, props: &mut ModemProps) {
         match network::serving(&self.m.nas).await {
             Ok(s) => {
-                let technology = s.technology().as_str();
+                let technology = match network::shown_technology(&self.m.nas, &s).await {
+                    Ok(technology) => technology,
+                    Err(e) => {
+                        log(format!("system info: {e}"));
+                        s.technology()
+                    }
+                }
+                .as_str();
                 let radio_changed = technology != props.technology;
                 let was = (props.state.clone(), props.technology.clone(), self.attached);
                 props.technology = technology.into();

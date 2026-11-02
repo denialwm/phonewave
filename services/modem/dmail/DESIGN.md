@@ -110,14 +110,17 @@ info with thresholds, not polling.
 |---|---|
 | `2g` | GSM service |
 | `3g` | WCDMA service, HSPA included |
-| `4g` | LTE service, no NR leg |
-| `5g` | NR5G service (SA), or LTE with NR5G active (NSA) |
+| `4g` | LTE service on a cell that offers no NR5G leg |
+| `5g` | NR5G service (SA), or an LTE cell that offers an NR5G leg (NSA) and does not restrict it |
 | `none` | no service |
+
+`5g` on LTE follows Android: it shows while the cell offers the leg, idle or
+not. System Info says so: EUTRA with NR5G availability (TLV 0x4e) set, DCNR
+restriction (0x4f) not set. The leg itself joins only while data moves.
 
 Signal is 0–100, from RSRP on LTE and NR, RSSI on 2G and 3G.
 
-Aston has no 5G: it tops out at `4g`. `5g` stays in the API for roadstr. To
-verify on roadstr: which TLV reports NSA.
+Aston has no 5G: it tops out at `4g`.
 
 ## Mobile data
 

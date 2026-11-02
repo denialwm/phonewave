@@ -135,6 +135,27 @@ pub fn parse_signal(msg: &Message) -> Option<u8> {
         .map(|&rssi| percent((rssi as i8).into(), -113, -51))
 }
 
+/// Whether the LTE cell offers an NR5G leg (NSA) and does not keep this phone
+/// from it, from System Info. Android shows 5G then, with or without the leg.
+pub fn parse_offers_nr5g(msg: &Message) -> bool {
+    // EUTRA with NR5G availability, DCNR restriction.
+    matches!(msg.tlv(0x4e), Some(&[1])) && !matches!(msg.tlv(0x4f), Some(&[1]))
+}
+
+/// The network type to show: LTE on a cell that offers an NR5G leg is 5G.
+pub async fn shown_technology(nas: &Client, s: &Serving) -> Result<Technology, Error> {
+    let technology = s.technology();
+    if technology != Technology::G4 {
+        return Ok(technology);
+    }
+    let reply = nas.call(Message::request(SYSTEM_INFO), TIMEOUT).await?;
+    Ok(if parse_offers_nr5g(&reply) {
+        Technology::G5
+    } else {
+        technology
+    })
+}
+
 pub async fn signal(nas: &Client) -> Result<Option<u8>, Error> {
     match nas.call(Message::request(SIGNAL_INFO), TIMEOUT).await {
         Ok(reply) => Ok(parse_signal(&reply)),
@@ -329,6 +350,19 @@ mod tests {
         let gsm = Message::request(SIGNAL_INFO).with(0x12, [(-82i8) as u8]);
         assert_eq!(parse_signal(&gsm), Some(50));
         assert_eq!(parse_signal(&Message::request(SIGNAL_INFO)), None);
+    }
+
+    #[test]
+    fn lte_offering_nr5g() {
+        let info = |tlvs: &[(u8, &[u8])]| {
+            tlvs.iter()
+                .fold(Message::request(SYSTEM_INFO), |m, &(t, v)| m.with(t, v))
+        };
+        assert!(parse_offers_nr5g(&info(&[(0x4e, &[1]), (0x4f, &[0])])));
+        assert!(parse_offers_nr5g(&info(&[(0x4e, &[1])])));
+        assert!(!parse_offers_nr5g(&info(&[(0x4e, &[1]), (0x4f, &[1])])));
+        assert!(!parse_offers_nr5g(&info(&[(0x4e, &[0]), (0x4f, &[0])])));
+        assert!(!parse_offers_nr5g(&info(&[])));
     }
 
     #[test]
