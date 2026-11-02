@@ -30,7 +30,7 @@ last.
 | Boot | works | 2026-10-28, devices-141 | `boot_b` and `init_boot_b`; Arch beside Android |
 | Display | works | 2026-10-27, devices-125, user | RM692H5, 60 to 144 Hz (devices-128). Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
 | Brightness | works | 2026-10-28, devices-141, user | |
-| Wake from screen off | works | 2026-10-28, devices-141, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms |
+| Wake from screen off | works | 2026-11-02, devices-222, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms. Beside a monitor the phone sleeps to its always-on picture without locking |
 | GPU | works | 2026-10-27, devices-126, user | Adreno 840: freedreno GLES 3.2, turnip |
 | Touch | works | 2026-10-31, devices-168, user | Synaptics S3910, reporting at 240 Hz; its firmware starts at 120 Hz |
 | Keys | works | 2026-10-28, devices-141, user | |
@@ -38,7 +38,7 @@ last.
 | Storage | works | | UFS |
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
-| Video out (USB-C) | works | 2026-11-02, devices-221, user | DisplayPort |
+| Video out (USB-C) | works | 2026-11-02, devices-222, user | DisplayPort; the phone's screen goes off and on while the monitor stays lit |
 | Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
 | Battery | works | devices-130, probe | battmgr |
 | Wi-Fi | works | devices-128, user | WCN7860, ath12k |
