@@ -49,7 +49,7 @@ vault as before.
 | `jiiov-platform-setup.py` | Loads the sensor module and arms FOD and double-tap gestures |
 | `jiiov-wayland-ready.py` | Read-only check, before fprintd starts, of the Wayland socket bind mount it relies on |
 | `libfprint/` | Patch series for libfprint v1.94.100, including the JIIOV driver |
-| `packaging/` | systemd units, fprintd drop-ins, the system-sleep resume hook and Denial's fingerprint and wake-gesture configs |
+| `packaging/` | systemd units, fprintd drop-ins, the system-sleep resume hook and Denial's fingerprint config |
 | `test-*.c`, `test-wayland-ready.py`, `test-helper.py` | Host tests; no device needed |
 | `traces/` | Status traces captured on the phone, used by `test-helper.py` |
 | `wayland-protocol-requirements.md` | Requirements that led to `denial-fingerprint-v1` |

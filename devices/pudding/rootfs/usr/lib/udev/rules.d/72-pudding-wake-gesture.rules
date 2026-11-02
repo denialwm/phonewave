@@ -1,3 +1,0 @@
-# Denial reads the double tap from the touch controller's gesture node itself
-# (/etc/denial/wake-gesture.json); libinput leaves it alone.
-ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="synaptics_tcm_gesture", ENV{LIBINPUT_IGNORE_DEVICE}="1"
