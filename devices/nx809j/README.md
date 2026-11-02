@@ -86,12 +86,28 @@ the installed root; without it the phone stays in the RAM rescue.
 by the device-side MAC, on the rescue's link: the phone is 10.77.73.2 and
 leases 10.77.73.1 to the host, without a router, DNS or NTP. Enable `sshd`
 and `systemd-networkd`; root and `logix` log in with keys only. Install the
-exact release's module tree under `/usr/lib/modules`.
+exact release's module tree under `/usr/lib/modules`. `etc/sudoers.d/` goes
+in with mode 0440: `nx809j-wheel` lets `wheel` (`logix`) use sudo with its
+password, as on any Arch install.
 
 `usr/lib/sysctl.d/60-nx809j-hang.conf` panics on a soft or hard lockup and
 reboots 10 s later; the ramoops console keeps the kernel log up to the
 panic. Kernels from devices-160 carry the hard lockup and CSD lock wait
 detectors.
+
+## Audio
+
+The speakers are two AW88461 amplifiers on PRIMARY_MI2S, set up from the
+stock tuning (`qcom/kaanapali/nubia/nx809j/aw88461_acf.bin`). Install
+`wireplumber`, `pipewire-pulse` and `pipewire-alsa`, then the UCM profile
+(`usr/share/alsa/ucm2/conf.d/kaanapali/Nubia-NX809J.conf` and
+`usr/share/alsa/ucm2/Qualcomm/kaanapali/Nubia-NX809J/`) and
+`etc/wireplumber/wireplumber.conf.d/51-nx809j-audio.conf`. The profile routes
+MultiMedia1 to the speakers, keeps the ADSP stream gain at unity and sets
+both amplifiers' `Playback Volume` to 959: 1023 is the stock tuning's level,
+and each step of 64 is 6 dB. Stock protects the speakers in Android's audio
+DSP, which has no counterpart here, so stay at or under 959. PipeWire sets
+the volume in software.
 
 ## Denial
 

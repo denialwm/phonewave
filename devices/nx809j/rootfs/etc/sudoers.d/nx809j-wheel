@@ -1,0 +1,3 @@
+# The phone's user administers it, as on any Arch install: wheel runs
+# commands as root after its password.
+%wheel ALL=(ALL:ALL) ALL
