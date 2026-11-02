@@ -34,7 +34,7 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    fn bytes(self) -> Vec<u8> {
+    pub fn bytes(self) -> Vec<u8> {
         let mut v = self.kind.to_le_bytes().to_vec();
         v.extend_from_slice(&self.iface.to_le_bytes());
         v
@@ -161,7 +161,7 @@ impl std::fmt::Display for EndReason {
     }
 }
 
-fn end_reason(msg: &Message) -> EndReason {
+pub fn end_reason(msg: &Message) -> EndReason {
     EndReason {
         reason: match msg.tlv(0x10) {
             Some(&[a, b]) => Some(u16::from_le_bytes([a, b])),

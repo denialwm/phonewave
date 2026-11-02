@@ -1,13 +1,13 @@
-//! The few rtnetlink requests dmail needs for its rmnet link: create and
-//! delete it, bring it up, give it an address and a default route; and the
-//! IPv4 default routes, to know whether the link's is the best.
+//! The few rtnetlink requests dmail needs for its rmnet links: create and
+//! delete them, bring them up, give them addresses and a default route; and
+//! the IPv4 default routes, to know whether the data link's is the best.
 //!
 //! Requests are blocking: the kernel answers them at once.
 
 use std::cell::Cell;
 use std::ffi::CString;
 use std::io;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 use async_io::Async;
@@ -35,8 +35,12 @@ const IFLA_INFO_KIND: u16 = 1;
 const IFLA_INFO_DATA: u16 = 2;
 const IFLA_RMNET_MUX_ID: u16 = 1;
 const IFLA_RMNET_FLAGS: u16 = 2;
+const IFLA_AF_SPEC: u16 = 26;
+const IFLA_INET6_ADDR_GEN_MODE: u16 = 8;
+const IN6_ADDR_GEN_MODE_NONE: u8 = 1;
 const IFA_ADDRESS: u16 = 1;
 const IFA_LOCAL: u16 = 2;
+const IFA_F_NODAD: u8 = 0x02;
 const RTA_OIF: u16 = 4;
 const RTA_PRIORITY: u16 = 6;
 const RTA_TABLE: u16 = 15;
@@ -52,6 +56,10 @@ const RTN_UNICAST: u8 = 1;
 pub const RMNET_INGRESS_DEAGGREGATION: u32 = 1 << 0;
 pub const RMNET_INGRESS_MAP_CKSUMV5: u32 = 1 << 4;
 pub const RMNET_EGRESS_MAP_CKSUMV5: u32 = 1 << 5;
+/// What every dmail link on the data port asks for: a new link sets the
+/// port's format for all of them.
+pub const RMNET_FLAGS: u32 =
+    RMNET_INGRESS_DEAGGREGATION | RMNET_INGRESS_MAP_CKSUMV5 | RMNET_EGRESS_MAP_CKSUMV5;
 
 pub struct Netlink {
     fd: OwnedFd,
@@ -231,6 +239,30 @@ impl Netlink {
 
     pub fn add_address(&self, name: &str, address: Ipv4Addr, prefix: u8) -> io::Result<()> {
         let mut body = vec![libc::AF_INET as u8, prefix, 0, 0];
+        body.extend_from_slice(&index(name)?.to_ne_bytes());
+        attr(&mut body, IFA_LOCAL, &address.octets());
+        attr(&mut body, IFA_ADDRESS, &address.octets());
+        self.request(RTM_NEWADDR, NLM_F_CREATE | NLM_F_REPLACE, &body)
+    }
+
+    /// Keeps the kernel from giving the link IPv6 addresses of its own.
+    pub fn no_ipv6_addresses(&self, name: &str) -> io::Result<()> {
+        let mut inet6 = Vec::new();
+        attr(
+            &mut inet6,
+            IFLA_INET6_ADDR_GEN_MODE,
+            &[IN6_ADDR_GEN_MODE_NONE],
+        );
+        let mut spec = Vec::new();
+        attr(&mut spec, libc::AF_INET6 as u16, &inet6);
+        let mut body = ifinfo(index(name)?, 0, 0);
+        attr(&mut body, IFLA_AF_SPEC, &spec);
+        self.request(RTM_NEWLINK, 0, &body)
+    }
+
+    /// An IPv6 address usable at once: no duplicate address detection.
+    pub fn add_address6(&self, name: &str, address: Ipv6Addr, prefix: u8) -> io::Result<()> {
+        let mut body = vec![libc::AF_INET6 as u8, prefix, IFA_F_NODAD, RT_SCOPE_LINK];
         body.extend_from_slice(&index(name)?.to_ne_bytes());
         attr(&mut body, IFA_LOCAL, &address.octets());
         attr(&mut body, IFA_ADDRESS, &address.octets());

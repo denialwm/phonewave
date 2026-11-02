@@ -50,7 +50,7 @@ last.
 | SMS | works | 2026-10-28, user | dmail |
 | Calls | untested | | dmail Voice1, as on aston |
 | Call audio | not started | | |
-| VoLTE | not started | | |
+| VoLTE | partial | 2026-11-03, devices-223, probe | dmail registers IMS on Iliad, IMS bearer on IPv6. Two incoming calls rang over it with the phone on 4G throughout; none answered, no call audio yet |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
 | Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |

@@ -74,6 +74,8 @@ pub struct ModemProps {
     pub sim_slot: u8,
     pub number: String,
     pub attached: bool,
+    /// VoLTE: off, registering, registered.
+    pub ims: String,
     /// What the network last refused and when; empty and 0 for nothing.
     pub last_reject: (String, i64),
 }
@@ -91,6 +93,7 @@ impl ModemProps {
             sim_slot,
             number: String::new(),
             attached: false,
+            ims: "off".into(),
             last_reject: (String::new(), 0),
         }
     }
@@ -153,6 +156,12 @@ impl Modem {
     #[zbus(property)]
     fn attached(&self) -> bool {
         self.props.attached
+    }
+
+    /// VoLTE: off, registering, registered. Off on a phone without it.
+    #[zbus(property)]
+    fn ims(&self) -> String {
+        self.props.ims.clone()
     }
 
     /// The last registration the network refused, in words, and when (Unix

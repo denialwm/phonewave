@@ -180,6 +180,11 @@ written on the phone from `/sys/devices/soc0/serial_number` and never printed.
 Install dmail with its `make install` layout, then run `systemd-sysusers`,
 reload systemd and D-Bus and enable `dmail.service`.
 
+VoLTE: the `[ims]` section of `/etc/dmail/device.toml` names the phone as the
+stock Android on both slots does (REDMAGICOS11.5.8MR1_EA: Android 16, SDK 36,
+build BQ2A.250705.001-BP2A.250605.031.A3), read from `system_a` and
+`system_b` in super. The modem firmware comes from that build.
+
 ## Sensors
 
 steinerd (services/sensors/steinerd) offers orientation, acceleration,

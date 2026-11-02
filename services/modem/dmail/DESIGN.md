@@ -56,7 +56,8 @@ needs it, the rmnet link needs CAP_NET_ADMIN, and it opens QRTR sockets.
    data-centric whenever the modem changes it. With the profile's setting a
    circuit-switched call's return to LTE drew cause 7 45 s later; data-centric
    it did not, and the call rang after 4 s instead of 12 (aston, 2026-10-21).
-   Once dmail runs IMS, it sets VoLTE back.
+   While IMS is registered dmail sets voice-centric with VoLTE preferred
+   instead: see VoLTE.
 5. UIM: open the primary provisioning session on the chosen slot's SIM
    (`Modem1.SimSlot`, see Dual SIM). If PIN1 is enabled and not verified,
    State is `locked` until `UnlockPin`. One attempt per call, retries
@@ -294,6 +295,54 @@ both ways, to a mobile, did the same by hand (aston, 2026-10-21). DTMF went out 
 error, but a mobile on the other side heard nothing; to check against a
 menu that answers to tones.
 
+## VoLTE
+
+The modem runs IMS itself: SIP, the call media and the codecs. Before it
+registers it wants four things from this side, which Android's IMS data
+connection manager gives it. dmail gives them when device.toml has an `[ims]`
+section, and the facts below are from the Android traces of the phone. Each
+step waits on the one before it, never on a timer.
+
+1. A link-local session. WDS on mux 4 with no subscription, IPv6, APN
+   `linklocal`, embedded call type. On the host the rmnet link `rmnet_ims0`
+   sits on that mux. Its address is an `fe80::/64` that dmail draws and adds
+   with duplicate address detection off, so the link can be used as soon as
+   it is up; the kernel adds none of its own.
+2. The connection manager. dmail offers QRTR service 0x302, version 1, and
+   answers every request the modem sends it. Link Address (0x23) names the
+   modem's end of the link: its address, a UDP port and a handshake id.
+3. The handshake, over UDP on that link. dmail says hello; the modem answers;
+   dmail sends the phone's properties: manufacturer, model, build id, Android
+   release and SDK level, from `[ims]`, as the stock firmware's Android has
+   them. Then the two probes Android sends, to ports 9099 and 9098. On Iliad
+   the modem registered without answering the hello (nx809j, 2026-11-02).
+4. The IMS bearer. The modem asks to activate one for APN `ims` (0x20). dmail
+   starts it on WDS: mux 3, the SIM's subscription, modem profile 2; IPv6
+   first, IPv4 if the network refuses that. Iliad's profile is IPv4v6 but the
+   network refuses IPv4 (call end reason 208).
+   Once it runs, dmail replies with success, then an indication with its
+   address as text after its family (0 IPv4, 1 IPv6). When it drops: an
+   indication saying so. Deactivate (0x21) stops
+   it. Any other APN, and a bearer that does not start, get a plain error
+   reply: a success reply followed by a failure indication reset the whole
+   phone (nx809j, 2026-11-02). There is no bearer for emergency calls; they
+   go over 2G/3G.
+
+dmail follows IMSA's registration indications and publishes them in
+`Modem1.Ims`. The modem only starts IMS while it is voice-centric with VoLTE
+preferred: data-centric it never asked for the bearer (nx809j, 2026-11-02).
+So VoLTE is preferred while IMS is registered and during an attempt to
+register: 10 minutes from the start, and again whenever registration drops.
+An attempt ends early when the network refuses packet service (causes 7, 8,
+14). After an attempt that failed, the modem is data-centric with 2G/3G
+preferred (Boot, step 4) and dmail tries again 10 minutes later, then 20, 40
+and every 60. From a fresh start the modem asked for the bearer at once and
+registered 0.6 s after it came up. After a refused bearer or a dmail restart
+it waited 2, 3, then 5 minutes, longer each time. VoLTE preferred while it
+waited drew no reject.
+A step that fails ends the run, and dmail starts again from step 1 a minute
+later.
+
 ## D-Bus API
 
 System bus, name `org.dmail`, object `/org/dmail`. States are strings.
@@ -310,6 +359,7 @@ Changes go out as PropertiesChanged.
 | | `SimSlot` | `y`: 1 or 2, the SIM for SMS and data |
 | | `Number` | `s`: the SIM's own number as it holds it, empty if none |
 | | `Attached` | `b`: registered with packet service attached |
+| | `Ims` | `s`: off, registering, registered. Off without `[ims]`, and between attempts |
 | | `LastReject` | `(sx)`: the last refused registration in words, and when; empty and 0 for none. Kept across `Restart` |
 | | `UnlockPin(s pin)` | |
 | | `SetSimSlot(y slot)` | saved, applied at once |
@@ -380,6 +430,18 @@ qmap = "v5"
 dl_datagrams = 16
 dl_datagram_size = 8192
 mtu_max = 1492
+```
+
+With VoLTE, `[ims]` names the phone as its stock Android does, from the
+stock build's properties:
+
+```toml
+[ims]
+manufacturer = "nubia"
+model = "NX809J"
+build = "BQ2A.250705.001-BP2A.250605.031.A3"
+release = "16"
+sdk = "36"
 ```
 
 `modem-setup` and the rmtfs and tqftpserv units live in the same device tree.

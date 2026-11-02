@@ -15,6 +15,19 @@ pub const STATE_DIR: &str = "/var/lib/dmail";
 #[serde(deny_unknown_fields)]
 pub struct Device {
     pub data: DataConfig,
+    /// VoLTE: what the modem is told about the phone. None: no VoLTE.
+    pub ims: Option<ImsConfig>,
+}
+
+/// The phone as its stock Android names it, from the build's properties.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImsConfig {
+    pub manufacturer: String,
+    pub model: String,
+    pub build: String,
+    pub release: String,
+    pub sdk: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

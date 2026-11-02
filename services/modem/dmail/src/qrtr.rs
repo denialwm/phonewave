@@ -9,7 +9,7 @@ use async_io::Async;
 
 const AF_QIPCRTR: libc::c_int = 42;
 /// The name service listens on this port of the local node.
-const PORT_CTRL: u32 = 0xffff_fffe;
+pub const PORT_CTRL: u32 = 0xffff_fffe;
 const TYPE_NEW_SERVER: u32 = 4;
 const TYPE_DEL_SERVER: u32 = 5;
 const TYPE_NEW_LOOKUP: u32 = 10;
@@ -138,6 +138,20 @@ impl Socket {
             })
             .await
     }
+}
+
+/// Offers `sock` as `service` to the other nodes, until it closes.
+pub async fn offer(sock: &Socket, service: u32, version: u8) -> io::Result<()> {
+    let me = sock.local_addr()?;
+    let pkt: Vec<u8> = [TYPE_NEW_SERVER, service, version.into(), me.node, me.port]
+        .iter()
+        .flat_map(|w| w.to_le_bytes())
+        .collect();
+    let ns = Addr {
+        node: me.node,
+        port: PORT_CTRL,
+    };
+    sock.send_to(&pkt, ns).await
 }
 
 /// A service registered with the name service.

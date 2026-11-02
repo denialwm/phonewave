@@ -6,6 +6,7 @@ pub mod bus;
 pub mod config;
 pub mod daemon;
 pub mod data;
+pub mod ims;
 pub mod modem;
 pub mod netlink;
 pub mod network;

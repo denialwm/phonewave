@@ -18,6 +18,7 @@ use futures_lite::{StreamExt, future};
 
 use crate::bus::{self, Bus, Command, Error, ModemProps, Reply, now};
 use crate::config::{self, Device, Settings};
+use crate::ims::{self, Registration};
 use crate::netlink::{self, Netlink, RouteWatch};
 use crate::qmi::{self, Client, Message, service};
 use crate::qrtr::{Addr, Event as QrtrEvent, Lookup, Service};
@@ -84,6 +85,7 @@ enum Event {
     Wds(Message),
     Wms(Message),
     Voice(Message),
+    Ims(Registration),
     /// The IPv4 routing table changed.
     Routes,
     Command(Command),
@@ -317,6 +319,7 @@ impl Daemon<'_> {
             forward(self.ex, m.voice.clone(), Event::Voice, tx.clone()),
             watch,
         ];
+        let ims_tx = tx.clone();
         match RouteWatch::new() {
             Ok(routes) => tasks.push(watch_routes(self.ex, routes, tx)),
             Err(e) => log(format!("following routes: {e}")),
@@ -336,6 +339,7 @@ impl Daemon<'_> {
             dns: Vec::new(),
             dns_default: None,
             calls: Vec::new(),
+            ims: Registration::Off,
             _tasks: tasks,
         };
 
@@ -352,6 +356,9 @@ impl Daemon<'_> {
             life.import_stored(self).await;
         }
         life.connect(self).await;
+        if let Some(task) = life.start_ims(self, ims_tx).await {
+            life._tasks.push(task);
+        }
         // Calls already running when dmail started.
         match voice::calls(&life.m.voice).await {
             Ok(calls) => life.update_calls(self, calls).await,
@@ -387,6 +394,7 @@ impl Daemon<'_> {
                 Event::Wds(msg) => life.on_wds(self, msg).await,
                 Event::Wms(msg) => life.on_wms(self, msg).await,
                 Event::Voice(msg) => life.on_voice(self, msg).await,
+                Event::Ims(r) => life.on_ims(self, &mut props, r).await,
                 Event::Routes => life.follow_routes(self).await,
                 Event::Command(Command::Restart(reply)) => {
                     if !life.calls.is_empty() {
@@ -467,7 +475,7 @@ async fn configure(m: &Modem) -> Result<(), (&'static str, qmi::Error)> {
             .await
             .map_err(|e| ("going online", e))?;
     }
-    // Until dmail runs IMS: see DESIGN.md, Boot, step 4.
+    // Until IMS registers: see DESIGN.md, Boot, step 4.
     network::set_voice_preference(&m.nas, network::DATA_CENTRIC, network::VOICE_CS_PREFERRED)
         .await
         .map_err(|e| ("voice preference", e))?;
@@ -707,6 +715,7 @@ struct Life {
     dns_default: Option<bool>,
     /// The modem's calls, each with when it connected (0 until then).
     calls: Vec<(voice::Call, i64)>,
+    ims: Registration,
     _tasks: Vec<Task<()>>,
 }
 
@@ -916,27 +925,53 @@ impl Life {
         }
     }
 
-    /// The carrier profile loads once the SIM opens and sets VoLTE preferred
-    /// again: see DESIGN.md, Boot, step 4.
+    /// VoLTE preferred while IMS is registered or trying to, 2G/3G the rest
+    /// of the time. The carrier profile loads once the SIM opens and sets
+    /// VoLTE preferred whatever IMS does: see DESIGN.md, Boot, step 4, and
+    /// VoLTE.
     async fn hold_voice_preference(&self) {
         let nas = &self.m.nas;
+        let want = if self.ims != Registration::Off {
+            (network::VOICE_CENTRIC, network::VOICE_PS_PREFERRED)
+        } else {
+            (network::DATA_CENTRIC, network::VOICE_CS_PREFERRED)
+        };
         match network::voice_preference(nas).await {
-            Ok((Some(network::DATA_CENTRIC), Some(network::VOICE_CS_PREFERRED))) => {}
+            Ok((Some(usage), Some(voice))) if (usage, voice) == want => {}
             Ok((usage, voice)) => {
                 log(format!(
-                    "voice preference changed (usage {usage:?}, voice domain {voice:?}), setting data-centric again"
+                    "voice preference was usage {usage:?}, voice domain {voice:?}; setting {want:?}"
                 ));
-                let set = network::set_voice_preference(
-                    nas,
-                    network::DATA_CENTRIC,
-                    network::VOICE_CS_PREFERRED,
-                );
-                if let Err(e) = set.await {
+                if let Err(e) = network::set_voice_preference(nas, want.0, want.1).await {
                     log(format!("voice preference: {e}"));
                 }
             }
             Err(e) => log(format!("voice preference: {e}")),
         }
+    }
+
+    /// Starts VoLTE if the device has it: see DESIGN.md, VoLTE.
+    async fn start_ims(&mut self, d: &Daemon<'_>, tx: Sender<Event>) -> Option<Task<()>> {
+        let config = d.device.ims.clone()?;
+        if let Err(e) = self.open_port(d).await {
+            log(format!("VoLTE: {e}"));
+            return None;
+        }
+        let parent = d.device.data.ipa_netdev.clone();
+        let report = move |r| {
+            let _ = tx.try_send(Event::Ims(r));
+        };
+        Some(d.ex.spawn(ims::run(config, parent, self.endpoint, report)))
+    }
+
+    async fn on_ims(&mut self, d: &Daemon<'_>, props: &mut ModemProps, r: Registration) {
+        if r == self.ims {
+            return;
+        }
+        self.ims = r;
+        props.ims = r.as_str().into();
+        d.publish_modem(props);
+        self.hold_voice_preference().await;
     }
 
     async fn on_voice(&mut self, d: &Daemon<'_>, msg: Message) {
@@ -1074,20 +1109,7 @@ impl Life {
     /// MTU as set on the link.
     async fn start_session(&mut self, d: &Daemon<'_>) -> Result<data::Settings, String> {
         let cfg = &d.device.data;
-        if !self.port_ready {
-            data::open_port(&self.m.dpm, self.endpoint, cfg.dpm.rx, cfg.dpm.tx)
-                .await
-                .map_err(qmi_error("data port"))?;
-            data::set_format(
-                &self.m.wda,
-                self.endpoint,
-                cfg.dl_datagrams,
-                cfg.dl_datagram_size,
-            )
-            .await
-            .map_err(qmi_error("data format"))?;
-            self.port_ready = true;
-        }
+        self.open_port(d).await?;
         let apn = match &self.apn {
             Some(apn) => apn.clone(),
             None => {
@@ -1100,13 +1122,9 @@ impl Life {
         let net = |e: std::io::Error| format!("{LINK}: {e}");
         // The link is dmail's alone: whatever is left of it is stale.
         self.drop_link();
-        let flags = netlink::RMNET_INGRESS_DEAGGREGATION
-            | netlink::RMNET_INGRESS_MAP_CKSUMV5
-            | netlink::RMNET_EGRESS_MAP_CKSUMV5;
         self.netlink
-            .add_rmnet(&cfg.ipa_netdev, LINK, MUX_ID.into(), flags)
+            .add_rmnet(&cfg.ipa_netdev, LINK, MUX_ID.into(), netlink::RMNET_FLAGS)
             .map_err(net)?;
-        self.netlink.set_up(&cfg.ipa_netdev, None).map_err(net)?;
 
         data::bind_mux(&self.m.wds, self.endpoint, MUX_ID)
             .await
@@ -1139,6 +1157,31 @@ impl Life {
             dns.join(" ")
         ));
         Ok(s)
+    }
+
+    /// Opens and frames the data port, once per modem life; the data session
+    /// and VoLTE both run on it.
+    async fn open_port(&mut self, d: &Daemon<'_>) -> Result<(), String> {
+        if self.port_ready {
+            return Ok(());
+        }
+        let cfg = &d.device.data;
+        data::open_port(&self.m.dpm, self.endpoint, cfg.dpm.rx, cfg.dpm.tx)
+            .await
+            .map_err(qmi_error("data port"))?;
+        data::set_format(
+            &self.m.wda,
+            self.endpoint,
+            cfg.dl_datagrams,
+            cfg.dl_datagram_size,
+        )
+        .await
+        .map_err(qmi_error("data format"))?;
+        self.netlink
+            .set_up(&cfg.ipa_netdev, None)
+            .map_err(|e| format!("{}: {e}", cfg.ipa_netdev))?;
+        self.port_ready = true;
+        Ok(())
     }
 
     /// Tells resolved whether every lookup goes to the carrier's DNS: only

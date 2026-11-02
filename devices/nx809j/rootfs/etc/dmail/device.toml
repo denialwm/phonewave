@@ -5,3 +5,10 @@ qmap = "v5"
 dl_datagrams = 16
 dl_datagram_size = 8192
 mtu_max = 1492
+
+[ims]
+manufacturer = "nubia"
+model = "NX809J"
+build = "BQ2A.250705.001-BP2A.250605.031.A3"
+release = "16"
+sdk = "36"
