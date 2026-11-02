@@ -38,7 +38,7 @@ last.
 | Storage | works | | UFS |
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
-| Video out (USB-C) | ? | | |
+| Video out (USB-C) | works | 2026-11-02, devices-221, user | DisplayPort |
 | Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
 | Battery | works | devices-130, probe | battmgr |
 | Wi-Fi | works | devices-128, user | WCN7860, ath12k |
