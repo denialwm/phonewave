@@ -1,14 +1,14 @@
-//! ledger: what ledgerd booked.
+//! battery-stats: what battery-statsd booked.
 
 use std::path::Path;
 use std::process::ExitCode;
 
-use ledger::book::{self, RUN_DIR, STATE_DIR, hour_of};
-use ledger::report;
-use ledger::sample::{Power, Sample, Screen, clock};
+use battery_stats::book::{self, RUN_DIR, STATE_DIR, hour_of};
+use battery_stats::report;
+use battery_stats::sample::{Power, Sample, Screen, clock};
 
-const USAGE: &str = "usage: ledger [summary|hours|builds] [--last 24h|7d|90m]
-       ledger now";
+const USAGE: &str = "usage: battery-stats [summary|hours|builds] [--last 24h|7d|90m]
+       battery-stats now";
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -17,7 +17,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("ledger: {e}");
+            eprintln!("battery-stats: {e}");
             ExitCode::FAILURE
         }
     }
@@ -66,7 +66,7 @@ fn run(args: Vec<String>) -> Result<String, String> {
     buckets.retain(|b| b.hour >= since);
     let title = format!(
         "{}, last {} from {}",
-        ledger::sysfs::read("/proc/sys/kernel/hostname").unwrap_or_default(),
+        battery_stats::sysfs::read("/proc/sys/kernel/hostname").unwrap_or_default(),
         report::duration(last as f64),
         report::local(since, "%a %d %H:%M")
     );

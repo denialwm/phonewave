@@ -7,7 +7,7 @@ rtc-offset
 radio-addr
 callaudio
 dmail
-ledger
+battery-stats
 steinerd
 braun
 screen-record

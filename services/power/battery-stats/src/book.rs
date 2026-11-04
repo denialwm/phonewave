@@ -1,4 +1,4 @@
-//! The ledger itself: for each hour, state and build, how long the phone
+//! The book itself: for each hour, state and build, how long the phone
 //! spent there, the energy it took and what the hardware did. Closed hours
 //! are appended to a file of JSON lines; the open ones are kept in /run so
 //! a restart of the daemon loses nothing.
@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::counters::Usage;
 use crate::sample::{Sample, State};
 
-pub const STATE_DIR: &str = "/var/lib/ledger";
-pub const RUN_DIR: &str = "/run/ledger";
+pub const STATE_DIR: &str = "/var/lib/battery-stats";
+pub const RUN_DIR: &str = "/run/battery-stats";
 const HOURS: &str = "hours.jsonl";
 const OPEN: &str = "open.json";
 /// Hours older than this are dropped.
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn hours_file_round_trip() {
-        let dir = std::env::temp_dir().join(format!("ledger-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("battery-stats-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let mut b = Bucket::new(3600, State::Asleep, "k");
         b.usage.ddr.insert(547, 2.0);

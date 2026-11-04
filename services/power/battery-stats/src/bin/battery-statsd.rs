@@ -1,4 +1,4 @@
-//! ledgerd: books where the battery goes, every ten seconds while the phone
+//! battery-statsd: books where the battery goes, every ten seconds while the phone
 //! is awake. It never wakes the phone: a sleep shows afterwards as a gap
 //! between the monotonic and boot clocks.
 
@@ -6,20 +6,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use ledger::book::{self, Book, KEEP_DAYS, RUN_DIR, STATE_DIR, hour_of};
-use ledger::counters::Hardware;
-use ledger::sample::{Power, Sample, Screen};
-use ledger::sysfs::read;
+use battery_stats::book::{self, Book, KEEP_DAYS, RUN_DIR, STATE_DIR, hour_of};
+use battery_stats::counters::Hardware;
+use battery_stats::sample::{Power, Sample, Screen};
+use battery_stats::sysfs::read;
 
 const TICK_MS: i32 = 10_000;
 /// Paths whose link target or first line names a build, one per line.
-const TAGS: &str = "/etc/ledger/tags";
+const TAGS: &str = "/etc/battery-stats/tags";
 
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("ledgerd: {e}");
+            eprintln!("battery-statsd: {e}");
             ExitCode::FAILURE
         }
     }
@@ -72,7 +72,7 @@ fn wait(fd: libc::c_int) -> bool {
 
 fn run() -> Result<(), String> {
     let Some(power) = Power::find() else {
-        eprintln!("ledgerd: no battery here");
+        eprintln!("battery-statsd: no battery here");
         return Ok(());
     };
     let screen = Screen::find();
@@ -96,7 +96,7 @@ fn run() -> Result<(), String> {
     let mut counters = hardware.read();
     let mut trimmed_day = i64::MIN;
     eprintln!(
-        "ledgerd: battery {}, booking {}",
+        "battery-statsd: battery {}, booking {}",
         power.battery().display(),
         build(&tags)
     );
@@ -111,7 +111,7 @@ fn run() -> Result<(), String> {
 
         let closed = book.close_before(hour_of(before.real));
         if let Err(e) = book::append(state, &closed) {
-            eprintln!("ledgerd: {}: {e}", state.display());
+            eprintln!("battery-statsd: {}: {e}", state.display());
             // Keep them for the next try.
             book.open.extend(closed);
         }
@@ -120,11 +120,11 @@ fn run() -> Result<(), String> {
             trimmed_day = day;
             let oldest = hour_of(before.real) - KEEP_DAYS * 86400;
             if let Err(e) = book::trim(state, oldest) {
-                eprintln!("ledgerd: trimming: {e}");
+                eprintln!("battery-statsd: trimming: {e}");
             }
         }
         if let Err(e) = book::save_open(run, &book.open) {
-            eprintln!("ledgerd: {}: {e}", run.display());
+            eprintln!("battery-statsd: {}: {e}", run.display());
         }
     }
 

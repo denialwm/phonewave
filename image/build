@@ -221,7 +221,7 @@ inside() {
   touch "$root/usr/lib/clock-epoch"
 
   chroot "$root" systemctl enable denial.service sshd.service NetworkManager.service systemd-networkd.service bluetooth.service \
-    upower.service systemd-timesyncd.service pacman-keyring.service zram-swap.service ledgerd.service hapticd.service \
+    upower.service systemd-timesyncd.service pacman-keyring.service zram-swap.service battery-statsd.service hapticd.service \
     "${units[@]}"
 
   if [ -n "$dev_access" ]; then

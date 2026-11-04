@@ -1,4 +1,4 @@
-//! The ledger as text: totals per state, what the hardware did in each, a
+//! The book as text: totals per state, what the hardware did in each, a
 //! line per hour, and the states' averages per build.
 
 use std::collections::BTreeMap;
@@ -239,7 +239,7 @@ pub fn summary(buckets: &[Bucket], title: &str) -> String {
                 .map(|b| b.build.as_str());
             let _ = writeln!(
                 out,
-                "{} builds, latest {} (ledger builds compares them)",
+                "{} builds, latest {} (battery-stats builds compares them)",
                 many.len(),
                 latest.unwrap_or("")
             );

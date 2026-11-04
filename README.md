@@ -64,7 +64,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | audio | [`callaudio`](services/audio/callaudio) | Puts the sound card on its voice call profile while the modem has a call; call volume and mute | any with a `Voice Call` UCM verb |
 | audio | [`voicegen`](services/audio/voicegen) | Builds a voice call profile for the kernel from the stock ACDB, on the workstation | Qualcomm AudioReach |
 | screen | [`screen-record`](services/screen/screen-record) | Records the screen through Denial, scaled on the GPU, to H.264 video | any running Denial |
-| power | [`ledger`](services/power/ledger) | Books where the battery goes: energy and hardware use per screen state, hour and build | any with a battery |
+| power | [`battery-stats`](services/power/battery-stats) | Books where the battery goes: energy and hardware use per screen state, hour and build | any with a battery |
 
 ## Install
 

@@ -1,13 +1,13 @@
 [Unit]
-Description=Battery ledger
+Description=Battery stats
 
 [Service]
-ExecStart=/usr/bin/ledgerd
+ExecStart=/usr/bin/battery-statsd
 Restart=on-failure
 RestartSec=5
-StateDirectory=ledger
+StateDirectory=battery-stats
 StateDirectoryMode=0755
-RuntimeDirectory=ledger
+RuntimeDirectory=battery-stats
 RuntimeDirectoryMode=0755
 RuntimeDirectoryPreserve=restart
 Nice=10

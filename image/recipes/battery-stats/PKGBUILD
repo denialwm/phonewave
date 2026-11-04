@@ -1,8 +1,8 @@
-# Phonewave's ledger (services/power/ledger) for the phones. Build: image/pack ledger
-pkgname=ledger
+# Phonewave's battery-stats (services/power/battery-stats) for the phones. Build: image/pack battery-stats
+pkgname=battery-stats
 pkgdesc='Battery statistics by phone state'
 license=(MIT)
-_src=$startdir/../../../services/power/ledger
+_src=$startdir/../../../services/power/battery-stats
 . "$startdir/../recipe.sh"
 depends=(glibc gcc-libs dbus)
 

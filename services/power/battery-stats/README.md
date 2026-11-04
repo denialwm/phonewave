@@ -1,8 +1,8 @@
-# ledger
+# battery-stats
 
-Where the battery goes. `ledgerd` books, for each hour, each state of the
-phone and each build, how long the phone spent there, the energy it took and
-what the hardware did meanwhile. `ledger` prints it.
+Where the battery goes. `battery-statsd` books, for each hour, each state of
+the phone and each build, how long the phone spent there, the energy it took
+and what the hardware did meanwhile. `battery-stats` prints it.
 
 The states:
 
@@ -15,7 +15,7 @@ The states:
 
 ## How it counts
 
-Every 10 seconds while the phone is awake, `ledgerd` reads the battery's
+Every 10 seconds while the phone is awake, `battery-statsd` reads the battery's
 `current_now` and `voltage_now` and adds the energy since the last reading.
 It never wakes the phone: a sleep shows afterwards as the difference between
 `CLOCK_BOOTTIME` and `CLOCK_MONOTONIC`. The energy of a sleep is the drop in
@@ -37,7 +37,7 @@ growth with the state:
 | Bytes through each interface on hardware | `/sys/class/net/*/statistics` |
 
 Each line names the kernel release and the builds listed in
-`/etc/ledger/tags`: one path per line, named by the link's target or the
+`/etc/battery-stats/tags`: one path per line, named by the link's target or the
 file's first line. A device's rootfs carries its own, for example its Denial
 `current` link.
 
@@ -45,8 +45,8 @@ file's first line. A device's rootfs carries its own, for example its Denial
 
 | Path | What |
 |---|---|
-| `/var/lib/ledger/hours.jsonl` | Closed hours, one bucket per line; 31 days are kept |
-| `/run/ledger/open.json` | The hours still open, rewritten every tick; a restarted daemon carries on from it |
+| `/var/lib/battery-stats/hours.jsonl` | Closed hours, one bucket per line; 31 days are kept |
+| `/run/battery-stats/open.json` | The hours still open, rewritten every tick; a restarted daemon carries on from it |
 
 A stop appends the open hours to the file. Buckets with the same hour, state
 and build add up.
@@ -54,11 +54,11 @@ and build add up.
 ## Use
 
 ```sh
-ledger                  # the last 24 hours per state, with the hardware
-ledger --last 7d
-ledger hours            # a line per hour
-ledger builds           # each build's average per state, for 31 days
-ledger now              # the state and the power right now
+battery-stats             # the last 24 hours per state, with the hardware
+battery-stats --last 7d
+battery-stats hours       # a line per hour
+battery-stats builds      # each build's average per state, for 31 days
+battery-stats now         # the state and the power right now
 ```
 
 ## Build and install
@@ -67,9 +67,9 @@ ledger now              # the state and the power right now
 make
 make check
 sudo make install
-sudo systemctl enable --now ledgerd
+sudo systemctl enable --now battery-statsd
 ```
 
 `build-aarch64.sh` cross-builds for the phones against the workspace
 sysroot; then `make install BIN=target/aarch64-unknown-linux-gnu/release`.
-ledgerd runs as root, for debugfs.
+battery-statsd runs as root, for debugfs.
