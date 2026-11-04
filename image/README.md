@@ -49,8 +49,9 @@ Denial key and publishes it. The image itself installs the packages
 
 `boot.img` holds the kernel and, at the page after it, a read-only erofs
 filesystem that `boot-tail` packs: the kernel's modules, the firmware that
-overrides linux-firmware's, and the units that belong to the kernel, such as
-workarounds for its open issues. The bootloader loads only the kernel the
+overrides linux-firmware's, the units that belong to the kernel, such as
+workarounds for its open issues, and what services read about the hardware,
+such as dmail's `dmail/device.toml`. The bootloader loads only the kernel the
 header lists. The early userspace mounts the rest in place, from the
 partition, at `/usr/lib/modules` (`fsoffset=` the kernel size, rounded up,
 plus the header page), points `firmware_class.path` at its `firmware/` and

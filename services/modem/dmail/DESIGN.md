@@ -420,9 +420,12 @@ change them with the setters; access to the bus is the permission.
 
 ## Device config
 
-`/etc/dmail/device.toml`, installed from `devices/<codename>/rootfs/`. A
-phone without one has no modem set up: dmail says so once, stays off the bus
-and waits to be stopped.
+`dmail/device.toml` in the boot image's tail, from
+`devices/<codename>/boot/tail/`, which the phone mounts at
+`/usr/lib/modules/<release>/`: the data path is the kernel's, and `[ims]`
+names the stock release the tail's firmware comes from, so they change
+together. `/etc/dmail/device.toml` overrides it. A phone with neither has no
+modem set up: dmail says so once, stays off the bus and waits to be stopped.
 
 ```toml
 [data]

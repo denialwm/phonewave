@@ -208,8 +208,10 @@ It goes to `/usr/lib/firmware/qcom/kaanapali/Xiaomi-17-tplg.bin`.
 
 dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `pudding-modem-rmtfs` and
-`pudding-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
-`pudding-dmail.conf`, which puts logix in the `dmail` group. The data
+`pudding-modem-tqftpserv` units it starts and `pudding-dmail.conf`, which
+puts logix in the `dmail` group. The device file is
+`boot/tail/dmail/device.toml`, in the boot image's tail; a boot image without
+a tail leaves it to `/etc/dmail/device.toml`, a copy on the phone. The data
 endpoints are those of Kaanapali's IPA (AP to modem 2, modem to AP 24), as
 on the RedMagic 11 Pro.
 

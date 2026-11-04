@@ -167,8 +167,10 @@ video group write it. Kernels from devices166.
 
 dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `nx809j-modem-rmtfs` and
-`nx809j-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
-`nx809j-dmail.conf`, which puts logix in the `dmail` group. The data
+`nx809j-modem-tqftpserv` units it starts and `nx809j-dmail.conf`, which puts
+logix in the `dmail` group. The device file is `boot/tail/dmail/device.toml`,
+in the boot image's tail; a boot image without a tail leaves it to
+`/etc/dmail/device.toml`, a copy on the phone. The data
 endpoints are those of Kaanapali's IPA (AP to modem 2, modem to AP 24), the
 same as the Ace 3. The modem firmware lives in
 `/usr/lib/firmware/qcom/kaanapali/nubia/nx809j/`; `rmtfs`, `tqftpserv` and
@@ -180,7 +182,7 @@ written on the phone from `/sys/devices/soc0/serial_number` and never printed.
 Install dmail with its `make install` layout, then run `systemd-sysusers`,
 reload systemd and D-Bus and enable `dmail.service`.
 
-VoLTE: the `[ims]` section of `/etc/dmail/device.toml` names the phone as the
+VoLTE: the `[ims]` section of the device file names the phone as the
 stock Android on both slots does (REDMAGICOS11.5.8MR1_EA: Android 16, SDK 36,
 build BQ2A.250705.001-BP2A.250605.031.A3), read from `system_a` and
 `system_b` in super. The modem firmware comes from that build.

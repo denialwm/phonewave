@@ -1,6 +1,6 @@
 //! The device file, the APN override and the user's settings.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use serde::Deserialize;
@@ -8,6 +8,9 @@ use serde::Deserialize;
 use crate::data::{ENDPOINT_EMBEDDED, Endpoint};
 
 pub const DEVICE_FILE: &str = "/etc/dmail/device.toml";
+/// The device file a boot image carries in its tail, which the phone mounts
+/// at the running kernel's modules folder.
+const TAIL_DEVICE_FILE: &str = "dmail/device.toml";
 pub const APN_FILE: &str = "/etc/dmail/apn.toml";
 pub const STATE_DIR: &str = "/var/lib/dmail";
 
@@ -49,6 +52,20 @@ pub struct Dpm {
     pub iface: u32,
     pub rx: u32,
     pub tx: u32,
+}
+
+/// The device file: /etc's, which overrides, else the one the boot image's
+/// tail carries. None: this phone's modem is not set up.
+pub fn device_file() -> Option<PathBuf> {
+    let etc = PathBuf::from(DEVICE_FILE);
+    if etc.exists() {
+        return Some(etc);
+    }
+    let release = fs::read_to_string("/proc/sys/kernel/osrelease").ok()?;
+    let tail = Path::new("/usr/lib/modules")
+        .join(release.trim())
+        .join(TAIL_DEVICE_FILE);
+    tail.exists().then_some(tail)
 }
 
 impl Device {

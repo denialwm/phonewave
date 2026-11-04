@@ -1,6 +1,6 @@
 //! dmail: the modem service. See DESIGN.md.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 
@@ -24,11 +24,11 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), String> {
     let signals = Signals::new([Signal::Term, Signal::Int]).map_err(|e| format!("signals: {e}"))?;
-    let device_file = Path::new(config::DEVICE_FILE);
-    if !device_file.exists() {
+    let Some(device_file) = config::device_file() else {
         return wait(signals);
-    }
-    let device = Device::load(device_file)?;
+    };
+    let device = Device::load(&device_file)?;
+    eprintln!("dmail: device file {}", device_file.display());
     let state_dir = PathBuf::from(config::STATE_DIR);
     let store =
         Store::open(&state_dir.join("messages.db")).map_err(|e| format!("message store: {e}"))?;
@@ -69,10 +69,7 @@ fn run() -> Result<(), String> {
 /// A phone whose modem is not set up has no device file. dmail stays off the
 /// bus, so apps see no modem, and waits to be stopped.
 fn wait(mut signals: Signals) -> Result<(), String> {
-    eprintln!(
-        "dmail: no {}: this phone's modem is not set up",
-        config::DEVICE_FILE
-    );
+    eprintln!("dmail: no device file: this phone's modem is not set up");
     future::block_on(signals.next());
     Ok(())
 }

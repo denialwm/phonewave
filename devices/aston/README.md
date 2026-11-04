@@ -98,8 +98,10 @@ reconnect the cable to let the PMIC classify the charger again.
 
 Modem: dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `aston-modem-rmtfs` and
-`aston-modem-tqftpserv` units it starts, `/etc/dmail/device.toml` and
-`aston-dmail.conf`, which puts logix in the `dmail` group. The EFS copy never
+`aston-modem-tqftpserv` units it starts and `aston-dmail.conf`, which puts
+logix in the `dmail` group. The device file is `boot/tail/dmail/device.toml`,
+in the boot image's tail; a boot image without a tail leaves it to
+`/etc/dmail/device.toml`, a copy on the phone. The EFS copy never
 enters this repo: on the phone `/var/lib/aston-modem/efs` links to the copy
 directory, and `efs.handset` beside it holds the SoC serial, written on the
 phone from `/sys/devices/soc0/serial_number` and never printed. Install dmail

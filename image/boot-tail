@@ -7,7 +7,9 @@
 # firmware/ (looked up before /usr/lib/firmware), systemd/system/ (units
 # the early userspace hands to systemd) and stock-firmware.conf with its
 # .sha256 (the firmware the phone's own partitions hold, which the early
-# userspace binds into firmware/ through image/stock-firmware). The image's root holds one folder,
+# userspace binds into firmware/ through image/stock-firmware), and what
+# services read about the hardware, such as dmail/device.toml, the modem's
+# data path. The image's root holds one folder,
 # the release, and the phone mounts it at /usr/lib/modules: the kernel, its
 # modules and its firmware then always come from the same partition.
 set -euo pipefail
