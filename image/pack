@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Build aarch64 pacman packages from the recipes, for every image.
+# Usage: image/pack [RECIPE...]    (no names: all of them)
+#
+# Writes $PHONEWAVE_CACHE/image/packages/, keeping only the newest build of
+# each package.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}/image
+mkdir -p "$cache/packages" "$cache/makepkg" "$cache/sources"
+
+recipes=("$@")
+[ ${#recipes[@]} -gt 0 ] || mapfile -t recipes < <(cd "$here/recipes" && ls -d */ | tr -d /)
+
+conf=$(mktemp)
+trap 'rm -f "$conf"' EXIT
+{ cat /etc/makepkg.conf; echo 'CARCH=aarch64'; echo 'CHOST=aarch64-unknown-linux-gnu'
+  echo 'PKGEXT=.pkg.tar.zst'; echo "PKGDEST=$cache/packages"
+  echo "BUILDDIR=$cache/makepkg"; echo "SRCDEST=$cache/sources"
+  echo 'BUILDENV=(!distcc color !ccache !check !sign)'
+  # This workstation's flags (-march=native and the like) are not the phone's.
+  echo 'CFLAGS="-O2 -pipe"'; echo 'CXXFLAGS="-O2 -pipe"'; echo 'LDFLAGS=""'
+  echo 'LTOFLAGS=""'
+  # Unset, not empty: any RUSTFLAGS hides cross.sh's per-target link flags.
+  echo 'unset RUSTFLAGS'; } > "$conf"
+
+for recipe in "${recipes[@]}"; do
+  echo "== $recipe"
+  (cd "$here/recipes/$recipe" && makepkg --config "$conf" -f --nodeps --noconfirm)
+  # One build per package: drop the older files of what this recipe made.
+  for name in $(cd "$here/recipes/$recipe" && makepkg --config "$conf" --packagelist | xargs -n1 basename); do
+    pkg=${name%-*-*-*}
+    for old in "$cache/packages/$pkg"-[0-9]*.pkg.tar.zst; do
+      [ "$(basename "$old")" = "$name" ] || rm -f "$old"
+    done
+  done
+done

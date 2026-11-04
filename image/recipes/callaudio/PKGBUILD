@@ -1,0 +1,15 @@
+# Phonewave's callaudio (services/audio/callaudio) for the phones. Build: image/pack callaudio
+pkgname=callaudio
+pkgdesc='Puts the sound card on its voice call profile while the modem has a call'
+license=(MIT)
+_src=$startdir/../../../services/audio/callaudio
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs alsa-lib libpipewire)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Pack a kernel release's modules into the filesystem a boot image carries
+# after its kernel. Usage: image/boot-tail RELEASE_DIR DEVICE_DIR OUTPUT
+#
+# RELEASE_DIR is a linux-perpetua-build release. DEVICE_DIR holds what the
+# device adds next to the modules, laid out as the release folder:
+# firmware/ (looked up before /usr/lib/firmware), systemd/system/ (units
+# the early userspace hands to systemd) and stock-firmware.conf with its
+# .sha256 (the firmware the phone's own partitions hold, which the early
+# userspace binds into firmware/ through image/stock-firmware). The image's root holds one folder,
+# the release, and the phone mounts it at /usr/lib/modules: the kernel, its
+# modules and its firmware then always come from the same partition.
+set -euo pipefail
+release=${1:?usage: image/boot-tail RELEASE_DIR DEVICE_DIR OUTPUT}
+device=${2:?usage: image/boot-tail RELEASE_DIR DEVICE_DIR OUTPUT}
+output=${3:?usage: image/boot-tail RELEASE_DIR DEVICE_DIR OUTPUT}
+name=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["release"])' "$release/manifest.json")
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+cp -a "$release/modules-root/lib/modules/$name" "$stage/"
+rm -f "$stage/$name/build" "$stage/$name/source"
+install -m644 "$release/artifacts/kernel.config" "$stage/$name/config"
+install -m644 "$release/artifacts/System.map" "$stage/$name/System.map"
+cp -a "$device/." "$stage/$name/"
+if [ -f "$device/stock-firmware.conf" ]; then
+  target=$(. "$device/stock-firmware.conf"; echo "$target")
+  install -Dm755 "$(dirname "$0")/stock-firmware" "$stage/$name/libexec/stock-firmware"
+  mkdir -p "$stage/$name/firmware/$target"
+fi
+# The modules are zstd files already: erofs stores them as they are.
+mkfs.erofs --quiet -b4096 --all-root -T0 "$output" "$stage" >/dev/null
+echo "$output: $name, $(($(stat -c %s "$output") / 1048576)) MiB"

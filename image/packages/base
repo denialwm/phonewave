@@ -1,0 +1,24 @@
+# Packages every image gets, one per line.
+base
+archlinuxarm-keyring
+sudo
+openssh
+networkmanager
+wpa_supplicant
+iw
+wireless-regdb
+bluez
+bluez-utils
+pipewire
+pipewire-pulse
+wireplumber
+alsa-utils
+polkit
+upower
+denial
+denial-flutter-engine
+xorg-xwayland
+kitty
+nano
+less
+htop

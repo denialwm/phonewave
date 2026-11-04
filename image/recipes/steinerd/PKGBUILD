@@ -1,0 +1,15 @@
+# Phonewave's steinerd (services/sensors/steinerd) for the phones. Build: image/pack steinerd
+pkgname=steinerd
+pkgdesc='Sensor service'
+license=(MIT)
+_src=$startdir/../../../services/sensors/steinerd
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs dbus)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

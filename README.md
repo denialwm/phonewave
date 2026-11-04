@@ -22,11 +22,17 @@ Named after Future Gadget #8 from Steins;Gate, a microwave wired to a phone.
 | `devices/<codename>/rootfs/` | Files installed on that device, at the same path. `rootfs/usr/lib/udev/rules.d/x.rules` installs to `/usr/lib/udev/rules.d/x.rules`. |
 | `devices/<codename>/boot/` | Packs a linux-perpetua release into the device's boot images, and the init_boot sources. |
 | `devices/<codename>/packaging/` | Pacman packages for the device, where it has them. |
-| `devices/<codename>/tools/` | Host scripts: install a kernel release, reboot checks, Denial deployment. They reach the device as `ssh <codename>`. |
+| `tools/` | Host scripts for any phone: `phone-reboot`, `phone-shot`, `phone-notifications`. Each takes the phone's SSH host. |
+| `image/` | The device image builder: one userdata image, per-device boot images. |
+| `REMINDERS.md` | Open work, until it is done. |
 | `services/<capability>/<name>/` | Daemons and drivers for one hardware capability: haptics, fingerprint, clock. Each is a self-contained project. |
 
 Programs go under `services/`; the configuration that ties them to one device
-goes under `devices/`. Example: hapticd drives any Linux vibration motor, so it
+goes under `devices/`. A device folder holds only what is different on that
+device: hardware facts, firmware, boot images, the kernel package. A tool that
+works on every phone goes in `tools/`. There are no device build tools:
+Denial is just Denial, and the apps and Droidloom build the same way for every
+phone. Example: hapticd drives any Linux vibration motor, so it
 lives in `services/haptics/hapticd/`. The udev rule that hands the Ace 3's
 PM8550B actuator to hapticd names a chip, so it lives in
 `devices/aston/rootfs/usr/lib/udev/rules.d/`.

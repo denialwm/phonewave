@@ -1,17 +1,20 @@
 PREFIX ?= /usr
 DESTDIR ?=
 CARGO ?= cargo
+# The Rust target of a cross build, such as aarch64-unknown-linux-gnu.
+TARGET ?=
+BIN = target/$(if $(TARGET),$(TARGET)/)release
 
 .PHONY: all check install
 all:
-	$(CARGO) build --release --locked
+	$(CARGO) build --release --locked $(if $(TARGET),--target $(TARGET))
 check:
 	$(CARGO) fmt --check
 	$(CARGO) clippy --locked --all-targets -- -D warnings
 	$(CARGO) test --locked
 install:
-	install -Dm755 target/release/steinerd $(DESTDIR)$(PREFIX)/bin/steinerd
-	install -Dm755 target/release/steinerctl $(DESTDIR)$(PREFIX)/bin/steinerctl
+	install -Dm755 $(BIN)/steinerd $(DESTDIR)$(PREFIX)/bin/steinerd
+	install -Dm755 $(BIN)/steinerctl $(DESTDIR)$(PREFIX)/bin/steinerctl
 	install -Dm644 packaging/steinerd.service $(DESTDIR)$(PREFIX)/lib/systemd/system/steinerd.service
 	install -Dm644 packaging/org.steinerd.service $(DESTDIR)$(PREFIX)/share/dbus-1/system-services/org.steinerd.service
 	sed -i 's|/usr/bin/steinerd|$(PREFIX)/bin/steinerd|g' $(DESTDIR)$(PREFIX)/lib/systemd/system/steinerd.service $(DESTDIR)$(PREFIX)/share/dbus-1/system-services/org.steinerd.service

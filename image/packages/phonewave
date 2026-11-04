@@ -1,0 +1,24 @@
+# Packages image/pack builds, for every image. Devices enable the services
+# their hardware has.
+phonewave-system
+hapticd
+zram-swap
+rtc-offset
+radio-addr
+callaudio
+dmail
+ledger
+steinerd
+braun
+screen-record
+wallpaper-depth
+denial-app-calls
+denial-app-camera
+denial-app-messages
+denial-app-sensors
+denial-app-settings
+slot-success
+# Mesa main, for the Adreno 722, in place of Arch's.
+mesa-denial
+vulkan-freedreno-denial
+vulkan-mesa-implicit-layers-denial

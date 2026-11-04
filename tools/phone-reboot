@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Reboot a phone only when the reboot is safe: it runs from Linux's slot, the
+# slot is marked successful, so a reboot costs no boot try, and the boot
+# partition carries its kernel's modules.
+#   phone-reboot HOST [--check|--reboot]
+set -euo pipefail
+host=${1:?usage: phone-reboot HOST [--check|--reboot]}
+case "${2:---check}" in
+  --check|--reboot) action=${2:---check} ;;
+  *) echo 'usage: phone-reboot HOST [--check|--reboot]' >&2; exit 2 ;;
+esac
+ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 \
+    -o ServerAliveCountMax=3 "$host" sh -s -- "$action" <<'REMOTE'
+set -eu
+stop() { echo "STOP: $*. No reboot requested." >&2; exit 1; }
+slot=$(sed -n 's/^slot=//p' /etc/slot-success.conf | tail -n 1)
+running=$(slot-success running)
+[ "$running" = "$slot" ] || stop "running from slot $running, not Linux's slot $slot"
+slot-success status >&2 || stop "slot $slot is not marked successful; a reboot would use a boot try"
+# The modules are an erofs filesystem at the page after the kernel. Read
+# what the partition holds now, which a kernel update may have replaced,
+# through a loop device: mounting the partition itself again would reuse the
+# filesystem the running kernel mounted at boot.
+boot=/dev/disk/by-partlabel/boot_$slot
+size=$(dd if="$boot" bs=4 skip=2 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+loop=$(losetup -r -f --show -o $(( (size + 4095) / 4096 * 4096 + 4096 )) "$boot")
+look=$(mktemp -d)
+mount -t erofs -o ro "$loop" "$look" 2>/dev/null ||
+  { rmdir "$look"; losetup -d "$loop"; stop "boot_$slot carries no modules after its kernel"; }
+release=$(ls "$look" | head -n 1)
+found=0
+[ -s "$look/$release/modules.dep" ] || found=1
+umount "$look"; rmdir "$look"; losetup -d "$loop"
+[ "$found" = 0 ] || stop "boot_$slot carries no module tree"
+echo "PASS: boot_$slot carries its kernel's modules, $release."
+if [ "$1" = --reboot ]; then
+  echo "Rebooting."
+  sync
+  systemctl reboot
+fi
+REMOTE

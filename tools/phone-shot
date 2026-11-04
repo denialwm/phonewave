@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Capture a phone's screen with grim and print the local file path.
+#   phone-shot HOST [SCALE]   (SCALE relative to the logical output; default 1)
+set -euo pipefail
+host=${1:?usage: phone-shot HOST [SCALE]}
+scale=${2:-1}
+[[ $scale =~ ^[0-9.]+$ ]] || { echo "usage: phone-shot HOST [SCALE]" >&2; exit 2; }
+dir=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}/shots
+out=$dir/$host-$(date +%Y%m%d-%H%M%S).png
+mkdir -p -- "$dir"
+ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" sh -s -- "$scale" <<'REMOTE' >"$out"
+set -eu
+for socket in /run/user/*/wayland-*; do [ -S "$socket" ] && break; done
+[ -S "$socket" ] || { echo "no Wayland session" >&2; exit 1; }
+runtime=${socket%/*}
+runuser -u "$(stat -c %U "$runtime")" -- env XDG_RUNTIME_DIR="$runtime" \
+  WAYLAND_DISPLAY="${socket##*/}" grim -s "$1" -
+REMOTE
+printf '%s\n' "$out"

@@ -1,0 +1,61 @@
+{
+  "appearance": {
+    "allowClientCursorSurfaces": true,
+    "colorSchemePreference": "preferDark",
+    "cornerRadiusScale": 1.6,
+    "cursorSize": 32,
+    "customAccentColor": 4291869951,
+    "glass": {
+      "appPanelOpacity": 0.4,
+      "blurSigma": 26.1,
+      "opacity": 0.2,
+      "windowOpacity": 0.5
+    },
+    "monitorCornerRadiusScale": 0.4
+  },
+  "applicationEnvironment": {
+    "applications": {},
+    "default": {}
+  },
+  "color": {
+    "appGrades": {},
+    "appLuts": {},
+    "correction": true,
+    "desktopGrade": null,
+    "desktopLut": null,
+    "hdr": {}
+  },
+  "keyboard": {
+    "layouts": [
+      {
+        "layout": "us",
+        "variant": ""
+      }
+    ],
+    "options": [],
+    "repeatDelayMs": 600,
+    "repeatRateHz": 25
+  },
+  "layout": {
+    "scrollingLayoutPreserveSwapSizes": true,
+    "scrollingLayoutWheelSpeed": 1.0,
+    "scrollingLayoutWheelUpDirection": "left",
+    "systemBarSide": "top",
+    "windowLayout": "stacking",
+    "workspaceCount": 4,
+    "workspaceSwitchingOrientation": "horizontal",
+    "workspacesEnabled": true
+  },
+  "mouse": {
+    "accelerationEnabled": true,
+    "speed": 0.0
+  },
+  "revision": 1,
+  "touchpad": {
+    "naturalScrollEnabled": false,
+    "scrollSpeedFactor": 1.0,
+    "scrollingLayoutSwipeSpeedFactor": 1.0,
+    "tapToClickEnabled": true
+  },
+  "version": 30
+}

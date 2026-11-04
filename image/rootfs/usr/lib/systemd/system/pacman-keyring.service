@@ -1,0 +1,11 @@
+[Unit]
+Description=Make the pacman keyring
+ConditionPathExists=!/etc/pacman.d/gnupg/trustdb.gpg
+After=systemd-random-seed.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave-system/pacman-keyring
+
+[Install]
+WantedBy=multi-user.target

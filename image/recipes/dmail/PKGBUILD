@@ -1,0 +1,15 @@
+# Phonewave's dmail (services/modem/dmail) for the phones. Build: image/pack dmail
+pkgname=dmail
+pkgdesc='Modem service over QMI: SIM, calls, messages and mobile data'
+license=(MIT)
+_src=$startdir/../../../services/modem/dmail
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs dbus)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

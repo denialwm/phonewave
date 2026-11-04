@@ -8,7 +8,7 @@ One directory per device, named after the board in the kernel device tree
 ├── device.toml   hardware facts
 ├── rootfs/       files installed on the device, at the same path
 ├── boot/         boot image packaging and init_boot sources
-├── packaging/    pacman packages (roadstr)
+├── packaging/    pacman packages (aston)
 ├── tools/        host scripts: kernel install, reboot checks, Denial deployment
 └── README.md     how to package and install for this device
 ```

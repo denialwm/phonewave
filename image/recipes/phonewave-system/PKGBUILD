@@ -1,0 +1,14 @@
+# The phone's own system files, for every image: image/rootfs, at the paths
+# they install to. Build: image/pack phonewave-system
+pkgname=phonewave-system
+pkgdesc='Phonewave phone system configuration: SSH, USB network, session, keyring'
+license=(MIT)
+_src=$startdir/../../rootfs
+. "$startdir/../recipe.sh"
+arch=(any)
+# What the user may edit under /etc stays theirs across updates.
+backup=($(cd "$_src" && find etc -type f | sort))
+
+package() {
+  cp -a --no-preserve=ownership "$_src/." "$pkgdir/"
+}

@@ -1,0 +1,45 @@
+#!/bin/sh
+# Use the stock firmware the phone keeps in its own partitions, read-only.
+# The early userspace runs it from the boot tail, before systemd:
+#   stock-firmware RELEASE_DIR SLOT
+# RELEASE_DIR is the mounted tail's release folder, SLOT the booted slot's
+# suffix (_a, _b or empty). RELEASE_DIR/stock-firmware.conf names:
+#   release   the stock release the kernel was tested with
+#   partition the partition that holds it, without the slot suffix
+#   fstype    its filesystem; options, its read-only mount options
+#   folder    the folder in it the kernel loads from
+#   target    where the kernel looks for it, under RELEASE_DIR/firmware/
+#   required  files without which the phone cannot come up
+# RELEASE_DIR/stock-firmware.sha256 holds the tested release's hashes,
+# relative to the folder. Prints what it finds; exits 1 only when a required
+# file is missing.
+dir=${1:?usage: stock-firmware RELEASE_DIR SLOT}
+slot=$2
+[ -f "$dir/stock-firmware.conf" ] || exit 0
+. "$dir/stock-firmware.conf"
+say() { echo "stock-firmware: $*"; }
+
+where=$dir/firmware/$target
+part=
+for b in /sys/class/block/*; do
+	grep -qx "PARTNAME=$partition$slot" "$b/uevent" 2>/dev/null && { part=/dev/${b##*/}; break; }
+done
+mnt=/run/stock-firmware
+mkdir -p $mnt
+[ -n "$part" ] && mount -t "$fstype" -o "ro${options:+,$options}" "$part" $mnt &&
+	mount --bind "$mnt/$folder" "$where"
+
+missing=
+for f in $required; do
+	[ -e "$where/$f" ] || missing="$missing $f"
+done
+if [ -n "$missing" ]; then
+	say "$partition$slot lacks$missing. Flash stock firmware $release for this phone."
+	exit 1
+fi
+if (cd "$where" && sha256sum -c -s "$dir/stock-firmware.sha256"); then
+	say "$partition$slot holds stock firmware $release."
+else
+	say "$partition$slot holds stock firmware other than $release, the one tested; continuing."
+fi
+exit 0

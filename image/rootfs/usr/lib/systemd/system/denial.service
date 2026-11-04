@@ -1,0 +1,47 @@
+[Unit]
+Description=Denial phone session
+# The account's user.conf drop-in names who runs it; without one, nobody.
+ConditionPathExists=/etc/systemd/system/denial.service.d/user.conf
+After=systemd-logind.service systemd-user-sessions.service dbus.service systemd-udev-trigger.service
+# The session owns tty1 like a login does: logind only places a session on
+# seat0, which has VTs, when it comes with one.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+StartLimitIntervalSec=120
+StartLimitBurst=4
+
+[Service]
+Type=simple
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=~
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_SESSION_CLASS=user
+Environment=XDG_SESSION_DESKTOP=Denial
+Environment=XDG_CURRENT_DESKTOP=Denial
+Environment=TERMINAL=kitty
+Environment=LIBSEAT_BACKEND=logind
+Environment=EGL_PLATFORM=gbm
+Environment=DENIAL_SHELL_PROFILE=mobile
+# The mobile shell's defaults, until the denial package has them itself.
+Environment=DENIAL_CPU_PLACEMENT=1
+Environment=DENIAL_UI_CPU_MIN=512
+Environment=DENIAL_RENDER_AHEAD=1
+# Denial's launcher finds the screen's GPU and the output configuration.
+ExecStart=/usr/bin/denial-session
+AmbientCapabilities=CAP_SYS_NICE
+LimitRTPRIO=10
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

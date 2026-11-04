@@ -1,0 +1,12 @@
+# Phonewave's rtc-offset (services/clock/rtc-offset) for the phones. Build: image/pack rtc-offset
+pkgname=rtc-offset
+pkgdesc='Keeps the system clock across reboots when the RTC cannot be set'
+license=(MIT)
+_src=$startdir/../../../services/clock/rtc-offset
+. "$startdir/../recipe.sh"
+depends=(util-linux)
+arch=(any)
+
+package() {
+  make -C "$_src" install DESTDIR="$pkgdir"
+}

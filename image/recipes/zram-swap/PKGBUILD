@@ -1,0 +1,12 @@
+# Phonewave's zram-swap (services/memory/zram-swap) for the phones. Build: image/pack zram-swap
+pkgname=zram-swap
+pkgdesc='Compressed swap in RAM, sized from the installed memory'
+license=(MIT)
+_src=$startdir/../../../services/memory/zram-swap
+. "$startdir/../recipe.sh"
+depends=(util-linux)
+arch=(any)
+
+package() {
+  make -C "$_src" install DESTDIR="$pkgdir"
+}

@@ -1,0 +1,8 @@
+# The unprivileged Denial session and the Droidloom cell.
+SUBSYSTEM=="drm", KERNEL=="card*", GROUP="video", MODE="0660"
+SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="render", MODE="0666"
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0666"
+SUBSYSTEM=="input", GROUP="input", MODE="0660"
+SUBSYSTEM=="backlight", RUN+="/usr/bin/chgrp video /sys%p/brightness", RUN+="/usr/bin/chmod g+w /sys%p/brightness"
+# Denial raises the GPU's minimum frequency while the user touches the screen.
+SUBSYSTEM=="devfreq", DRIVERS=="adreno", RUN+="/usr/bin/chgrp video /sys%p/min_freq", RUN+="/usr/bin/chmod g+w /sys%p/min_freq"

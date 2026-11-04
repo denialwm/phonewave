@@ -1,0 +1,15 @@
+# Phonewave's hapticd (services/haptics/hapticd) for the phones. Build: image/pack hapticd
+pkgname=hapticd
+pkgdesc='D-Bus service for evdev force-feedback and sysfs vibrators'
+license=(MIT)
+_src=$startdir/../../../services/haptics/hapticd
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs systemd-libs dbus)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

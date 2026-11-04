@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# Build the images that install a phone.
+# Usage: image/build DEVICE [--droidloom] [--dev-access]
+#
+#   --droidloom   include Droidloom
+#   --dev-access  root's SSH key and the user logix, from the vault. Only for
+#                 images that never leave this workstation.
+#
+# Writes $PHONEWAVE_CACHE (default /mnt/development/phonewave-cache)/DEVICE/image/: userdata.img, the device's boot
+# images, flash.sh. Runs without root: a user namespace owns the new root,
+# and QEMU runs the ARM install scripts inside it.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}
+cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
+alarm_mirror=http://mirror.archlinuxarm.org
+alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
+denial_key=AE4108FA5E91E26BE0EE331E0F5B3AD16E023091
+
+inside=
+[ "${1:-}" = --inside ] && { inside=1; shift; }
+device=${1:?usage: image/build DEVICE [--droidloom] [--dev-access]}
+shift
+droidloom= dev_access=
+for arg; do
+  case $arg in
+    --droidloom) droidloom=1 ;;
+    --dev-access) dev_access=1 ;;
+    *) echo "unknown option $arg" >&2; exit 2 ;;
+  esac
+done
+[ -f "$here/devices/$device" ] || { echo "no image/devices/$device" >&2; exit 2; }
+. "$here/devices/$device"
+
+shared=$cache/image
+out=$cache/$device/image
+qemu=$shared/qemu/usr/bin/qemu-aarch64-static
+gnupg=$shared/gnupg
+root=$out/root
+noextract=$(grep -hv '^\s*\(#\|$\)' "$here/noextract" | tr '\n' ' ')
+
+verify_with() {  # KEYRING FILE: FILE.sig is a good signature by a key in KEYRING
+  local home status
+  home=$(mktemp -d)
+  gpg -q --homedir "$home" --import "$1" 2>/dev/null
+  status=$(LANG=C gpg --homedir "$home" --status-fd 1 --verify "$2.sig" "$2" 2>/dev/null || true)
+  rm -rf "$home"
+  grep -q '^\[GNUPG:\] VALIDSIG ' <<<"$status"
+}
+
+host() {
+  mkdir -p "$shared/qemu" "$shared/pkg" "$out"
+
+  if [ ! -x "$qemu" ]; then
+    local version file
+    version=$(curl -sSf https://archlinux.org/packages/extra/x86_64/qemu-user-static/json/ |
+      python -c 'import json,sys; d=json.load(sys.stdin); e=d["epoch"]; print((f"{e}:" if e else "") + d["pkgver"] + "-" + d["pkgrel"])')
+    file=qemu-user-static-$version-x86_64.pkg.tar.zst
+    (cd "$shared/qemu" &&
+      curl -sSfLO "https://geo.mirror.pkgbuild.com/extra/os/x86_64/$file" &&
+      curl -sSfLO "https://geo.mirror.pkgbuild.com/extra/os/x86_64/$file.sig")
+    verify_with /usr/share/pacman/keyrings/archlinux.gpg "$shared/qemu/$file" ||
+      { echo "bad signature on $file" >&2; exit 1; }
+    bsdtar -xf "$shared/qemu/$file" -C "$shared/qemu" usr/bin/qemu-aarch64-static
+  fi
+
+  if [ ! -d "$shared/alarm-keyring" ]; then
+    local db file dir
+    db=$(mktemp)
+    curl -sSfL "$alarm_mirror/aarch64/core/core.db" -o "$db"
+    file=$(bsdtar -xOf "$db" --include '*/desc' | awk '/^%FILENAME%$/ { getline; print }' |
+      grep '^archlinuxarm-keyring-')
+    rm "$db"
+    dir=$(mktemp -d)
+    curl -sSfL "$alarm_mirror/aarch64/core/$file" -o "$dir/$file"
+    curl -sSfL "$alarm_mirror/aarch64/core/$file.sig" -o "$dir/$file.sig"
+    bsdtar -xf "$dir/$file" -C "$dir" usr/share/pacman/keyrings
+    # The pinned key is the trust anchor: it must be in the package's trusted
+    # list and must have signed the package.
+    grep -q "^$alarm_key:" "$dir/usr/share/pacman/keyrings/archlinuxarm-trusted" &&
+      verify_with "$dir/usr/share/pacman/keyrings/archlinuxarm.gpg" "$dir/$file" ||
+      { echo "archlinuxarm-keyring is not signed by $alarm_key" >&2; exit 1; }
+    mv "$dir/usr/share/pacman/keyrings" "$shared/alarm-keyring"
+    rm -rf "$dir"
+  fi
+
+  # Our packages, as a repository listed before Arch's: those image/pack
+  # builds for every device, then the device's own.
+  rm -rf "$out/repo"
+  mkdir -p "$out/repo"
+  local name
+  for name in $(grep -hv '^\s*\(#\|$\)' "$here/packages/phonewave"); do
+    ln "$(ls "$shared/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
+  done
+  for name in "${packages[@]}"; do
+    ln "$(ls "$cache/$device/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
+  done
+  repo-add -q "$out/repo/device.db.tar.zst" "$out/repo/"*.pkg.tar.zst
+
+  cat > "$out/pacman.conf" <<EOF
+[options]
+Architecture = aarch64
+SigLevel = Required DatabaseOptional
+LocalFileSigLevel = Optional
+ParallelDownloads = 5
+DisableSandbox
+NoExtract = $noextract
+
+[device]
+SigLevel = Optional TrustAll
+Server = file://$out/repo
+
+[core]
+Server = $alarm_mirror/\$arch/\$repo
+[extra]
+Server = $alarm_mirror/\$arch/\$repo
+[alarm]
+Server = $alarm_mirror/\$arch/\$repo
+[aur]
+Server = $alarm_mirror/\$arch/\$repo
+
+[denial]
+SigLevel = Required TrustedOnly
+Server = https://packages.denialwm.org/arch/\$arch
+EOF
+
+  local flags=()
+  [ -n "$droidloom" ] && flags+=(--droidloom)
+  [ -n "$dev_access" ] && flags+=(--dev-access)
+  PHONEWAVE_CACHE=$cache PHONEWAVE_VAULT=$vault \
+    unshare --map-auto --map-root-user --mount --pid --fork --mount-proc \
+    "$0" --inside "$device" "${flags[@]}"
+
+  # Boot images: the device's current ones, until the image builds its own.
+  cp "$vault/$device/boot/$boot_img" "$out/boot.img"
+  cp "$vault/$device/boot/$init_boot_img" "$out/init_boot.img"
+  {
+    printf '#!/bin/sh\n# Flash this image on %s. The phone must be in fastboot.\n' "$device"
+    if [ "${userdata_by:-fastboot}" = fastbootd ]; then
+      printf '%s\n' "# The bootloader refuses userdata, so all goes in from fastbootd, which runs" \
+        "# from the slot's stock boot and init_boot ($stock_firmware). Over an earlier" \
+        "# install of this image, name the unpacked stock firmware: flash.sh STOCK_DIR"
+      cat <<'EOF'
+set -eu
+stock=${1:+$(cd "$1" && pwd)}
+cd "$(dirname "$0")"
+if [ -n "$stock" ]; then
+  fastboot flash boot_b "$stock/boot.img"
+  fastboot flash init_boot_b "$stock/init_boot.img"
+fi
+fastboot reboot fastboot
+fastboot getvar is-userspace 2>&1 | grep -q 'is-userspace: yes' ||
+  { echo "no fastbootd: give the stock firmware folder" >&2; exit 1; }
+EOF
+    else
+      printf 'set -eu\ncd "$(dirname "$0")"\n'
+    fi
+    printf 'fastboot flash boot_b boot.img\nfastboot flash init_boot_b init_boot.img\n'
+    printf 'fastboot flash userdata userdata.img\nfastboot reboot\n'
+  } > "$out/flash.sh"
+  chmod +x "$out/flash.sh"
+  ls -la "$out"
+}
+
+inside() {
+  mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc
+  printf '%s' ':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:'"$qemu"':FP' \
+    > /proc/sys/fs/binfmt_misc/register
+
+  if ! gpg --homedir "$gnupg" --list-keys "$denial_key" >/dev/null 2>&1; then
+    rm -rf "$gnupg"
+    pacman-key --gpgdir "$gnupg" --init
+    pacman-key --gpgdir "$gnupg" --populate-from "$shared/alarm-keyring" --populate archlinuxarm
+    pacman-key --gpgdir "$gnupg" --add "$here/rootfs/usr/share/phonewave-system/denial-repo-key.asc"
+    pacman-key --gpgdir "$gnupg" --lsign-key "$denial_key"
+  fi
+
+  rm -rf "$root"
+  # The install scripts see only the few device nodes they need, never this
+  # workstation's devices or /sys.
+  mkdir -p "$root"/{dev,proc,run,tmp,etc/pacman.d/hooks,var/lib/pacman}
+  mount -t tmpfs -o mode=0755 tmpfs "$root/dev"
+  local node
+  for node in null zero full random urandom tty; do
+    touch "$root/dev/$node"
+    mount --bind "/dev/$node" "$root/dev/$node"
+  done
+  ln -s /proc/self/fd "$root/dev/fd"
+  mount -t proc proc "$root/proc"
+  mount -t tmpfs -o mode=0755 tmpfs "$root/run"
+  mount -t tmpfs tmpfs "$root/tmp"
+
+  local list=()
+  mapfile -t list < <(grep -hv '^\s*\(#\|$\)' "$here/packages/base" "$here/packages/phonewave")
+  list+=("${packages[@]}")
+  [ -n "$droidloom" ] && list+=(droidloom)
+  pacman -r "$root" --config "$out/pacman.conf" --gpgdir "$gnupg" --cachedir "$shared/pkg" \
+    --hookdir "$root/etc/pacman.d/hooks" --logfile "$out/pacman.log" \
+    -Sy --noconfirm "${list[@]}"
+
+  # The partition layout, the one system file not in a package: fstab
+  # belongs to the filesystem package, and every install sets its own.
+  cp "$here/fstab" "$root/etc/fstab"
+  # Empty: the boot image carries the kernel's modules and the early
+  # userspace mounts them here.
+  install -d "$root/usr/lib/modules"
+
+  # The phone's pacman.conf: Arch Linux ARM's, with the Denial repositories:
+  # Denial itself, and denial-phone with what image/pack builds.
+  sed -i -e "/^#NoExtract/a NoExtract = $noextract" "$root/etc/pacman.conf"
+  printf '\n[denial]\nSigLevel = Required TrustedOnly\nServer = https://packages.denialwm.org/arch/$arch\n' \
+    >> "$root/etc/pacman.conf"
+  printf '\n[denial-phone]\nSigLevel = Required TrustedOnly\nServer = https://packages.denialwm.org/phone/$arch\n' \
+    >> "$root/etc/pacman.conf"
+
+  # Nothing that belongs to one phone: each makes its own on first boot.
+  : > "$root/etc/machine-id"
+  rm -rf "$root"/etc/ssh/ssh_host_* "$root/etc/pacman.d/gnupg" "$root"/var/lib/pacman/sync/*
+  rm -f "$root/etc/.updated" "$root/var/.updated"
+  echo LANG=C.UTF-8 > "$root/etc/locale.conf"
+  touch "$root/usr/lib/clock-epoch"
+
+  chroot "$root" systemctl enable denial.service sshd.service NetworkManager.service systemd-networkd.service bluetooth.service \
+    upower.service systemd-timesyncd.service pacman-keyring.service zram-swap.service ledgerd.service hapticd.service \
+    "${units[@]}"
+
+  if [ -n "$dev_access" ]; then
+    install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
+    cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
+    chroot "$root" useradd -m -u 1000 -U -G wheel,audio,input,render,video logix
+    # What the first-user helper will write for the account it creates.
+    install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<'EOF'
+[Service]
+User=logix
+Group=logix
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+EOF
+  fi
+
+  umount -R "$root/dev" "$root/proc" "$root/run" "$root/tmp"
+  mkdir -p "$root/sys"
+  chmod 0755 "$root/dev" "$root/run"
+  chmod 0555 "$root/proc" "$root/sys"
+  chmod 1777 "$root/tmp"
+
+  # Content plus a quarter, rounded to MiB. First boot grows it.
+  local size
+  size=$(du -s -B1M "$root" | cut -f1)
+  size=$((size + size / 4 + 256))
+  rm -f "$out/userdata.raw" "$out/userdata.img"
+  mkfs.ext4 -q -F -i 8192 -d "$root" "$out/userdata.raw" "${size}M"
+  img2simg "$out/userdata.raw" "$out/userdata.img"
+  rm "$out/userdata.raw"
+}
+
+if [ -n "$inside" ]; then inside; else host; fi

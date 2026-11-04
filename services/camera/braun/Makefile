@@ -1,13 +1,13 @@
 PREFIX ?= /usr
 DESTDIR ?=
 CARGO ?= cargo
-# Where the built programs are: target/aarch64-unknown-linux-gnu/release
-# after build-aarch64.sh.
-BIN ?= target/release
+# The Rust target of a cross build, such as aarch64-unknown-linux-gnu.
+TARGET ?=
+BIN = target/$(if $(TARGET),$(TARGET)/)release
 
 .PHONY: all check install
 all:
-	$(CARGO) build --release --locked
+	$(CARGO) build --release --locked $(if $(TARGET),--target $(TARGET))
 check:
 	$(CARGO) fmt --check
 	$(CARGO) clippy --locked --all-targets -- -D warnings

@@ -1,0 +1,15 @@
+# Phonewave's wallpaper-depth (services/wallpaper/wallpaper-depth) for the phones. Build: image/pack wallpaper-depth
+pkgname=wallpaper-depth
+pkgdesc='Cuts the wallpaper subject out so the lock screen clock sits behind it'
+license=(MIT)
+_src=$startdir/../../../services/wallpaper/wallpaper-depth
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs vulkan-icd-loader)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

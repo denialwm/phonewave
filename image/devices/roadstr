@@ -1,0 +1,24 @@
+# Motorola Edge 70. Sourced by image/build.
+
+# The device's own packages, found in packages/ of the device's image cache.
+packages=()
+
+# Units the device runs, besides those every image enables. Units that belong
+# to the kernel travel in its boot image instead.
+units=()
+
+# Boot images in the vault's boot/, until the image builds its own.
+boot_img=boot-35.img
+init_boot_img=init_boot-6.img
+
+# The bootloader answers "flash permission denied" for userdata; fastbootd
+# takes it. fastbootd needs the slot's stock boot and init_boot, of this
+# stock firmware.
+userdata_by=fastbootd
+stock_firmware=W1WR36.39-115
+
+# Our init_boot stops in rescue (SSH over USB, root not in use) when the root
+# holds rescue_flag: image/install-userdata, for quick tries on a phone that
+# already runs an image.
+rescue_flag=/etc/moto70-mainline-rescue
+ssh_host=roadstr

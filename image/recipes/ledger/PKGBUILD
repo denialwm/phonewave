@@ -1,0 +1,15 @@
+# Phonewave's ledger (services/power/ledger) for the phones. Build: image/pack ledger
+pkgname=ledger
+pkgdesc='Battery statistics by phone state'
+license=(MIT)
+_src=$startdir/../../../services/power/ledger
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs dbus)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

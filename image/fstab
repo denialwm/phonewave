@@ -1,0 +1,3 @@
+# The image is packed to its content; systemd grows it to the whole
+# partition on the first mount.
+PARTLABEL=userdata / ext4 defaults,noatime,x-systemd.growfs 0 1

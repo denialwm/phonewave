@@ -67,4 +67,4 @@ Outputs go to `${XDG_CACHE_HOME:-~/.cache}/phonewave/roadstr/`.
   vault's `roadstr/firmware/jiiov/` into the `ancapp64.elf` the worker loads.
 
 The phone-side steps (building the patched libfprint on the phone, installing
-it, optical tests) are in `devices/roadstr/tools/fingerprint/`.
+it, optical tests) are in git at `9af1cc3:devices/roadstr/tools/fingerprint/`.

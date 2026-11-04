@@ -162,6 +162,12 @@ Screen recording: screen-record (services/screen/screen-record), installed
 in /usr/bin, gives the shade its Screen recording tile; it uses the image's
 `ffmpeg`. Videos go to `~/Videos/Screen recordings`.
 
+Battery ledger: ledger (services/power/ledger), installed with its
+`make install`, books the battery per state, hour and build; enable
+`ledgerd.service`. It reads the BQ28Z610, which sorts before the PMIC's
+placeholder battery. No `/etc/ledger/tags`: no link names the running Denial
+set, so the kernel release alone names the build.
+
 Camera: braun (services/camera/braun), installed with its `make install`,
 finds the IMX890 main camera, the IMX355 ultrawide and the S5K3P9 front
 camera, and develops the Camera app's photos. rootfs/ carries

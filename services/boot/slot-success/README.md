@@ -74,8 +74,9 @@ configuration exists.
 ## Devices
 
 Each Phonewave device carries its configuration: pudding in
-`devices/pudding/rootfs/etc/slot-success.conf`, roadstr in its
-moto70-mainline package, which depends on the slot-success package.
+`devices/pudding/rootfs/etc/slot-success.conf`; devices built with
+`image/`, roadstr among them, in the phonewave-system package
+(`image/rootfs/etc/slot-success.conf`).
 
 ## License
 

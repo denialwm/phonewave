@@ -1,0 +1,17 @@
+# Phonewave's screen-record (services/screen/screen-record) for the phones.
+# Build: image/pack screen-record
+pkgname=screen-record
+pkgdesc='Records the screen through Denial, scaled on the GPU, to H.264 video'
+license=(MIT)
+_src=$startdir/../../../services/screen/screen-record
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs mesa denial)
+
+build() {
+  # Its rust-toolchain.toml picks the toolchain.
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

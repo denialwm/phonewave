@@ -2,7 +2,7 @@
 
 Apply in filename order to upstream v1.94.100, commit
 `80a4b5ec612892c5c056c48dddaa561452cf37ec`.
-`devices/roadstr/tools/fingerprint/build-libfprint-phone.py` does this in
+`9af1cc3:devices/roadstr/tools/fingerprint/build-libfprint-phone.py` did this in
 `~/.cache/phonewave/src/libfprint`.
 
 1. Fix the no-introspection test fallback.
@@ -30,7 +30,7 @@ Apply in filename order to upstream v1.94.100, commit
 
 The third patch requires `jiiov-fprint-helper.py`, the matching native probe,
 and diagnostic illumination client in the installation paths used by
-`devices/roadstr/tools/fingerprint/install-libfprint-phone.py`. The driver uses the private JFP1 worker
+`9af1cc3:devices/roadstr/tools/fingerprint/install-libfprint-phone.py`. The driver uses the private JFP1 worker
 interface. It is not a standalone upstream-ready patch: the current worker is
 restricted to the validated Roadstr device. Denial verification uses its
 privileged presentation protocol; enrollment retains the unlocked diagnostic UI.

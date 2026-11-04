@@ -113,8 +113,8 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | devices-14 | |
-| Display | works | user | 120 Hz |
+| Boot | works | 2026-11-04, devices-35, probe | Stock firmware W1WR36.39-115 from `modem_b` |
+| Display | works | 2026-11-04, devices-34, user | 120 Hz; boot console, then Denial, without a reset |
 | Brightness | works | 2026-10-28, devices-14, user | |
 | Wake from screen off | works | user | Power key |
 | GPU | works | user | After a GPU hang, only a hard reboot recovers |
@@ -126,7 +126,7 @@ last.
 | USB host | ? | | |
 | Video out (USB-C) | none | | |
 | Charging | works | devices-12, probe | Back-temperature throttling |
-| Battery | works | 2026-10-19, probe | |
+| Battery | works | 2026-11-04, devices-35, probe | |
 | Wi-Fi | partial | 2026-10-19, probe | Receives no broadcast or multicast |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
 | Speakers | ? | | |

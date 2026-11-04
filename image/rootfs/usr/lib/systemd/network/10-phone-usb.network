@@ -1,0 +1,24 @@
+# Every phone is 10.77.71.2 on its USB cable and hands the computer .1, so
+# any computer reaches it with nothing to set up. A lab with several phones
+# on one computer gives each its own pair: see the image README.
+[Match]
+Name=usb0
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=10.77.71.2/30
+DHCPServer=yes
+KeepConfiguration=static
+
+[DHCPServer]
+PoolOffset=1
+PoolSize=1
+EmitRouter=no
+EmitDNS=no
+
+# The computer's connection, when it shares one, below Wi-Fi.
+[Route]
+Gateway=10.77.71.1
+Metric=2048

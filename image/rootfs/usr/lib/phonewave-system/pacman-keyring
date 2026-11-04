@@ -1,0 +1,8 @@
+#!/bin/sh
+# Make this phone's pacman keyring. The image ships none, so no two phones
+# share a private key.
+set -eu
+pacman-key --init
+pacman-key --populate archlinuxarm
+pacman-key --add /usr/share/phonewave-system/denial-repo-key.asc
+pacman-key --lsign-key AE4108FA5E91E26BE0EE331E0F5B3AD16E023091

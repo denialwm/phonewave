@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Write a built userdata image on a phone that already runs one, without
+# going through fastboot. For quick tries; flash.sh is the install.
+# Usage: image/install-userdata DEVICE
+#
+# The phone runs Linux, or already sits in our init_boot's rescue. Asks the
+# installed system for rescue, writes the image over SSH while nothing uses
+# userdata, reads it back, reboots into it.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
+device=${1:?usage: image/install-userdata DEVICE}
+. "$here/devices/$device"
+image=$cache/$device/image/userdata.img
+# Rescue's dropbear makes new host keys every boot.
+phone=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
+  -o ConnectTimeout=3 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 "$ssh_host")
+
+in_rescue() { "${phone[@]}" 'mountpoint -q /newroot' 2>/dev/null; }
+
+if ! in_rescue; then
+  "${phone[@]}" "touch $rescue_flag && sync && systemctl reboot" || true
+  echo "rebooting into rescue"
+  sleep 10
+  for _ in $(seq 30); do in_rescue && break; sleep 3; done
+  in_rescue || { echo "no rescue shell on $ssh_host" >&2; exit 1; }
+fi
+
+part=$("${phone[@]}" 'grep -l "^PARTNAME=userdata$" /sys/class/block/*/uevent | cut -d/ -f5')
+[ -n "$part" ] || { echo "no userdata partition" >&2; exit 1; }
+raw=$cache/$device/image/userdata.raw
+simg2img "$image" "$raw"
+trap 'rm -f "$raw"' EXIT
+size=$(stat -c%s "$raw")
+echo "writing $size bytes to /dev/$part"
+gzip -1c "$raw" | "${phone[@]}" "umount /newroot && gunzip -c | dd of=/dev/$part bs=4M 2>/dev/null && sync"
+want=$(sha256sum "$raw" | cut -d' ' -f1)
+have=$("${phone[@]}" "head -c $size /dev/$part | sha256sum" | cut -d' ' -f1)
+[ "$want" = "$have" ] || { echo "read back $have, wrote $want" >&2; exit 1; }
+echo "verified; rebooting"
+"${phone[@]}" 'reboot -f' || true

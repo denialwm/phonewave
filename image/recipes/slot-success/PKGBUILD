@@ -1,0 +1,20 @@
+# Phonewave's slot-success (services/boot/slot-success) for the phones. Build: image/pack slot-success
+pkgname=slot-success
+pkgdesc='Mark the booted A/B slot successful once the system has proved itself'
+license=(MIT)
+_src=$startdir/../../../services/boot/slot-success
+. "$startdir/../recipe.sh"
+depends=(systemd util-linux)
+
+# Built in a copy, so no ARM binary lands in the checkout. qbootctl links
+# statically against the cross toolchain's own glibc.
+build() {
+  rm -rf "$srcdir/slot-success"
+  cp -r "$_src" "$srcdir/slot-success"
+  rm -f "$srcdir/slot-success/build/qbootctl"
+  make -C "$srcdir/slot-success" CC=aarch64-linux-gnu-gcc
+}
+
+package() {
+  make -C "$srcdir/slot-success" install DESTDIR="$pkgdir"
+}

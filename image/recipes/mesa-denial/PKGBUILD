@@ -1,0 +1,164 @@
+# Mesa main for the phones: the first Mesa with the Adreno 722. Build: image/pack mesa-denial
+#
+# Upstream main at _commit with only the drivers the phones use: freedreno
+# and Turnip. _patches lists the ones from patches/ to apply; empty, it is
+# main as it is. No llvmpipe, softpipe or zink: Denial never renders
+# in software.
+#
+# Its own names, providing and conflicting with Arch's mesa, vulkan-freedreno
+# and vulkan-mesa-implicit-layers: only a phone that asks for it gets it, and
+# no Arch Mesa, however new, replaces it. Retiring it, once Arch's Mesa XX.X
+# runs the phones: a last release of the three, each empty, depending only
+# on Arch's package of the same name at XX.X or later, with no provides or
+# conflicts. The update installs Arch's in its place.
+pkgbase=mesa-denial
+pkgname=(mesa-denial vulkan-freedreno-denial vulkan-mesa-implicit-layers-denial)
+_commit=98a55f454dff645be1c88284634126a2c17fd416
+_patches=(turnip-no-BV-pipe-on-the-Adreno-722.patch)
+pkgver=27.0.0_devel.20261103.${_commit:0:8}
+pkgrel=1
+pkgdesc="Open-source OpenGL drivers"
+url="https://www.mesa3d.org/"
+arch=(aarch64)
+license=("MIT AND BSD-3-Clause AND SGI-B-2.0")
+options=(!strip !debug !lto)
+# Meson wants wayland-scanner at the phone's libwayland version, built here.
+_wayland=1.25.0
+source=("mesa-$_commit.tar.gz::https://gitlab.freedesktop.org/mesa/mesa/-/archive/$_commit/mesa-$_commit.tar.gz"
+        "https://gitlab.freedesktop.org/wayland/wayland/-/releases/$_wayland/downloads/wayland-$_wayland.tar.xz")
+sha256sums=('8680872b4069a664f222b95063b16aa58923933a50aef7273a074913a52d1c26'
+            'c065f040afdff3177680600f249727e41a1afc22fccf27222f15f5306faa1f03')
+. "$startdir/../../cross.sh"
+
+prepare() {
+  # Same version string scheme as Arch, so caches keyed on it invalidate.
+  echo "$pkgver-denial.$pkgrel" > mesa-$_commit/VERSION
+  local p
+  for p in "${_patches[@]}"; do
+    patch -d mesa-$_commit -Np1 < "$startdir/patches/$p"
+  done
+  # The sysroot keeps no usr/share data; the protocol XML is the same on every
+  # architecture, so take this workstation's. Under the freedesktop rules
+  # pkgconf puts the sysroot on -I and -L only, not on this path.
+  mkdir -p pkgconfig
+  sed 's|^pkgdatadir=.*|pkgdatadir=/usr/share/wayland-protocols|' \
+    /usr/share/pkgconfig/wayland-protocols.pc > pkgconfig/wayland-protocols.pc
+  cat > cross.ini <<EOF
+[binaries]
+c = 'aarch64-linux-gnu-gcc'
+cpp = 'aarch64-linux-gnu-g++'
+ar = 'aarch64-linux-gnu-ar'
+strip = 'aarch64-linux-gnu-strip'
+pkg-config = 'pkg-config'
+
+[built-in options]
+c_args = ['--sysroot=$sysroot']
+cpp_args = ['--sysroot=$sysroot']
+c_link_args = ['--sysroot=$sysroot', '-B$sysroot/usr/lib', '-Wl,-rpath-link,$sysroot/usr/lib']
+cpp_link_args = ['--sysroot=$sysroot', '-B$sysroot/usr/lib', '-Wl,-rpath-link,$sysroot/usr/lib']
+
+[properties]
+sys_root = '$sysroot'
+pkg_config_libdir = ['$srcdir/pkgconfig', '$sysroot/usr/lib/pkgconfig', '$sysroot/usr/share/pkgconfig']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOF
+}
+
+build() {
+  # The cross file points pkg-config at the sysroot for the phone only; tools
+  # that run here, such as wayland-scanner, come from this workstation.
+  unset PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+  export PKG_CONFIG_FDO_SYSROOT_RULES=1
+  (
+    unset CFLAGS CXXFLAGS LDFLAGS
+    meson setup wayland-$_wayland scanner --prefix "$srcdir/scanner-root" \
+      -D libraries=false -D documentation=false -D tests=false -D dtd_validation=false
+    meson install -C scanner
+  )
+  sed -i "/^\[binaries\]/a wayland-scanner = '$srcdir/scanner-root/bin/wayland-scanner'" cross.ini
+  local meson_options=(
+    --cross-file cross.ini
+    --prefix /usr
+    --libexecdir lib
+    --buildtype plain
+    --optimization 2
+    --wrap-mode nofallback
+    -D b_ndebug=true
+    -D android-libbacktrace=disabled
+    -D platforms=x11,wayland
+    -D freedreno-kmds=msm
+    -D gallium-drivers=freedreno
+    -D gallium-extra-hud=true
+    -D gallium-mediafoundation=disabled
+    -D gallium-rusticl=false
+    -D gallium-va=disabled
+    -D gles1=disabled
+    -D glvnd=enabled
+    -D html-docs=disabled
+    -D intel-rt=disabled
+    -D libunwind=disabled
+    -D llvm=disabled
+    -D lmsensors=disabled
+    -D microsoft-clc=disabled
+    -D teflon=false
+    -D valgrind=disabled
+    -D video-codecs=
+    -D vulkan-drivers=freedreno
+    -D vulkan-layers=device-select
+    -D vulkan-manifest-per-architecture=false
+  )
+  meson setup mesa-$_commit build "${meson_options[@]}"
+  meson compile -C build -j "$(($(nproc) - 2))"
+}
+
+_pick() {
+  local p="$1" f d; shift
+  for f; do
+    d="$srcdir/$p/${f#$pkgdir/}"
+    mkdir -p "$(dirname "$d")"
+    mv -v "$f" "$d"
+    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
+  done
+}
+
+package_mesa-denial() {
+  depends=(expat glibc libdrm libelf libgcc libglvnd libstdc++ libx11 libxcb
+           libxext libxshmfence libxxf86vm spirv-tools wayland zlib zstd)
+  provides=("mesa=$pkgver" "mesa-libgl=$pkgver" opengl-driver)
+  conflicts=(mesa mesa-libgl)
+
+  meson install -C build --destdir "$pkgdir" --no-rebuild
+  (
+    cd "$pkgdir"
+    _pick vkfdreno usr/lib/libvulkan_freedreno.so
+    _pick vkfdreno usr/share/vulkan/icd.d/freedreno_icd.json
+    _pick vklayers usr/lib/libVkLayer_MESA_device_select.so
+    _pick vklayers usr/share/vulkan/implicit_layer.d/VkLayer_MESA_device_select.json
+  )
+  install -Dm644 mesa-$_commit/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_vulkan-freedreno-denial() {
+  pkgdesc="Open-source Vulkan driver for Adreno GPUs"
+  depends=(expat glibc libdisplay-info libdrm libgcc libstdc++ libx11 libxcb
+           libxshmfence spirv-tools systemd-libs vulkan-icd-loader
+           vulkan-mesa-implicit-layers-denial wayland xcb-util-keysyms zlib zstd)
+  provides=("vulkan-freedreno=$pkgver" vulkan-driver)
+  conflicts=(vulkan-freedreno)
+  mv vkfdreno/* "$pkgdir"
+  install -Dm644 mesa-$_commit/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_vulkan-mesa-implicit-layers-denial() {
+  pkgdesc="Mesa's implicit Vulkan layers"
+  depends=(glibc libdrm libxcb wayland)
+  provides=("vulkan-mesa-implicit-layers=$pkgver")
+  conflicts=(vulkan-mesa-implicit-layers vulkan-mesa-device-select)
+  mv vklayers/* "$pkgdir"
+  install -Dm644 mesa-$_commit/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}

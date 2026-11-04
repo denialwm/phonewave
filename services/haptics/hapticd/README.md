@@ -38,7 +38,9 @@ clients only see IDs. The standard backend is Linux evdev force feedback:
 Use the real stable path for your actuator. Alternatively, tag an input event
 device with udev properties `HAPTICD_DEVICE=1` and `HAPTICD_ID=builtin`.
 Only tagged devices are discovered automatically, so game controllers are not
-selected accidentally. `evdev` requires working `FF_RUMBLE` support.
+selected accidentally. `70-hapticd-builtin.rules` tags a built-in vibrator:
+a force-feedback input that is not on USB, Bluetooth or a virtual bus.
+`evdev` requires working `FF_RUMBLE` support.
 
 Drivers with `duration` and `activate` sysfs attributes can use:
 

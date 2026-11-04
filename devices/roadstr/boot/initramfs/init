@@ -13,8 +13,12 @@
 # If the root cannot be mounted, or it contains /etc/moto70-mainline-rescue,
 # this stays as PID 1 with SSH at 10.77.71.2 and a shell on ttyGS0.
 #
-# There is no firmware here: the drivers that need it are modules, loaded
-# from the installed system together with their firmware.
+# There is no firmware here: the drivers that need it are modules. The boot
+# partition carries them, after the kernel, as an erofs filesystem that is
+# mounted in place at /usr/lib/modules, with the firmware that overrides
+# the installed system's and the units the kernel needs. Its
+# libexec/stock-firmware binds in the vendor firmware from the slot's own
+# partitions; if a required file is missing, this stays in rescue.
 export PATH=/bin
 /bin/busybox --install -s /bin
 mount -t proc proc /proc
@@ -84,6 +88,35 @@ done
 mount -t ext4 -o ro "$root" /newroot || rescue "cannot mount $root"
 [ -e /newroot/etc/moto70-mainline-rescue ] && rescue "rescue requested by the root"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "no systemd on $root"
+
+# The boot partition with this kernel's modules: its filesystem starts at the
+# page after the kernel, whose size is in the header. Whichever slot holds
+# a folder named after the running kernel is the one that booted.
+modules() {
+	release=$(uname -r)
+	for b in /sys/class/block/sd*; do
+		grep -qx 'PARTNAME=boot\(_[ab]\)\{0,1\}' $b/uevent 2>/dev/null || continue
+		boot=/dev/${b##*/}
+		size=$(dd if=$boot bs=4 skip=2 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+		[ -n "$size" ] || continue
+		mount -t erofs -o ro,fsoffset=$(( (size + 4095) / 4096 * 4096 + 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
+		[ -d /newroot/usr/lib/modules/$release ] &&
+			slot=$(sed -n 's/^PARTNAME=boot//p' $b/uevent) && return 0
+		umount /newroot/usr/lib/modules
+	done
+	return 1
+}
+if modules; then
+	echo -n /usr/lib/modules/$release/firmware > /sys/module/firmware_class/parameters/path
+	units=/newroot/usr/lib/modules/$release/systemd/system
+	[ -d $units ] && mkdir -p /run/systemd/system && cp -a $units/. /run/systemd/system/
+	mark "modules of $release from $boot"
+	fw=/newroot/usr/lib/modules/$release/libexec/stock-firmware
+	[ ! -x $fw ] || $fw /newroot/usr/lib/modules/$release "$slot" ||
+		rescue "required stock firmware missing"
+else
+	mark "no boot partition holds the modules of $release"
+fi
 
 # Bind the gadget now: the host sees the phone during the whole boot.
 for i in $(seq 10); do

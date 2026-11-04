@@ -1,0 +1,54 @@
+# The denial-apps apps for the phones, one package each.
+# Build: image/pack denial-apps
+pkgbase=denial-apps
+_apps=(calls camera messages sensors settings)
+pkgname=("${_apps[@]/#/denial-app-}")
+license=(LicenseRef-Sustainable-Use-License)
+_src=$startdir/../../../../denial-apps
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs libxkbcommon wayland vulkan-icd-loader fontconfig)
+
+build() {
+  cd "$_src"
+  cargo build --release --locked --target $TARGET "${_apps[@]/#/-p}"
+}
+
+_package_app() {  # APP DESKTOP-NAME
+  local bin=$_src/target/$TARGET/release
+  install -Dm755 "$bin/$1" "$pkgdir/usr/lib/denial-apps/$1"
+  install -Dm644 "$_src/apps/$1/org.denialwm.$2.desktop" "$pkgdir/usr/share/applications/org.denialwm.$2.desktop"
+  sed -i "s|^Exec=.*/$1\b|Exec=/usr/lib/denial-apps/$1|" "$pkgdir/usr/share/applications/org.denialwm.$2.desktop"
+  install -Dm644 "$_src/apps/$1/org.denialwm.$2.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/org.denialwm.$2.png"
+  install -Dm644 "$_src/LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.md"
+}
+
+package_denial-app-calls() {
+  pkgdesc='Phone calls and contacts for Denial'
+  _package_app calls Calls
+}
+
+package_denial-app-camera() {
+  pkgdesc='Camera for Denial'
+  _package_app camera Camera
+}
+
+package_denial-app-messages() {
+  pkgdesc='Messages for Denial'
+  _package_app messages Messages
+  local bin=$_src/target/$TARGET/release
+  install -Dm755 "$bin/messages-notifier" "$pkgdir/usr/lib/denial-apps/messages-notifier"
+  install -Dm644 "$_src/apps/messages/packaging/messages-notifier.service" "$pkgdir/usr/lib/systemd/user/messages-notifier.service"
+  sed -i 's|^ExecStart=.*|ExecStart=/usr/lib/denial-apps/messages-notifier|' "$pkgdir/usr/lib/systemd/user/messages-notifier.service"
+  install -d "$pkgdir/usr/lib/systemd/user/graphical-session.target.wants"
+  ln -s ../messages-notifier.service "$pkgdir/usr/lib/systemd/user/graphical-session.target.wants/messages-notifier.service"
+}
+
+package_denial-app-sensors() {
+  pkgdesc='Sensor readings for Denial'
+  _package_app sensors Sensors
+}
+
+package_denial-app-settings() {
+  pkgdesc='Phone settings for Denial'
+  _package_app settings Settings
+}

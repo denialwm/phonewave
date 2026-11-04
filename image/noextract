@@ -1,0 +1,7 @@
+# Files pacman never unpacks on a phone, at build and on every update.
+# Denial's desktop Settings and Welcome, until they are a package of their own.
+# Their autostart stays off through rootfs/etc/skel/.config/denial/welcome.
+usr/bin/denial-settings
+usr/lib/denial/settings/*
+usr/share/applications/dev.denial.Settings.desktop
+usr/share/applications/dev.denial.Welcome.desktop

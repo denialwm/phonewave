@@ -1,0 +1,19 @@
+# Phonewave's radio-addr (services/radio/radio-addr) for the phones. Build: image/pack radio-addr
+pkgname=radio-addr
+pkgdesc='Wi-Fi and Bluetooth addresses from the SoC serial'
+license=(MIT)
+_src=$startdir/../../../services/radio/radio-addr
+. "$startdir/../recipe.sh"
+depends=(glibc)
+
+# Built in a copy, so no ARM binary lands in the checkout.
+build() {
+  rm -rf "$srcdir/radio-addr"
+  cp -r "$_src" "$srcdir/radio-addr"
+  make -B -C "$srcdir/radio-addr" CC=aarch64-linux-gnu-gcc CFLAGS="-O2 -g --sysroot=$sysroot" \
+    LDFLAGS="-B$sysroot/usr/lib -Wl,-rpath-link,$sysroot/usr/lib"
+}
+
+package() {
+  make -C "$srcdir/radio-addr" install DESTDIR="$pkgdir"
+}

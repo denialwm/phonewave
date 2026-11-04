@@ -1,0 +1,15 @@
+# Phonewave's braun (services/camera/braun) for the phones. Build: image/pack braun
+pkgname=braun
+pkgdesc='Camera service'
+license=(MIT)
+_src=$startdir/../../../services/camera/braun
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs dbus)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

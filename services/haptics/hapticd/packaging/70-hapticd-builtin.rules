@@ -1,0 +1,3 @@
+# A force-feedback input that is not on USB (0003), Bluetooth (0005) or
+# virtual (0006) is the device's own vibrator; game controllers stay out.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{capabilities/ff}!="0", ATTRS{id/bustype}!="0003|0005|0006", ENV{HAPTICD_DEVICE}="1", ENV{HAPTICD_ID}="builtin"
