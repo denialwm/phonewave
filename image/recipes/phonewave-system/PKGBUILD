@@ -5,10 +5,18 @@ pkgdesc='Phonewave phone system configuration: SSH, USB network, session, keyrin
 license=(MIT)
 _src=$startdir/../../rootfs
 . "$startdir/../recipe.sh"
+# 2: the modes below; 1 copied a strict checkout's 600 and 700.
+pkgrel=2
 arch=(any)
 # What the user may edit under /etc stays theirs across updates.
 backup=($(cd "$_src" && find etc -type f | sort))
 
 package() {
-  cp -a --no-preserve=ownership "$_src/." "$pkgdir/"
+  cp -r --no-preserve=mode,ownership "$_src/." "$pkgdir/"
+  # The modes git records, whatever the checkout's umask: executables 755,
+  # every other file 644, directories 755.
+  find "$pkgdir" -type d -exec chmod 755 {} +
+  find "$pkgdir" -type f -exec chmod 644 {} +
+  (cd "$_src" && git ls-files -s . | awk '$1 == "100755" { print $4 }') |
+    while read -r file; do chmod 755 "$pkgdir/$file"; done
 }
