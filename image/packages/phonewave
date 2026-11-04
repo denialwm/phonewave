@@ -1,5 +1,5 @@
-# Packages image/pack builds, for every image. Devices enable the services
-# their hardware has.
+# Packages image/pack builds, for every image. Devices turn on the services
+# their hardware has from their boot image's tail.
 phonewave-system
 hapticd
 zram-swap

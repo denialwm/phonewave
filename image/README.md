@@ -37,6 +37,14 @@ it, so an override in `/etc` wins; `/etc` only where the program reads
 nothing else, and there pacman keeps the user's edits. The build itself
 writes only `fstab`, the partition layout, which every install owns.
 
+The services every phone runs are listed in
+`rootfs/usr/lib/systemd/system-preset/50-phonewave.preset`. When a package
+first installs one, phonewave-system's pacman hook enables it, and starts it
+on a running phone: the image's install turns them on, and so does the
+update that brings a new one. Updates leave units alone after that, so what
+the user turns off stays off. A device turns on the services its hardware
+has from its boot image's tail.
+
 Phones update from two signed repositories at `packages.denialwm.org`:
 `[denial]` (`arch/$arch`), Denial's releases, and `[denial-phone]`
 (`phone/$arch`), every package `recipes/` builds. Denial's
@@ -50,8 +58,9 @@ Denial key and publishes it. The image itself installs the packages
 `boot.img` holds the kernel and, at the page after it, a read-only erofs
 filesystem that `boot-tail` packs: the kernel's modules, the firmware that
 overrides linux-firmware's, the units that belong to the kernel, such as
-workarounds for its open issues, and what services read about the hardware,
-such as dmail's `dmail/device.toml`. The bootloader loads only the kernel the
+workarounds for its open issues, the services its hardware has, turned on by
+links in `systemd/system/<target>.wants/`, and what services read about the
+hardware, such as dmail's `dmail/device.toml`. The bootloader loads only the kernel the
 header lists. The early userspace mounts the rest in place, from the
 partition, at `/usr/lib/modules` (`fsoffset=` the kernel size, rounded up,
 plus the header page), points `firmware_class.path` at its `firmware/` and
@@ -158,7 +167,7 @@ For a quicker try on a phone that already runs an image, `image/install-userdata
 roadstr` writes only `userdata`, over SSH from the initramfs rescue.
 
 - `packages/base`: what every image gets. `devices/<codename>`: the device's
-  packages, units and boot images. `rootfs/`: the `phonewave-system`
+  packages and boot images. `rootfs/`: the `phonewave-system`
   package's files; `image/pack phonewave-system` rebuilds it.
 - Output and caches live in `/mnt/development/phonewave-cache`
   (`PHONEWAVE_CACHE`), never in home. The device's packages come from its

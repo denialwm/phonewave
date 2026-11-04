@@ -1,0 +1,18 @@
+#!/bin/sh
+# pacman hook: the unit files a transaction installed come on stdin. Those
+# 50-phonewave.preset names are enabled, and started on a running phone.
+# Upgrades leave units alone, so what the user turned off stays off.
+set -eu
+preset=/usr/lib/systemd/system-preset/50-phonewave.preset
+units=
+while read -r path; do
+  unit=${path##*/}
+  if grep -qxF "enable $unit" "$preset"; then
+    units="$units $unit"
+  fi
+done
+[ -n "$units" ] || exit 0
+if [ -d /run/systemd/system ]; then
+  exec systemctl enable --now $units
+fi
+exec systemctl enable $units

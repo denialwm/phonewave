@@ -5,7 +5,8 @@
 # RELEASE_DIR is a linux-perpetua-build release. DEVICE_DIR holds what the
 # device adds next to the modules, laid out as the release folder:
 # firmware/ (looked up before /usr/lib/firmware), systemd/system/ (units
-# the early userspace hands to systemd) and stock-firmware.conf with its
+# the early userspace hands to systemd, and <target>.wants/ links that turn
+# on the services the hardware has) and stock-firmware.conf with its
 # .sha256 (the firmware the phone's own partitions hold, which the early
 # userspace binds into firmware/ through image/stock-firmware), and what
 # services read about the hardware, such as dmail/device.toml, the modem's

@@ -1,7 +1,7 @@
 # The phone's own system files, for every image: image/rootfs, at the paths
 # they install to. Build: image/pack phonewave-system
 pkgname=phonewave-system
-pkgdesc='Phonewave phone system configuration: SSH, USB network, session, keyring'
+pkgdesc='Phonewave phone system configuration: services, SSH, USB network, session, keyring'
 license=(MIT)
 _src=$startdir/../../rootfs
 . "$startdir/../recipe.sh"

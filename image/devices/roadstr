@@ -3,10 +3,6 @@
 # The device's own packages, found in packages/ of the device's image cache.
 packages=()
 
-# Units the device runs, besides those every image enables. Units that belong
-# to the kernel travel in its boot image instead.
-units=()
-
 # Boot images in the vault's boot/, until the image builds its own.
 boot_img=boot-35.img
 init_boot_img=init_boot-6.img

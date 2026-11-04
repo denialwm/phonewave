@@ -220,10 +220,6 @@ inside() {
   echo LANG=C.UTF-8 > "$root/etc/locale.conf"
   touch "$root/usr/lib/clock-epoch"
 
-  chroot "$root" systemctl enable denial.service sshd.service NetworkManager.service systemd-networkd.service bluetooth.service \
-    upower.service systemd-timesyncd.service pacman-keyring.service zram-swap.service battery-statsd.service hapticd.service \
-    "${units[@]}"
-
   if [ -n "$dev_access" ]; then
     install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
     cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"

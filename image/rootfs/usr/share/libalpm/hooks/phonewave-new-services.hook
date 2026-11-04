@@ -1,0 +1,11 @@
+# Turns on the services every phone runs when a package first installs them.
+[Trigger]
+Type = Path
+Operation = Install
+Target = usr/lib/systemd/system/*
+
+[Action]
+Description = Turning on new phone services...
+When = PostTransaction
+Exec = /usr/lib/phonewave-system/enable-new-services
+NeedsTargets
