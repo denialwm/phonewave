@@ -14,9 +14,11 @@ directly, for bring-up.
 ## Install
 
 `make install` (PREFIX=/usr) installs `dmail`, `dmailctl`, the unit, the bus
-policy and activation file, and a sysusers file for the `dmail` group. The
-phone adds `/etc/dmail/device.toml`, its `modem-setup` if it needs one, and
-puts its user in `dmail` from `devices/<codename>/rootfs/`. Processes started
+policy, and a sysusers file for the `dmail` group. The unit starts it at
+boot; the bus does not start it. The phone adds `/etc/dmail/device.toml`, its
+`modem-setup` if it needs one, and puts its user in `dmail` from
+`devices/<codename>/rootfs/`. Without the device file dmail stays off the bus
+and waits: apps see no modem. Processes started
 before the user joined the group have no access until they restart: the
 Denial session, and the user manager (it lingers on aston).
 

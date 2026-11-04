@@ -420,7 +420,9 @@ change them with the setters; access to the bus is the permission.
 
 ## Device config
 
-`/etc/dmail/device.toml`, installed from `devices/<codename>/rootfs/`:
+`/etc/dmail/device.toml`, installed from `devices/<codename>/rootfs/`. A
+phone without one has no modem set up: dmail says so once, stays off the bus
+and waits to be stopped.
 
 ```toml
 [data]

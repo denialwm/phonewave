@@ -10,7 +10,7 @@ use dmail::bus::Bus;
 use dmail::config::{self, Device, Settings};
 use dmail::daemon::Daemon;
 use dmail::sms::store::Store;
-use futures_lite::future;
+use futures_lite::{StreamExt, future};
 
 fn main() -> ExitCode {
     match run() {
@@ -23,7 +23,12 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let device = Device::load(Path::new(config::DEVICE_FILE))?;
+    let signals = Signals::new([Signal::Term, Signal::Int]).map_err(|e| format!("signals: {e}"))?;
+    let device_file = Path::new(config::DEVICE_FILE);
+    if !device_file.exists() {
+        return wait(signals);
+    }
+    let device = Device::load(device_file)?;
     let state_dir = PathBuf::from(config::STATE_DIR);
     let store =
         Store::open(&state_dir.join("messages.db")).map_err(|e| format!("message store: {e}"))?;
@@ -38,7 +43,6 @@ fn run() -> Result<(), String> {
     }
     let store = Arc::new(Mutex::new(store));
     let settings = Settings::load(&state_dir);
-    let signals = Signals::new([Signal::Term, Signal::Int]).map_err(|e| format!("signals: {e}"))?;
     let (commands_tx, commands) = async_channel::unbounded();
 
     let ex = LocalExecutor::new();
@@ -60,4 +64,15 @@ fn run() -> Result<(), String> {
         .run()
         .await
     }))
+}
+
+/// A phone whose modem is not set up has no device file. dmail stays off the
+/// bus, so apps see no modem, and waits to be stopped.
+fn wait(mut signals: Signals) -> Result<(), String> {
+    eprintln!(
+        "dmail: no {}: this phone's modem is not set up",
+        config::DEVICE_FILE
+    );
+    future::block_on(signals.next());
+    Ok(())
 }
