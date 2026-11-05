@@ -1,68 +1,43 @@
 # OnePlus Ace 3 (aston)
 
-The phone runs Arch Linux on the shared devices kernel from slot B. rootfs/ holds
-the files installed for this device, at their install path and byte for byte as
-on the phone. boot/ packages a kernel release; tools/ runs on the host, reaches
-the phone as root through `ssh aston` and writes to ~/.cache/phonewave/aston.
+The phone runs Arch Linux on linux-perpetua from slot B, from the image every
+phone shares (`image/`). Slot A keeps stock Android and is never written.
+boot_b holds the kernel with its device tree built in, and after it the tail:
+modules, the GPU, Wi-Fi and Bluetooth firmware, the voice profile and boot/tail/.
+init_boot_b holds the shared early userspace (`image/initramfs`) with
+boot/phone.conf. The ADSP, CDSP, modem and IPA firmware come from the phone's
+own `modem_b` (`image/stock-firmware`); the GPU zap shader and the video
+firmware live in vendor, inside super, so the tail carries them. `ssh aston`
+reaches the phone as root over USB at 10.77.71.2.
 
-When userspace comes up broken (black screen, no Wi-Fi), the USB gadget
-still carries a serial console: `picocom -b 115200 /dev/ttyACM0` on the host
-gives a getty. Logged in, `sudo ip addr add 172.16.42.2/24 dev usb0`, `sudo
-ip link set usb0 up` and `sudo systemctl start sshd` open the USB network;
-the host's `nyx-usb-ncm` profile takes 172.16.42.1, and
-`ssh -o HostName=172.16.42.2 aston` reaches the phone. As root, `systemctl`
-works without D-Bus.
+The phone moved to the image on 2026-11-05. What the old root held and where
+each piece goes is in REMINDERS.md; rootfs/, packaging/ and the old tools stay
+until each piece has its new place.
 
 After installing files on the phone, run `sync` before anything that can
-hang it: a forced reboot keeps the new names and loses their data, and an
-empty D-Bus policy file stops dbus-broker, and with it the whole session.
+hang it: a forced reboot keeps the new names and loses their data.
 
 Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/aston`:
-boot/ the installed and rollback boot images with the evidence each package
-chains on, and the init_boot image; backups/ partition copies, among them the
-stock slot-B partitions (aston-survey-20261018) and the modem EFS; firmware/
-unpackaged and factory fingerprint firmware; private-rootfs/ the SSH key and
-sudoers; reference/ device trees; build-deps/ the deployed fingerprint worker
-and libfprint source, which no longer rebuild.
+boot/ the built images, the initramfs busybox and dropbear, and the old boot
+images; firmware/tail/ the firmware the tail carries, laid out as its
+firmware/; backups/ partition copies, among them the stock slot-B partitions
+(aston-survey-20261018), whose init_boot_b is the init_boot template, the
+modem EFS and the old root (aston-before-image-20261105); firmware/ also the
+factory fingerprint firmware; private-rootfs/ root's authorized_keys, which
+init_boot also carries, and sudoers; reference/ device trees; build-deps/ the
+fingerprint worker and libfprint source.
 
-Packaging a kernel release: build linux-perpetua through linux-perpetua-build,
-which leaves releases/devices-N-aston, then run `boot/package_kernel.py
---generation N --previous P`, where P is the release the phone runs. It checks
-the vault's boot_b-devicesP.img against kernel-flash-evidence-devicesP.json,
-uses it as the android-gki template and writes boot_b-devicesN.img,
-boot-evidence-devicesN/ and boot-package-devicesN.json to the vault. Offline.
+Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
+through linux-perpetua-build unless the release exists, and writes the vault's
+boot/boot-NAME.img on the devices224 boot image as header template.
+`boot/tail/stock-firmware.conf` and `.sha256` name the stock firmware the
+kernel was tested with. `image/init-boot aston NAME` writes init_boot-NAME.img;
+with `--rescue` it always stops in rescue, the way into an installed phone that
+lets nobody in.
 
-Installing it: `tools/stage_modules.py --generation N` installs the module
-directory without loading anything. `tools/activate_kernel.py --generation N
---previous-generation P` copies the image over, checks init_boot_b against
-boot-preflight.json, the current boot_b and the modules, then writes boot_b with
-the phone's /var/lib/aston-release/remote_boot_flash.py (equal to tools/), which
-backs up, reads back and records kernel-flash-evidence-devicesN.json.
-`tools/reboot_candidate.py --generation N` fetches the backup only when the
-vault holds no image with its hash, rechecks both partitions and reboots. Only boot_b is written; the previous image is the
-rollback. init_boot_b stays the devices10 image: boot/firstboot's static PID 1
-as a root-owned newc cpio, lz4 -l, on the stock init_boot_b.
-
-Fingerprint: build as services/fingerprint/uff/README.md says, then run
-tools/fingerprint/run_probe.py (identify the sensor), stage_service.py (worker,
-helper, presentation client, backend.json), build_libfprint.py (builds the
-snapshot on the phone in /opt/libfprint-uff) and install_fprintd.py (selects it,
-restarts fprintd). stage_compositor.py stages the deniald named by the cached
-compositor-build.json; activate_compositor.py selects it through
-denial.service.d/zz-fingerprint.conf and restarts the graphical session.
-
-Deploying Denial: denial.service runs a set under
-/var/lib/denial/engine-candidates, named by the drop-in that sorts last in
-denial.service.d. Build it from Denial's dev branch with the workspace's
-`tools/build start denial aston`; the candidate is
-/mnt/development/denial-os/builds/aston/denial/latest. Copy native/, shell/ and
-settings/ into a new set with `rsync --chown=root:root --link-dest=` the
-running set, then the candidate's SHA256SUMS, manifest.json,
-source-manifest.json, the three patches and build-recipe.py, and run
-`sha256sum -c SHA256SUMS` in it. Add a drop-in that sorts after the others,
-with ExecStart (deniald and `--flutter-bundle` from the set) and
-`DENIAL_SETTINGS_BINARY`, then reload systemd and restart denial.service.
-Deleting that drop-in returns to the one before it.
+Installing a kernel: write boot-NAME.img to /dev/disk/by-partlabel/boot_b,
+compare its sha256 and reboot. The userdata image goes in with
+`image/install-userdata aston` from a running phone, or from rescue.
 
 Charging: since devices59 the kernel's `sc8517-charger` owns the SuperVOOC
 PHY, the PM8550B USB switches and negotiation. It loads from the device tree;

@@ -23,3 +23,54 @@ not part of any device's configuration.
   the phone, install it, optical tests) are in git at
   `9af1cc3:devices/roadstr/tools/fingerprint/`. Bring it up on
   linux-perpetua.
+- **OnePlus Ace 3 (aston) onto the shared image.** Before the move, its
+  root was saved in the vault, `aston/backups/aston-before-image-20261105/`:
+  `system-owners.tar.zst` (/etc, /usr/local, /srv, the service state under
+  /var/lib and every file no package owns, owners intact), `files/` (the same
+  plus /home, /root and /opt, owners lost), `droidloom-20261105-113151.tar.zst`
+  (Android's storage, for `droidloomctl restore`), the package and unit
+  lists, and `system.txt` (partition hashes and command line). What
+  `devices/aston/rootfs/` and the old root held, and where it goes:
+  - Into the boot image's tail: the GPU, Wi-Fi and Bluetooth firmware and
+    the voice profile (vault `aston/firmware/tail/`); the stock firmware
+    on modem_b (`stock-firmware.conf`, Qualcomm build
+    Kailua.LA.1.0.r1-02022-STD.PROD-1; the OnePlus release name is still to
+    find); `dmail/device.toml`, with dmail's `modem-setup`; the rmtfs and
+    tqftpserv units once both are packages (the binaries are in the backup's
+    /usr/local/bin; the modem's EFS copy is in the backup's
+    /var/lib/aston-modem).
+  - Into the kernel: the modules the nyx-mainline-battery, -thermal and -wifi
+    units load by hand (bq27xxx, adc5-gen3, iio_hwmon, icc-osm-l3, the WCN7850
+    chain) should load from the device tree; a tail unit only where they
+    cannot.
+  - Already in the image: denial.service, the settings polkit rule, the USB
+    network, the real-time clamp sysctl, the haptics rule (hapticd's own
+    rule takes any built-in force-feedback input), the Settings app.
+  - To decide for every phone: coredump storage off, resolved unicast only,
+    msm GPU eviction off, the udev rules that give Denial the GPU floor and
+    the ath12k power-save switch, radio-addr for Wi-Fi (the image's package
+    has a Bluetooth unit only), the dmail group for the phone's user.
+  - To find a home: Denial's `ambient-display.json` and `fingerprint.json`
+    and the panel's ambient rule (hardware facts Denial reads from /etc);
+    audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
+    /opt/nyx-audioreach (in `files/opt`), the WirePlumber rule; camera, the
+    braun sensor files and the libcamera patches in `devices/aston/packaging`
+    (by sensor, so one package for every phone); fingerprint, libfprint-uff
+    in /opt, the fprintd drop-in, the vendor worker and its enrollments in
+    /var/lib/aston-fingerprint (all in the backup).
+  - Packages the old root had that the image lacks, such as noto-fonts-cjk,
+    noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
+  - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
+    `boot/firstboot/` and the old denial-session.target.
+- **Internet over USB.** The image routes through the computer on the cable
+  (10.77.71.1) but gives the phone no DNS server, so until Wi-Fi is set up
+  pacman cannot reach anything. Seen on the Ace 3, 2026-11-05.
+- **Google apps on a phone's Droidloom.** The Ace 3's restored Android data
+  was set up with Google apps, which the public Droidloom packages leave out,
+  so it runs a local `droidloom-gapps` package built from the same LiteGapps
+  archive against the installed images (`droidloom-gapps build`, then
+  `package --base-package-version`). That package names one Droidloom release
+  exactly: every Droidloom update needs it rebuilt for the new release first.
+- **Droidloom release name on package installs.** A restore on the packaged
+  release 30 said the phone runs release "unknown": the backup's release check
+  cannot read a package install's release.
