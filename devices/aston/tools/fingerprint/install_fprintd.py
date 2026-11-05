@@ -11,7 +11,7 @@ ProtectHome=tmpfs
 BindReadOnlyPaths=/run/user/1001
 DeviceAllow=/dev/tee0 rw
 DeviceAllow=/dev/fingerprint_dev rw
-DeviceAllow=/dev/aston_fp_illumination rw
+DeviceAllow=/dev/fp_illumination rw
 DeviceAllow=/dev/dma_heap/system rw
 DeviceAllow=char-input r
 '''

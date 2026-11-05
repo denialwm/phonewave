@@ -10,5 +10,5 @@
   "height": 195,
   "max_duration_ms": 30000,
   "settle_ms": 150,
-  "illumination_backend": "aston_aa551_fd"
+  "illumination_backend": "panel_fd"
 }

@@ -20,7 +20,7 @@ through Denial work on `7.3.0-devices35-aston`.
 | `libfprint/uff.c` | libfprint driver, built as `drivers/uff.c` in libfprint. It serves every sensor a boot tail names, through the helper |
 | `libfprint/test-uff-suspend.c` | libfprint test for suspend and resume, built as `tests/test-uff-suspend.c` |
 | `uff-calibration`, `system/` | Imports the sensor's factory calibration from the persist partition, read-only; fprintd's drop-in and the state folder |
-| `include/linux/`, `protocol/` | The kernel's `uff_fp.h` and `aston_fp_illumination.h`, and Denial's `denial-fingerprint-v1.xml`, as the package builds against them |
+| `include/linux/`, `protocol/` | The kernel's `uff_fp.h`, and Denial's `denial-fingerprint-v1.xml`, as the package builds against them |
 | `register-print.c` | Registers an enrolled template with fprintd |
 | `test-wire.c`, `test-contact.c`, `test_helper.py` | Host tests; no device needed |
 | `uff-storage-test.c`, `test-libfprint-passive.c`, `test-libfprint-optical.c` | Tests that run on the phone: storage confinement, libfprint discovery, real optical enroll and verify |
