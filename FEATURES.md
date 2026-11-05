@@ -58,7 +58,7 @@ last.
 | Rotation | works | 2026-10-28, user | steinerd |
 | Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
 | Compass and gyroscope | works | 2026-10-28, devices-141, user | steinerd; Sensors app |
-| Fingerprint | works | 2026-11-05, devices-223, user | Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
+| Fingerprint | works | 2026-11-05, devices-231, user | Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
 | Suspend | partial | 2026-10-29, devices-159 | s2idle, woken by the RTC; CX and DDR sleep, XO does not. Wi-Fi reassociates about 8 s after resume. The fingerprint driver refuses suspend while a verify holds the sensor (the test stopped it by hand); nothing suspends the phone on its own yet |
 | Cooling | works | 2026-11-01, devices-169, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
 | Denial | works | 2026-10-28, user | |
@@ -144,7 +144,7 @@ last.
 | Rotation | ? | | |
 | Light and proximity | ? | | |
 | Compass and gyroscope | ? | | |
-| Fingerprint | partial | 2026-11-05, devices-229, user | JIIOV JV0307, optical, through fprintd and fingerprint-phonewave like the other phones: Settings adds a finger, lit by the panel through `/dev/fp_illumination`. Needs Denial dev 0f47778 or later. Unlocking not tried yet |
+| Fingerprint | works | 2026-11-05, devices-230, user | JIIOV JV0307, optical, through fprintd and fingerprint-phonewave like the other phones: Settings adds a finger and it unlocks the phone, lit by the panel through `/dev/fp_illumination`. Needs Denial dev 0f47778 or later |
 | Suspend | ? | | |
 | Cooling | works | devices-12, probe | battmgr cooling device, checked with emulated temperatures |
 | Denial | works | user | |

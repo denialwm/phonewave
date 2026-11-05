@@ -2,13 +2,13 @@
 /* JIIOV ancapp64 worker behind the shared fingerprint helper: UFF1 and UFW1
  * records on the inherited stdout, commands on stdin. QTEE through the
  * upstream qcomtee driver (/dev/tee0), the sensor's power and reset through
- * /dev/jiiov_fp. Only metadata leaves this process; diagnostics go to stderr.
+ * /dev/tee_fp. Only metadata leaves this process; diagnostics go to stderr.
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <linux/jiiov_tee_fp.h>
+#include <linux/tee_fp.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -250,10 +250,10 @@ static int device_open(struct device *d,const char *firmware)
     if (files_start(d)) goto done;
     d->app=load(d->root,d->loader,fd,(size_t)st.st_size);
     if (!d->app) goto done;
-    d->control=open("/dev/jiiov_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
-    struct stat node;struct jiiov_fp_state state;
+    d->control=open("/dev/tee_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    struct stat node;struct tee_fp_state state;
     if (d->control<0 || fstat(d->control,&node) || !S_ISCHR(node.st_mode) || node.st_uid ||
-        (node.st_mode&077) || ioctl(d->control,JIIOV_FP_IOC_GET_STATE,&state) ||
+        (node.st_mode&077) || ioctl(d->control,TEE_FP_IOC_GET_STATE,&state) ||
         state.version!=1 || state.powered) {ret=-EACCES;goto done;}
     ret=0;
  done:
@@ -286,9 +286,9 @@ static int sensor_up(struct device *d)
 {
     uint32_t r[ANC_RESPONSE_SIZE/4];
     int64_t start=milliseconds();
-    if (ioctl(d->control,JIIOV_FP_IOC_ENABLE_POWER)) return -1;
+    if (ioctl(d->control,TEE_FP_IOC_ENABLE_POWER)) return -1;
     d->powered=true;
-    if (ioctl(d->control,JIIOV_FP_IOC_RESET) || worker_stopping) return -1;
+    if (ioctl(d->control,TEE_FP_IOC_RESET) || worker_stopping) return -1;
     if (command(d,ANC_GROUP_SENSOR,1,0,r)) return -1;
     d->initialized=true;
     if (command(d,ANC_GROUP_SENSOR,6,0,r) || r[1]!=JIIOV_CHIP) {
@@ -314,9 +314,9 @@ static int device_close(struct device *d)
     if (d->initialized && command(d,ANC_GROUP_SENSOR,2,0,r)) status=1;
     d->algorithm=d->initialized=false;
     if (d->control>=0) {
-        struct jiiov_fp_state state;
-        if (d->powered && ioctl(d->control,JIIOV_FP_IOC_DISABLE_POWER)) status=1;
-        if (ioctl(d->control,JIIOV_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) status=1;
+        struct tee_fp_state state;
+        if (d->powered && ioctl(d->control,TEE_FP_IOC_DISABLE_POWER)) status=1;
+        if (ioctl(d->control,TEE_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) status=1;
         close(d->control);d->control=-1;d->powered=false;
     }
     if (d->app) {
@@ -462,8 +462,8 @@ static int delete(struct device *d,uint32_t id)
 static int present(void)
 {
     struct stat driver,node;
-    int fd=open("/dev/jiiov_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
-    int status=stat("/sys/bus/platform/drivers/jiiov-tee-fp",&driver) || !S_ISDIR(driver.st_mode) || fd<0 ||
+    int fd=open("/dev/tee_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    int status=stat("/sys/bus/platform/drivers/tee-fp",&driver) || !S_ISDIR(driver.st_mode) || fd<0 ||
         fstat(fd,&node) || !S_ISCHR(node.st_mode) || node.st_uid || (node.st_mode&077);
     if (fd>=0) close(fd);
     return status;

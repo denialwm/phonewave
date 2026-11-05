@@ -229,7 +229,7 @@ names the Denial set
 ## Fingerprint
 
 The stock Goodix ultrasonic stack uses `goodixfp64`; the kernel provides
-power, reset, IRQ and `/dev/goodix_fp`. Native PIN setup, fingerprint
+power, reset, IRQ and `/dev/tee_fp`. Native PIN setup, fingerprint
 enrollment and lock-screen matching have succeeded. Preserve persist's
 `goodix/` factory calibration and keep it read-only. Historical power-on
 resets and the voltage correction are recorded in the private device vault.

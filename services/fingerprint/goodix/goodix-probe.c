@@ -5,7 +5,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/goodix_tee_fp.h>
+#include <linux/tee_fp.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -48,11 +48,12 @@ static int invoke(struct qcomtee_object *o, const char *name, uint32_t op,
     fprintf(stderr,"%s: transport=%d service=%d\n",name,ret,(int32_t)result);
     return ret ? -1 : (int32_t)result;
 }
-/* Any phone whose kernel bound the Goodix TEE sensor driver. */
+/* Any phone whose kernel bound the shared TEE sensor driver; the Goodix app
+ * itself tells whether the sensor is its own. */
 static int identity(void)
 {
     struct stat driver;
-    return !stat("/sys/bus/platform/drivers/goodix-tee-fp",&driver) && S_ISDIR(driver.st_mode) ? 0:-1;
+    return !stat("/sys/bus/platform/drivers/tee-fp",&driver) && S_ISDIR(driver.st_mode) ? 0:-1;
 }
 static struct qcomtee_object *load(struct qcomtee_object *root,
                                   struct qcomtee_object *loader, const char *path)
@@ -261,7 +262,7 @@ int main(int argc,char **argv)
         fprintf(stderr,"Usage: %s --transport | --keymaster-status | --keymaster-agree | --auth-setup goodixfp64.elf | --load goodixfp64.elf | --version goodixfp64.elf | --identify goodixfp64.elf\n",argv[0]);
         return 2;
     }
-    if (identity()) { fputs("No Goodix TEE sensor driver\n",stderr); return 1; }
+    if (identity()) { fputs("No TEE fingerprint driver\n",stderr); return 1; }
     setvbuf(stdout,NULL,_IONBF,0);
     int ret=1,control=-1;
     struct qcomtee_object *root=NULL,*env=NULL,*loader=NULL,*app=NULL;
@@ -289,13 +290,13 @@ int main(int argc,char **argv)
     else goto done;
     if (transport) { ret=0; goto done; }
     if (detect) {
-        control=open("/dev/goodix_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
+        control=open("/dev/tee_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
         if (control<0) { perror("Goodix control"); goto done; }
-        struct goodix_fp_state state;
-        if (ioctl(control,GOODIX_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) {
+        struct tee_fp_state state;
+        if (ioctl(control,TEE_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) {
             fputs("Expected idle Goodix native control interface v1\n",stderr); goto done;
         }
-        if (ioctl(control,GOODIX_FP_IOC_ENABLE_POWER)) { perror("Goodix power on"); goto done; }
+        if (ioctl(control,TEE_FP_IOC_ENABLE_POWER)) { perror("Goodix power on"); goto done; }
     }
     app=load(root,loader,argv[2]);
     if (!app) goto done;
@@ -304,7 +305,7 @@ int main(int argc,char **argv)
  done:
     if (app) qcomtee_object_refs_dec(app);
     if (control>=0) {
-        if (ioctl(control,GOODIX_FP_IOC_DISABLE_POWER)) { perror("Goodix power off"); ret=1; }
+        if (ioctl(control,TEE_FP_IOC_DISABLE_POWER)) { perror("Goodix power off"); ret=1; }
         close(control);
     }
     if (loader) qcomtee_object_refs_dec(loader);

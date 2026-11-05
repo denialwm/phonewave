@@ -103,8 +103,8 @@ def main():
     (includes / "linux").mkdir(parents=True, exist_ok=True)
     tee_header = args.kernel / "include/uapi/linux/tee.h"
     shutil.copyfile(tee_header, includes / "linux/tee.h")
-    control_header = args.kernel / "include/uapi/linux/goodix_tee_fp.h"
-    shutil.copyfile(control_header, includes / "linux/goodix_tee_fp.h")
+    control_header = args.kernel / "include/uapi/linux/tee_fp.h"
+    shutil.copyfile(control_header, includes / "linux/tee_fp.h")
     include_flags = ["-I" + str(p) for p in [includes, teec / "libqcomtee/include",
                                             teec / "libqcomtee/src", qcbor / "inc"]]
     libraries = {

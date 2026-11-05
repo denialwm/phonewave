@@ -163,9 +163,9 @@ static int worker_cleanup(struct worker_device *d)
         qcomtee_object_refs_dec(d->app);d->app=NULL;
     }
     if (d->control>=0) {
-        if (d->powered && ioctl(d->control,GOODIX_FP_IOC_DISABLE_POWER)) status=1;
-        struct goodix_fp_state state;
-        if (ioctl(d->control,GOODIX_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) status=1;
+        if (d->powered && ioctl(d->control,TEE_FP_IOC_DISABLE_POWER)) status=1;
+        struct tee_fp_state state;
+        if (ioctl(d->control,TEE_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered) status=1;
         close(d->control);d->control=-1;d->powered=false;
     }
     /* Unload the app before unregistering the file services it owns. */
@@ -209,10 +209,10 @@ static int worker_preload(struct worker_device *d,const char *firmware)
         if (tries==20 || worker_stopping) return -EBUSY;
         usleep(50000);
     }
-    d->control=open("/dev/goodix_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
-    struct stat node;struct goodix_fp_state state;
+    d->control=open("/dev/tee_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    struct stat node;struct tee_fp_state state;
     if (d->control<0 || fstat(d->control,&node) || !S_ISCHR(node.st_mode) || node.st_uid ||
-        (node.st_mode&077) || ioctl(d->control,GOODIX_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered)
+        (node.st_mode&077) || ioctl(d->control,TEE_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered)
         return -EACCES;
     const char *calibration=getenv("GOODIX_CALIBRATION_DIR"),*store=getenv("GOODIX_STORE_DIR");
     if (!calibration) calibration="/var/lib/phonewave-fingerprint/calibration";
@@ -232,11 +232,11 @@ static int worker_preload(struct worker_device *d,const char *firmware)
 static int worker_activate(struct worker_device *d)
 {
     int64_t start=milliseconds(), power_ready, prepared;
-    struct goodix_fp_state state;
+    struct tee_fp_state state;
     if (worker_stopping) return -ECANCELED;
-    if (ioctl(d->control,GOODIX_FP_IOC_ENABLE_POWER)) return -EIO;
+    if (ioctl(d->control,TEE_FP_IOC_ENABLE_POWER)) return -EIO;
     d->powered=true;
-    if (ioctl(d->control,GOODIX_FP_IOC_GET_STATE,&state) || !state.powered || state.version!=1) return -EIO;
+    if (ioctl(d->control,TEE_FP_IOC_GET_STATE,&state) || !state.powered || state.version!=1) return -EIO;
     power_ready=milliseconds();
     int ret=goodix_worker_prepare(&d->operation);
     prepared=milliseconds();
@@ -265,11 +265,11 @@ static bool warm_present(void)
 static int worker_passive(void)
 {
     if (identity()) return 1;
-    int fd=open("/dev/goodix_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
-    struct stat node;struct goodix_fp_state state;
+    int fd=open("/dev/tee_fp",O_RDWR|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    struct stat node;struct tee_fp_state state;
     int ret=fd<0;
     if (!ret) ret=fstat(fd,&node) || !S_ISCHR(node.st_mode) || node.st_uid ||
-        (node.st_mode&077) || ioctl(fd,GOODIX_FP_IOC_GET_STATE,&state) || state.version!=1 ||
+        (node.st_mode&077) || ioctl(fd,TEE_FP_IOC_GET_STATE,&state) || state.version!=1 ||
         (state.powered && !warm_present());
     if (fd>=0) close(fd);
     return ret?1:0;
