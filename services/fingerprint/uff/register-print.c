@@ -13,7 +13,7 @@ int main(void)
     g_autofree gchar *bytes=NULL;
     g_autoptr(GError) error=NULL;
     gsize length=0;
-    if(!g_file_get_contents("/var/lib/aston-fingerprint/native-test-print.bin",&bytes,&length,&error))return 2;
+    if(!g_file_get_contents("/var/lib/uff-fingerprint/native-test-print.bin",&bytes,&length,&error))return 2;
     g_autoptr(FpPrint) print=fp_print_deserialize((guchar *)bytes,length,&error);
     if(!print || strcmp(fp_print_get_driver(print),"uff") || strcmp(fp_print_get_device_id(print),"aston-goodix-g7s-uff"))return 2;
     g_autoptr(GVariant) identifier=NULL;g_object_get(print,"fpi-data",&identifier,NULL);

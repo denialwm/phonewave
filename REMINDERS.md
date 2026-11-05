@@ -68,15 +68,11 @@ not part of any device's configuration.
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
   - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
     `boot/firstboot/` and the old denial-session.target.
-- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05, with
-  fingerprint-uff installed by hand (`tools/phone-install`):
-  - The image does not install fingerprint-uff yet: `image/devices/aston`
-    lists the device's own packages from the device's cache, and the recipe
-    builds into the shared one.
+- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05:
   - The phone carries `/etc/polkit-1/rules.d/50-denial-fingerprint.rules`
     until a Denial release with the rule reaches it; remove it then.
   - The helper runs the worker once per request. The worker's resident mode
-    (`uff-resident.h`, socket in `/run/aston-fingerprint`) has no unit.
+    (`uff-resident.h`, socket in `/run/uff-fingerprint`) has no unit.
 - **Fingerprint enrollment on the RedMagic.** Its Gatekeeper keeps the lock
   PIN, and its reader adds a finger only with the PIN proven to it, which
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once

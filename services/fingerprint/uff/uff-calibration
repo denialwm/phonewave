@@ -4,13 +4,13 @@
 # The partition is mounted read-only with noload, so its journal is never
 # replayed, and only in this program's own mount namespace.
 set -euo pipefail
-state=/var/lib/aston-fingerprint/calibration
+state=/var/lib/uff-fingerprint/calibration
 [ -s "$state/fingerprint_cali.bin" ] && exit 0
 [ "${1:-}" = --inside ] || exec unshare --mount --propagation private "$0" --inside
 
 persist=$(mktemp -d)
 mount -o ro,noload /dev/disk/by-partlabel/persist "$persist"
-staging=$(mktemp -d /var/lib/aston-fingerprint/.calibration.XXXXXX)
+staging=$(mktemp -d /var/lib/uff-fingerprint/.calibration.XXXXXX)
 trap 'rm -rf "$staging"' EXIT
 for file in fingerprint_cali.bin fp_cali_serial_number.txt; do
   install -m 0400 "$persist/fingerprint/$file" "$staging/$file"

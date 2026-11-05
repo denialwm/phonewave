@@ -177,7 +177,7 @@ static int inspect_config(struct qcomtee_object *root,struct qcomtee_object *app
 }
 static int load_factory_calibration(struct qcomtee_object *root,struct qcomtee_object *app)
 {
-    const char *path="/var/lib/aston-fingerprint/calibration/fingerprint_cali.bin";
+    const char *path="/var/lib/uff-fingerprint/calibration/fingerprint_cali.bin";
     struct stat st;
     int fd=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW),ret=-1;
     unsigned char *data=NULL;

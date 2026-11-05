@@ -5,7 +5,7 @@ diff --git a/meson.build b/meson.build
      # SPI driver (non-optional if SPI is available)
      'elanspi': { 'spi': true, 'helper': ['udev'], 'optional': not have_spi },
      'jiiov': { 'helper': ['udev'], 'optional': true },
-+    'uff': { 'helper': ['udev'], 'optional': true },
++    'uff': { 'helper': ['udev'] },
 
      # Virtual drivers (test-only, optional)
      'virtual_image': { 'virtual': true, 'helper': ['virtual'], 'optional': true },

@@ -1,13 +1,16 @@
-# Phonewave's UFF fingerprint stack (services/fingerprint/uff) for the Ace 3.
+# Phonewave's UFF fingerprint stack (services/fingerprint/uff), on every phone.
 # Build: image/pack fingerprint-uff
 #
-# libfprint-uff: libfprint at the release Arch Linux ARM ships, with only the
-# uff driver, in place of Arch's libfprint; fprintd runs on it. libgusb
-# builds beside it as a subproject to link against and stays Arch's.
-# fingerprint-uff: the helper fprintd's driver starts, the sensor's worker,
-# the client that asks Denial to light the sensor, and the factory
-# calibration's import from the phone's persist partition. The sensor's
-# signed app and where it sits on the panel come from the boot image's tail.
+# libfprint-uff: libfprint at the release Arch Linux ARM ships, with its
+# default drivers and the uff driver, in place of Arch's libfprint; fprintd
+# runs on it. libgusb builds beside it as a subproject to link against and
+# stays Arch's.
+# fingerprint-uff: the helper the uff driver starts, the sensor's worker, the
+# client that asks Denial to light the sensor, and the factory calibration's
+# import from the phone's persist partition. A phone with the sensor turns
+# them on from its boot image's tail, which holds fprintd's drop-in, the
+# sensor's signed app and where the sensor sits on the panel. Elsewhere the
+# uff driver finds no sensor and nothing of this runs.
 pkgbase=fingerprint-uff
 pkgname=(libfprint-uff fingerprint-uff)
 _libfprint=80a4b5ec612892c5c056c48dddaa561452cf37ec # v1.94.100
@@ -16,7 +19,7 @@ _gusb=ed31c8134d80d006bd45450e84180be2a7c0742e # 0.4.9
 _teec=736419e25a2036aac3292a10a93e394a90750ca3
 _qcbor=a3fce5f34d7b30f12d7b9161185171c6fe137737
 _minkipc=6ab4aedfbbacd366f0e064c1c72b09ad54b31761
-pkgdesc='Fingerprint sensor under the OnePlus Ace 3 screen'
+pkgdesc='UFF fingerprint sensors under phone screens'
 url='https://github.com/denialwm/phonewave'
 license=(LGPL-2.1-or-later)
 _src=$startdir/../../../services/fingerprint/uff
@@ -85,7 +88,7 @@ build() {
   rm -rf libfprint-build uff
   meson setup libfprint-build libfprint --cross-file cross.ini \
     --prefix=/usr --libexecdir=lib --buildtype=release --wrap-mode=nodownload \
-    -D drivers=uff -D introspection=false -D doc=false -D gtk-examples=false \
+    -D drivers=default -D introspection=false -D doc=false -D gtk-examples=false \
     -D installed-tests=false -D udev_rules=disabled -D udev_hwdb=disabled \
     -D libgusb:tests=false -D libgusb:vapi=false -D libgusb:docs=false \
     -D libgusb:introspection=false -D libgusb:umockdev=disabled
@@ -129,8 +132,8 @@ build() {
 }
 
 package_libfprint-uff() {
-  pkgdesc='Library for fingerprint readers, with the OnePlus Ace 3 UFF driver'
-  depends=(glib2 libgudev libgusb)
+  pkgdesc='Library for fingerprint readers, with the UFF driver'
+  depends=(glib2 libgudev libgusb openssl pixman)
   provides=("libfprint=$_libfprint_version" libfprint-2.so=2-64)
   conflicts=(libfprint)
   meson install -C libfprint-build --destdir "$pkgdir" --skip-subprojects --no-rebuild
@@ -144,8 +147,6 @@ package_fingerprint-uff() {
   install -Dm755 uff/uff-denial-presentation "$pkgdir/usr/lib/uff-fingerprint/uff-denial-presentation"
   install -Dm644 "$_src/system/uff-calibration.service" \
     "$pkgdir/usr/lib/systemd/system/uff-calibration.service"
-  install -Dm644 "$_src/system/fprintd-uff.conf" \
-    "$pkgdir/usr/lib/systemd/system/fprintd.service.d/50-uff.conf"
   install -Dm644 "$_src/system/uff-fingerprint.tmpfiles" \
     "$pkgdir/usr/lib/tmpfiles.d/uff-fingerprint.conf"
 }

@@ -27,27 +27,37 @@ through Denial work on `7.3.0-devices35-aston`.
 
 ## Package
 
-`image/recipes/fingerprint-uff` builds two packages from this directory:
+`image/recipes/fingerprint-uff` builds two packages from this directory,
+and every phone's image carries them:
 
 - `libfprint-uff`: libfprint v1.94.100 (`80a4b5ec`), the release Arch Linux
   ARM ships, with `../jiiov/libfprint/0001`-`0007`,
-  `libfprint/0008-build-uff-driver.patch`, `uff.c` and only the uff driver.
-  It replaces Arch's libfprint; fprintd is Arch's.
+  `libfprint/0008-build-uff-driver.patch` and `uff.c`: Arch's default
+  drivers and the uff driver. It replaces Arch's libfprint; fprintd is
+  Arch's.
 - `fingerprint-uff`: the helper at `/usr/lib/uff-fingerprint/uff-fprint-helper`,
-  where the driver starts it, the static worker, the presentation client,
-  `uff-calibration` and the fprintd drop-in. The worker links quic-teec,
-  QCBOR and minkipc at the commits the recipe pins, with `deps/<name>/*.patch`
-  on top.
+  where the driver starts it, the static worker, the presentation client and
+  `uff-calibration`. The worker links quic-teec, QCBOR and minkipc at the
+  commits the recipe pins, with `deps/<name>/*.patch` on top.
 
-The boot image's tail carries what is the phone's own: the signed `uff_gx`
-app (`firmware/uff/uff_gx.elf`, from the vault's `aston/firmware/tail/`) and
-Denial's `denial/fingerprint.json`, which the package copies to
-`/etc/denial/fingerprint.json`. fprintd's sandbox hides `/usr/lib/modules`,
-so its drop-in binds the app at `/run/uff-firmware`. The factory calibration
-stays on the phone: `uff-calibration` copies it from the persist partition's
-`fingerprint/` into `/var/lib/aston-fingerprint/calibration` once, before
-fprintd first opens the sensor. Templates stay in the TEE's storage under
-`/var/lib/aston-fingerprint/secure-cache`.
+A phone with the sensor says so in its boot image's tail, which carries what
+is the phone's own:
+
+- `systemd/system/fprintd.service.d/50-uff.conf`: the sensor's devices in
+  fprintd's sandbox, the state folder `/var/lib/uff-fingerprint` and the
+  calibration import. fprintd's sandbox hides `/usr/lib/modules`, so the
+  drop-in binds the signed app at `/run/uff-firmware`.
+- the signed `uff_gx` app (`firmware/uff/uff_gx.elf`, from the vault's
+  `aston/firmware/tail/`).
+- Denial's `denial/fingerprint.json`, which the package copies to
+  `/etc/denial/fingerprint.json`.
+
+On a phone without them the uff driver finds no sensor, fprintd lists none and
+nothing of this runs. The factory calibration stays on the phone:
+`uff-calibration` copies it from the persist partition's `fingerprint/` into
+`/var/lib/uff-fingerprint/calibration` once, before fprintd first opens the
+sensor. Templates stay in the TEE's storage under
+`/var/lib/uff-fingerprint/secure-cache`.
 
 The helper finds the compositor through `denial.service`: its `User` is the
 phone's user, and the presentation client accepts only that user's Denial.

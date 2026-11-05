@@ -35,7 +35,7 @@ PHONES = {
     'aston': {'files': {'worker': {'path': '/usr/lib/uff-fingerprint/uff-service-worker'},
                         'presentation': {'path': '/usr/lib/uff-fingerprint/uff-denial-presentation'},
                         'firmware': {'path': '/run/uff-firmware/uff_gx.elf'}},
-              'lock': '/run/lock/aston-fingerprint.lock',
+              'lock': '/run/lock/uff-fingerprint.lock',
               'contact': 'presentation', 'resident': False},
     'nx809j': {'config': '/etc/nx809j-fingerprint/backend.json',
                'lock': '/run/lock/nx809j-fingerprint.lock',

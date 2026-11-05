@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define UFF_RESIDENT_SOCKET "/run/aston-fingerprint/worker.sock"
+#define UFF_RESIDENT_SOCKET "/run/uff-fingerprint/worker.sock"
 static void resident_notify(const char *message)
 {
     const char *path=getenv("NOTIFY_SOCKET");
@@ -83,7 +83,7 @@ static int uff_resident_serve(struct qcomtee_object *root,struct qcomtee_object 
         ioctl(uff_power_control,UFF_FP_IOC_GET_STATE,&state) || state.version!=1 ||
         resident_standby(root,app,state.reset_sequence)) return -1;
     struct stat directory;
-    if (lstat("/run/aston-fingerprint",&directory) || !S_ISDIR(directory.st_mode) ||
+    if (lstat("/run/uff-fingerprint",&directory) || !S_ISDIR(directory.st_mode) ||
         directory.st_uid!=0 || (directory.st_mode&077)) return -1;
     int listener=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0),ret=-1;
     if (listener<0) return -1;
@@ -169,7 +169,7 @@ static int uff_resident_client(int argc,char **argv,FILE *records)
 {
     if (device_identity()) return 1;
     struct stat directory,node,self,server;
-    if (lstat("/run/aston-fingerprint",&directory) || !S_ISDIR(directory.st_mode) ||
+    if (lstat("/run/uff-fingerprint",&directory) || !S_ISDIR(directory.st_mode) ||
         directory.st_uid!=0 || (directory.st_mode&077) ||
         lstat(UFF_RESIDENT_SOCKET,&node) || !S_ISSOCK(node.st_mode) ||
         node.st_uid!=0 || (node.st_mode&077)) return 1;
