@@ -41,7 +41,7 @@ through Denial work on `7.3.0-devices35-aston`.
 
 The boot image's tail carries what is the phone's own: the signed `uff_gx`
 app (`firmware/uff/uff_gx.elf`, from the vault's `aston/firmware/tail/`) and
-Denial's `denial/fingerprint.json`, which the package links at
+Denial's `denial/fingerprint.json`, which the package copies to
 `/etc/denial/fingerprint.json`. fprintd's sandbox hides `/usr/lib/modules`,
 so its drop-in binds the app at `/run/uff-firmware`. The factory calibration
 stays on the phone: `uff-calibration` copies it from the persist partition's

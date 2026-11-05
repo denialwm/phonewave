@@ -106,9 +106,23 @@ def compositor_environment():
                         '--property=User', '--property=ActiveState'],
                        check=True, capture_output=True, text=True, timeout=3)
     fields = dict(line.split('=', 1) for line in p.stdout.splitlines())
-    pid = int(fields['MainPID'])
-    require(pid > 1 and fields['User'] and fields['ActiveState'] == 'active',
+    main = int(fields['MainPID'] or 0)
+    require(main > 0 and fields['User'] and fields['ActiveState'] == 'active',
             'Denial service unavailable')
+    def executable(pid):
+        try:
+            return os.readlink(f'/proc/{pid}/exe')
+        except OSError:
+            return None
+    # The service runs deniald itself or a session script whose one deniald
+    # child is Denial. Its PAM session moves both out of the service cgroup.
+    if executable(main) == '/usr/bin/deniald':
+        denial = [main]
+    else:
+        children = Path(f'/proc/{main}/task/{main}/children').read_text().split()
+        denial = [int(pid) for pid in children if executable(pid) == '/usr/bin/deniald']
+    require(len(denial) == 1, 'Denial process unavailable')
+    pid = denial[0]
     # The phone's user, whom the welcome created, runs Denial.
     uid = pwd.getpwnam(fields['User']).pw_uid
     require(uid > 0 and Path(f'/proc/{pid}').stat().st_uid == uid, 'wrong compositor owner')

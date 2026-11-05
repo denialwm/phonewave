@@ -1,4 +1,5 @@
 d /var/lib/aston-fingerprint 0700 root root -
 # Where the sensor sits on the panel: the running kernel's boot image tail
-# says it, so the link follows each kernel.
-L+ /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
+# says it. A copy on each boot follows each kernel; Denial reads only a
+# regular file.
+C+ /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
