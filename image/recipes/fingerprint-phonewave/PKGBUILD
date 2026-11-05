@@ -39,7 +39,7 @@ prepare() {
   # makepkg resets the checkouts; files earlier patches added stay.
   git -C libfprint clean -ffdxq
   git -C minkipc clean -ffdxq
-  for p in "$_src"/jiiov/libfprint/*.patch "$_src"/uff/libfprint/*.patch; do
+  for p in "$_src"/uff/libfprint/*.patch; do
     patch -d libfprint -Np1 -s < "$p"
   done
   cp "$_src/uff/libfprint/uff.c" libfprint/libfprint/drivers/uff.c
@@ -144,6 +144,24 @@ build() {
   aarch64-linux-gnu-gcc --sysroot="$sysroot" -B"$sysroot/usr/lib" -O2 -g -Wall -Wextra -Werror \
     -I"$out" -I"$include" -I"$sysroot/usr/include" "$_src/uff/uff-denial-presentation.c" "$out"/*-protocol.c \
     -Wl,-rpath-link,"$sysroot/usr/lib" -lwayland-client -o "$out/presentation"
+
+  # Host tests of the wire formats and the JIIOV worker's file service, built
+  # for this machine: image/pack turns check() off. LeakSanitizer cannot run
+  # under ptrace sandboxes.
+  local tests=$srcdir/host-tests t
+  cc=(gcc -std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror -O1 -g
+    -fsanitize=address,undefined -pthread -I"$_src/uff/include"
+    -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn})
+  mkdir -p "$tests"
+  for t in jiiov/test-files jiiov/test-protocol; do
+    "${cc[@]}" "$_src/$t.c" "$_src/jiiov/anc-protocol.c" -o "$tests/${t#*/}"
+  done
+  for t in uff/test-wire uff/test-contact; do
+    "${cc[@]}" "$_src/$t.c" -o "$tests/${t#*/}"
+  done
+  for t in test-files test-protocol test-wire test-contact; do
+    ASAN_OPTIONS=detect_leaks=0 "$tests/$t" > /dev/null
+  done
 }
 
 package_libfprint-phonewave() {

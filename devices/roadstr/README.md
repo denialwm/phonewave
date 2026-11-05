@@ -30,3 +30,11 @@ Installing a kernel by hand: write boot-NAME.img to
 roadstr` then checks that boot_b carries its kernel's modules and that slot B
 is marked successful; `--reboot` reboots.
 `boot/parity-check.sh | ssh roadstr sh` prints a read-only health report.
+
+Fingerprint: fprintd runs on the `fingerprint-phonewave` packages, as on
+every phone (services/fingerprint). The tail's `fingerprint/sensor.conf`
+names the JIIOV sensor and `denial/fingerprint.json` its mark and panel;
+`boot/build-boot.sh` joins the signed `ancapp64` into the tail. The kernel
+gives `/dev/tee_fp` for the sensor and `/dev/fp_illumination` in the panel
+driver. Preserve persist's `jiiov/` factory calibration and keep it
+read-only.

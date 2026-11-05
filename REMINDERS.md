@@ -56,8 +56,8 @@ not part of any device's configuration.
     msm GPU eviction off, the udev rules that give Denial the GPU floor and
     the ath12k power-save switch, radio-addr for Wi-Fi (the image's package
     has a Bluetooth unit only), the dmail group for the phone's user.
-  - To find a home: Denial's `ambient-display.json` and `fingerprint.json`
-    and the panel's ambient rule (hardware facts Denial reads from /etc);
+  - To find a home: Denial's `ambient-display.json` and the panel's ambient
+    rule (hardware facts Denial reads from /etc);
     audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
     /opt/nyx-audioreach (in `files/opt`), the WirePlumber rule; camera, the
     braun sensor files and the libcamera patches in `devices/aston/packaging`

@@ -1,0 +1,39 @@
+diff --git a/libfprint/meson.build b/libfprint/meson.build
+index f11533ca..6c100c5d 100644
+--- a/libfprint/meson.build
++++ b/libfprint/meson.build
+@@ -88,6 +88,7 @@ nbis_sources = [
+ ]
+ 
+ driver_sources = {
++    'uff': files('drivers/uff.c'),
+     'upekts' : files(
+         'drivers/upekts.c',
+         'drivers/upek_proto.c',
+diff --git a/meson.build b/meson.build
+index ab09dc1d..aaccc9c7 100644
+--- a/meson.build
++++ b/meson.build
+@@ -150,6 +150,7 @@ drivers_info = {
+ 
+     # SPI driver (non-optional if SPI is available)
+     'elanspi': { 'spi': true, 'helper': ['udev'], 'optional': not have_spi },
++    'uff': { 'helper': ['udev'] },
+ 
+     # Virtual drivers (test-only, optional)
+     'virtual_image': { 'virtual': true, 'helper': ['virtual'], 'optional': true },
+diff --git a/tests/meson.build b/tests/meson.build
+index d88524f2..ada0d66c 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -323,6 +323,10 @@ endif
+ 
+ unit_tests_deps = { 'fpi-assembling' : [cairo_dep] }
+ 
++if 'uff' in drivers
++    unit_tests += ['uff-suspend']
++endif
++
+ foreach test_name: unit_tests
+     if unit_tests_deps.has_key(test_name)
+         missing_deps = false
