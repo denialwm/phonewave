@@ -131,6 +131,15 @@ and on Wi-Fi. Several phones on one computer need a pair each: a lab phone's
 vault `private-rootfs/etc/` carries its own `systemd/network/10-phone-usb.network`
 and `ssh/sshd_config.d/11-phone-usb.conf`, which `--dev-access` puts over the
 image's. Its rescue init_boot is built per device with the same address.
+Tools that write to a phone without checking its host key, such as
+`install-userdata`, first read its device tree's model and stop on another
+phone.
+
+The phone routes through the computer when the computer shares its
+connection (NetworkManager's "shared" mode, say), below Wi-Fi and mobile
+data. Names resolve through systemd-resolved: NetworkManager gives it Wi-Fi's
+servers and dmail the carrier's, and with the cable alone, where no
+connection names one, its fallback servers answer.
 
 ## The first user
 

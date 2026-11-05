@@ -209,6 +209,23 @@ inside() {
   pacman -r "$root" --config "$out/pacman.conf" --gpgdir "$gnupg" --cachedir "$shared/pkg" \
     --hookdir "$root/etc/pacman.d/hooks" --logfile "$out/pacman.log" \
     -Sy --noconfirm "${list[@]}"
+  # This workstation's pacman may write fields the phone's does not know
+  # (CachyOS's %INSTALLED_DB%), which then warns on every command. The phone's
+  # own pacman rewrites each entry; it writes one only when the install
+  # reason changes, so each package is flipped and flipped back.
+  local explicit=() deps=()
+  mapfile -t explicit < <(chroot "$root" pacman -Qqe 2>/dev/null)
+  mapfile -t deps < <(chroot "$root" pacman -Qqd 2>/dev/null)
+  {
+    chroot "$root" pacman -D --asdeps "${explicit[@]}"
+    chroot "$root" pacman -D --asexplicit "${explicit[@]}"
+    if [ ${#deps[@]} -gt 0 ]; then
+      chroot "$root" pacman -D --asexplicit "${deps[@]}"
+      chroot "$root" pacman -D --asdeps "${deps[@]}"
+    fi
+  } > /dev/null 2>&1
+  ! grep -lq '^%INSTALLED_DB%$' "$root"/var/lib/pacman/local/*/desc ||
+    { echo "the phone's pacman left fields it does not know" >&2; exit 1; }
 
   # The partition layout, the one system file not in a package: fstab
   # belongs to the filesystem package, and every install sets its own.

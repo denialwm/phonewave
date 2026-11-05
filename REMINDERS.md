@@ -3,12 +3,6 @@
 Open work, kept until it is done. A reminder says where it was seen; it is
 not part of any device's configuration.
 
-- **pacman warns `unknown key '%INSTALLED_DB%'`.** On the Ace 3, every
-  pacman command warns for the 33 packages the image build installed: the
-  build runs this workstation's pacman (CachyOS `7.1.0.r9-4`), which writes a
-  key into `/var/lib/pacman/local/*/desc` that the phone's Arch Linux ARM
-  pacman does not know. Install the image's packages with a pacman that
-  writes what the phone's reads.
 - **USB charging current.** On the Motorola Edge 70 the ADSP starts a
   computer's USB port (SDP) at 100 mA, less than the phone draws. A udev rule
   used to raise it to the 500 mA USB 2.0 allows. Fix it in the kernel's
@@ -70,9 +64,11 @@ not part of any device's configuration.
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once
   its own fingerprint helper asks Gatekeeper itself, Settings drops the sudo
   path and Denial the root session.
-- **Internet over USB.** The image routes through the computer on the cable
-  (10.77.71.1) but gives the phone no DNS server, so until Wi-Fi is set up
-  pacman cannot reach anything. Seen on the Ace 3, 2026-11-05.
+- **Internet over USB on this workstation.** The phone resolves names over
+  the cable alone (systemd-resolved's fallback servers), and the computer's
+  USB connection is NetworkManager's "shared", but the workstation's
+  `/etc/nftables.conf` drops every forwarded packet, so nothing past it
+  answers. Seen on the Edge 70, 2026-11-05.
 - **Google apps on a phone's Droidloom.** The Ace 3's restored Android data
   was set up with Google apps, which the public Droidloom packages leave out,
   so it runs a local `droidloom-gapps` package built from the same LiteGapps
