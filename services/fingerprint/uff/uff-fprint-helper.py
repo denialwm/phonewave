@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import selectors
 import signal
@@ -25,12 +26,17 @@ import time
 
 STOP = False
 
-# Each phone: its configuration, its lock, the child that reports contact,
-# and whether its worker stays resident between requests.
+# Each phone: its files, or the configuration that names them, its lock,
+# the child that reports contact, and whether its worker stays resident
+# between requests. The Aston's come from the fingerprint-uff package and
+# its boot image's tail, which carries the sensor's signed app; fprintd's
+# drop-in binds the tail's firmware/uff at /run/uff-firmware.
 PHONES = {
-    'aston': {'config': '/etc/aston-fingerprint/backend.json',
+    'aston': {'files': {'worker': {'path': '/usr/lib/uff-fingerprint/uff-service-worker'},
+                        'presentation': {'path': '/usr/lib/uff-fingerprint/uff-denial-presentation'},
+                        'firmware': {'path': '/run/uff-firmware/uff_gx.elf'}},
               'lock': '/run/lock/aston-fingerprint.lock',
-              'contact': 'presentation', 'resident': True},
+              'contact': 'presentation', 'resident': False},
     'nx809j': {'config': '/etc/nx809j-fingerprint/backend.json',
                'lock': '/run/lock/nx809j-fingerprint.lock',
                'contact': 'contact', 'resident': False},
@@ -76,7 +82,6 @@ def phone():
     require('androidboot.slot_suffix = "_b"' in boot, 'wrong slot')
     model = Path('/proc/device-tree/compatible').read_bytes().split(b'\0')[0]
     if model == b'oneplus,aston':
-        require('androidboot.serialno = "f683d9c9"' in boot, 'wrong device')
         return 'aston'
     require(model == b'nubia,nx809j', 'unsupported phone')
     return 'nx809j'
@@ -85,10 +90,14 @@ def phone():
 def configuration():
     require(os.geteuid() == 0, 'root required')
     name = phone()
-    config = json.loads(protected(PHONES[name]['config'], limit=8192))
-    require(config['format'] == 1, 'unsupported configuration')
+    if 'files' in PHONES[name]:
+        # pacman and the boot image hold these; only their owners are checked.
+        config = PHONES[name]['files']
+    else:
+        config = json.loads(protected(PHONES[name]['config'], limit=8192))
+        require(config['format'] == 1, 'unsupported configuration')
     for entry in ('worker', 'firmware', PHONES[name]['contact']):
-        protected(config[entry]['path'], config[entry]['sha256'])
+        protected(config[entry]['path'], config[entry].get('sha256'))
     return dict(config, phone=PHONES[name])
 
 
@@ -98,25 +107,27 @@ def compositor_environment():
                        check=True, capture_output=True, text=True, timeout=3)
     fields = dict(line.split('=', 1) for line in p.stdout.splitlines())
     pid = int(fields['MainPID'])
-    require(pid > 1 and fields['User'] == 'logix' and fields['ActiveState'] == 'active',
+    require(pid > 1 and fields['User'] and fields['ActiveState'] == 'active',
             'Denial service unavailable')
-    require(Path(f'/proc/{pid}').stat().st_uid == 1001, 'wrong compositor owner')
+    # The phone's user, whom the welcome created, runs Denial.
+    uid = pwd.getpwnam(fields['User']).pw_uid
+    require(uid > 0 and Path(f'/proc/{pid}').stat().st_uid == uid, 'wrong compositor owner')
     raw = Path(f'/proc/{pid}/environ').read_bytes()
     env = dict(x.decode().split('=', 1) for x in raw.split(b'\0') if b'=' in x)
-    runtime = env.get('XDG_RUNTIME_DIR', '/run/user/1001')
+    runtime = env.get('XDG_RUNTIME_DIR', f'/run/user/{uid}')
     # The listener is created after exec, so /proc/environ need not contain
     # WAYLAND_DISPLAY. Resolve the sole live socket, then the C client pins
     # its SO_PEERCRED to this exact system-managed compositor PID.
     sockets = [p for p in Path(runtime).glob('wayland-*')
                if re.fullmatch(r'wayland-[0-9]+', p.name)
-               and stat.S_ISSOCK(p.lstat().st_mode) and p.lstat().st_uid == 1001]
+               and stat.S_ISSOCK(p.lstat().st_mode) and p.lstat().st_uid == uid]
     require(len(sockets) == 1, 'ambiguous compositor socket')
     display = sockets[0].name
-    require(runtime == '/run/user/1001' and re.fullmatch(r'wayland-[0-9]+', display),
+    require(runtime == f'/run/user/{uid}' and re.fullmatch(r'wayland-[0-9]+', display),
             'unexpected compositor socket')
     return {'PATH': '/usr/bin:/bin', 'XDG_RUNTIME_DIR': runtime,
             'WAYLAND_DISPLAY': display, 'UFF_DENIAL_PID': str(pid),
-            'UFF_SUSPEND_PROTOCOL': '1'}
+            'UFF_DENIAL_UID': str(uid), 'UFF_SUSPEND_PROTOCOL': '1'}
 
 
 class Contact:

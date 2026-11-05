@@ -1,0 +1,14 @@
+{
+  "sensor": "goodix-g7s-uff",
+  "output": "DSI-1",
+  "panel_name": "oneplus,aston-boe-aa551",
+  "panel_width": 1264,
+  "panel_height": 2780,
+  "x": 535,
+  "y": 1928,
+  "width": 195,
+  "height": 195,
+  "max_duration_ms": 30000,
+  "settle_ms": 150,
+  "illumination_backend": "aston_aa551_fd"
+}

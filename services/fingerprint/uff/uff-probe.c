@@ -46,11 +46,13 @@ static struct qcomtee_param object_in(struct qcomtee_object *p)
 
 static int device_identity(void)
 {
-    char b[16384];
+    char b[16384],model[32]={0};
     FILE *f=fopen("/proc/bootconfig","r");
     if (!f) return -1;
     size_t n=fread(b,1,sizeof(b)-1,f);b[n]=0;fclose(f);
-    return strstr(b,"androidboot.serialno = \"f683d9c9\"") &&
+    if (!(f=fopen("/proc/device-tree/compatible","r"))) return -1;
+    n=fread(model,1,sizeof(model)-1,f);fclose(f);
+    return n>=sizeof("oneplus,aston") && !strcmp(model,"oneplus,aston") &&
            strstr(b,"androidboot.slot_suffix = \"_b\"") ? 0:-1;
 }
 /* A complete signed split ELF is assembled locally, with segment hashes. */

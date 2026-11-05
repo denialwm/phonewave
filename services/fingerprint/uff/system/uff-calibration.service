@@ -1,0 +1,10 @@
+[Unit]
+Description=Fingerprint sensor calibration from the persist partition
+ConditionPathExists=!/var/lib/aston-fingerprint/calibration/fingerprint_cali.bin
+DefaultDependencies=no
+After=local-fs.target
+Before=fprintd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/uff-fingerprint/uff-calibration

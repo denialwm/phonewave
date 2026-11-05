@@ -246,7 +246,10 @@ int main(void) {
     char boot[16384];FILE *identity=fopen("/proc/bootconfig","r");
     if (!identity) return 2;
     size_t identity_size=fread(boot,1,sizeof(boot)-1,identity);boot[identity_size]=0;fclose(identity);
-    if (!strstr(boot,"androidboot.serialno = \"f683d9c9\"") ||
+    char model[32]={0};identity=fopen("/proc/device-tree/compatible","r");
+    if (!identity) return 2;
+    size_t model_size=fread(model,1,sizeof(model)-1,identity);fclose(identity);
+    if (model_size<sizeof("oneplus,aston") || strcmp(model,"oneplus,aston") ||
         !strstr(boot,"androidboot.slot_suffix = \"_b\"")) return 2;
     // No contact exists during setup. Bound synchronous registry/import
     // roundtrips even if the compositor has stopped dispatching clients.
@@ -258,10 +261,13 @@ int main(void) {
      */
     const char *expected_pid=getenv("UFF_DENIAL_PID");char *end=NULL;
     unsigned long pid=expected_pid?strtoul(expected_pid,&end,10):0;
+    if (!pid || pid>INT32_MAX || !end || *end) goto fail;
+    const char *expected_uid=getenv("UFF_DENIAL_UID");end=NULL;
+    unsigned long uid=expected_uid?strtoul(expected_uid,&end,10):0;
     struct ucred peer;socklen_t peer_size=sizeof(peer);
-    if (!pid || pid>INT32_MAX || !end || *end ||
+    if (!uid || uid>=UINT32_MAX || !end || *end ||
         getsockopt(wl_display_get_fd(display),SOL_SOCKET,SO_PEERCRED,&peer,&peer_size) ||
-        peer_size!=sizeof(peer) || peer.pid!=(pid_t)pid || peer.uid!=1001) goto fail;
+        peer_size!=sizeof(peer) || peer.pid!=(pid_t)pid || peer.uid!=(uid_t)uid) goto fail;
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, NULL);
     if (wl_display_roundtrip(display) < 0 || !manager || !dmabuf) goto fail;

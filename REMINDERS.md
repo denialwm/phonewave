@@ -61,13 +61,27 @@ not part of any device's configuration.
     audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
     /opt/nyx-audioreach (in `files/opt`), the WirePlumber rule; camera, the
     braun sensor files and the libcamera patches in `devices/aston/packaging`
-    (by sensor, so one package for every phone); fingerprint, libfprint-uff
-    in /opt, the fprintd drop-in, the vendor worker and its enrollments in
-    /var/lib/aston-fingerprint (all in the backup).
+    (by sensor, so one package for every phone). The old enrollments in
+    /var/lib/aston-fingerprint are in the backup; the fingerprint stack
+    itself is the fingerprint-uff recipe and the boot image's tail now.
   - Packages the old root had that the image lacks, such as noto-fonts-cjk,
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
   - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
     `boot/firstboot/` and the old denial-session.target.
+- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05, with
+  fingerprint-uff installed by hand (`tools/phone-install`):
+  - The image does not install fingerprint-uff yet: `image/devices/aston`
+    lists the device's own packages from the device's cache, and the recipe
+    builds into the shared one.
+  - The phone carries `/etc/polkit-1/rules.d/50-denial-fingerprint.rules`
+    until a Denial release with the rule reaches it; remove it then.
+  - The helper runs the worker once per request. The worker's resident mode
+    (`uff-resident.h`, socket in `/run/aston-fingerprint`) has no unit.
+- **Fingerprint enrollment on the RedMagic.** Its Gatekeeper keeps the lock
+  PIN, and its reader adds a finger only with the PIN proven to it, which
+  Denial's root session (`sudo deniald --fingerprint-settings`) does. Once
+  its own fingerprint helper asks Gatekeeper itself, Settings drops the sudo
+  path and Denial the root session.
 - **Internet over USB.** The image routes through the computer on the cable
   (10.77.71.1) but gives the phone no DNS server, so until Wi-Fi is set up
   pacman cannot reach anything. Seen on the Ace 3, 2026-11-05.

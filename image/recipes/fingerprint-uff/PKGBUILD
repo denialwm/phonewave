@@ -1,0 +1,151 @@
+# Phonewave's UFF fingerprint stack (services/fingerprint/uff) for the Ace 3.
+# Build: image/pack fingerprint-uff
+#
+# libfprint-uff: libfprint at the release Arch Linux ARM ships, with only the
+# uff driver, in place of Arch's libfprint; fprintd runs on it. libgusb
+# builds beside it as a subproject to link against and stays Arch's.
+# fingerprint-uff: the helper fprintd's driver starts, the sensor's worker,
+# the client that asks Denial to light the sensor, and the factory
+# calibration's import from the phone's persist partition. The sensor's
+# signed app and where it sits on the panel come from the boot image's tail.
+pkgbase=fingerprint-uff
+pkgname=(libfprint-uff fingerprint-uff)
+_libfprint=80a4b5ec612892c5c056c48dddaa561452cf37ec # v1.94.100
+_libfprint_version=1.94.100
+_gusb=ed31c8134d80d006bd45450e84180be2a7c0742e # 0.4.9
+_teec=736419e25a2036aac3292a10a93e394a90750ca3
+_qcbor=a3fce5f34d7b30f12d7b9161185171c6fe137737
+_minkipc=6ab4aedfbbacd366f0e064c1c72b09ad54b31761
+pkgdesc='Fingerprint sensor under the OnePlus Ace 3 screen'
+url='https://github.com/denialwm/phonewave'
+license=(LGPL-2.1-or-later)
+_src=$startdir/../../../services/fingerprint/uff
+. "$startdir/../recipe.sh"
+source=("libfprint::git+https://gitlab.freedesktop.org/libfprint/libfprint.git#commit=$_libfprint"
+        "libgusb::git+https://github.com/hughsie/libgusb.git#commit=$_gusb"
+        "quic-teec::git+https://github.com/qualcomm/quic-teec.git#commit=$_teec"
+        "qcbor::git+https://github.com/laurencelundblade/QCBOR.git#commit=$_qcbor"
+        "minkipc::git+https://github.com/qualcomm/minkipc.git#commit=$_minkipc")
+sha256sums=(SKIP SKIP SKIP SKIP SKIP)
+
+prepare() {
+  local p
+  # makepkg resets the checkouts; files earlier patches added stay.
+  git -C libfprint clean -ffdxq
+  git -C minkipc clean -ffdxq
+  for p in "$_src"/../jiiov/libfprint/*.patch "$_src"/libfprint/*.patch; do
+    patch -d libfprint -Np1 -s < "$p"
+  done
+  cp "$_src/libfprint/uff.c" libfprint/libfprint/drivers/uff.c
+  cp "$_src/libfprint/test-uff-suspend.c" libfprint/tests/test-uff-suspend.c
+  # Cross-built, the programs that list the drivers' devices cannot run
+  # here to make the hwdb and metainfo files; the phone needs neither.
+  patch -d libfprint -Np1 -s < "$startdir/libfprint-cross-build.patch"
+  rm -rf libfprint/subprojects/libgusb
+  mkdir -p libfprint/subprojects
+  cp -a libgusb libfprint/subprojects/libgusb
+  # Its build root, which libfprint includes, would hide libfprint's
+  # config.h behind its own.
+  sed -i "s/output : 'config.h'/output : 'gusb-config.h'/" libfprint/subprojects/libgusb/meson.build
+  grep -rl '"config.h"' libfprint/subprojects/libgusb/gusb libfprint/subprojects/libgusb/tools |
+    xargs sed -i 's/"config.h"/"gusb-config.h"/'
+  printf '[wrap-file]\ndirectory = libgusb\n\n[provide]\ngusb = gusb_dep\n' \
+    > libfprint/subprojects/libgusb.wrap
+  for p in "$_src"/deps/minkipc/*.patch; do
+    patch -d minkipc -Np1 -s < "$p"
+  done
+  cat > cross.ini <<EOT
+[binaries]
+c = 'aarch64-linux-gnu-gcc'
+cpp = 'aarch64-linux-gnu-g++'
+ar = 'aarch64-linux-gnu-ar'
+strip = 'aarch64-linux-gnu-strip'
+pkg-config = 'pkg-config'
+
+[built-in options]
+# glib's headers declare pthread_yield again; libfprint makes that an error.
+c_args = ['--sysroot=$sysroot', '-Wno-error=redundant-decls', '-DUFF_HELPER="/usr/lib/uff-fingerprint/uff-fprint-helper"']
+c_link_args = ['--sysroot=$sysroot', '-B$sysroot/usr/lib', '-Wl,-rpath-link,$sysroot/usr/lib']
+
+[properties]
+sys_root = '$sysroot'
+pkg_config_libdir = ['$sysroot/usr/lib/pkgconfig', '$sysroot/usr/share/pkgconfig']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOT
+}
+
+build() {
+  unset PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR CFLAGS CXXFLAGS LDFLAGS
+  export PKG_CONFIG_FDO_SYSROOT_RULES=1
+  rm -rf libfprint-build uff
+  meson setup libfprint-build libfprint --cross-file cross.ini \
+    --prefix=/usr --libexecdir=lib --buildtype=release --wrap-mode=nodownload \
+    -D drivers=uff -D introspection=false -D doc=false -D gtk-examples=false \
+    -D installed-tests=false -D udev_rules=disabled -D udev_hwdb=disabled \
+    -D libgusb:tests=false -D libgusb:vapi=false -D libgusb:docs=false \
+    -D libgusb:introspection=false -D libgusb:umockdev=disabled
+  # The library alone: the tests trip over the sysroot's headers here.
+  meson compile -C libfprint-build -j "$(($(nproc) - 2))" fprint-2 fp-enums.h
+
+  # The worker is static, against the cross compiler's own C library: it
+  # carries the TEE client libraries and needs nothing from the phone.
+  local out=$srcdir/uff include=$srcdir/uff/include
+  mkdir -p "$out" "$include/linux"
+  cp "$_src"/include/linux/*.h "$sysroot/usr/include/linux/tee.h" "$include/linux/"
+  local cc=(aarch64-linux-gnu-gcc -std=gnu11 -D_GNU_SOURCE -fPIC -O2 -g)
+  local deps=(-DUSE_QCBOR -I"$include" -Iquic-teec/libqcomtee/include -Iqcbor/inc)
+  local f objects=()
+  for f in libqcomtee/src/qcomtee_object.c libqcomtee/src/objects/credentials_obj.c \
+      libqcomtee/src/objects/mem_obj.c; do
+    "${cc[@]}" "${deps[@]}" -Iquic-teec/libqcomtee/src -c "quic-teec/$f" -o "$out/$(basename "$f").o"
+    objects+=("$out/$(basename "$f").o")
+  done
+  aarch64-linux-gnu-ar qcs "$out/libqcomtee.a" "${objects[@]}"
+  objects=()
+  for f in UsefulBuf ieee754 qcbor_encode qcbor_decode qcbor_err_to_str; do
+    "${cc[@]}" "${deps[@]}" -c "qcbor/src/$f.c" -o "$out/$f.o"
+    objects+=("$out/$f.o")
+  done
+  aarch64-linux-gnu-ar qcs "$out/libqcbor.a" "${objects[@]}"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread \
+    -I"$include" -Iquic-teec/libqcomtee/include \
+    -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
+    "$_src/uff-service-worker.c" "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/uff-service-worker"
+
+  local protocol
+  for protocol in "$_src/protocol/denial-fingerprint-v1.xml" \
+      /usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml; do
+    wayland-scanner client-header "$protocol" "$out/$(basename "$protocol" .xml | sed 's/-v1$//')-client-protocol.h"
+    wayland-scanner private-code "$protocol" "$out/$(basename "$protocol" .xml | sed 's/-v1$//')-protocol.c"
+  done
+  aarch64-linux-gnu-gcc --sysroot="$sysroot" -B"$sysroot/usr/lib" -O2 -g -Wall -Wextra -Werror \
+    -I"$out" -I"$include" -I"$sysroot/usr/include" "$_src/uff-denial-presentation.c" "$out"/*-protocol.c \
+    -Wl,-rpath-link,"$sysroot/usr/lib" -lwayland-client -o "$out/uff-denial-presentation"
+}
+
+package_libfprint-uff() {
+  pkgdesc='Library for fingerprint readers, with the OnePlus Ace 3 UFF driver'
+  depends=(glib2 libgudev libgusb)
+  provides=("libfprint=$_libfprint_version" libfprint-2.so=2-64)
+  conflicts=(libfprint)
+  meson install -C libfprint-build --destdir "$pkgdir" --skip-subprojects --no-rebuild
+}
+
+package_fingerprint-uff() {
+  depends=(fprintd libfprint-uff python wayland util-linux)
+  install -Dm755 "$_src/uff-fprint-helper.py" "$pkgdir/usr/lib/uff-fingerprint/uff-fprint-helper"
+  install -Dm755 "$_src/uff-calibration" "$pkgdir/usr/lib/uff-fingerprint/uff-calibration"
+  install -Dm755 uff/uff-service-worker "$pkgdir/usr/lib/uff-fingerprint/uff-service-worker"
+  install -Dm755 uff/uff-denial-presentation "$pkgdir/usr/lib/uff-fingerprint/uff-denial-presentation"
+  install -Dm644 "$_src/system/uff-calibration.service" \
+    "$pkgdir/usr/lib/systemd/system/uff-calibration.service"
+  install -Dm644 "$_src/system/fprintd-uff.conf" \
+    "$pkgdir/usr/lib/systemd/system/fprintd.service.d/50-uff.conf"
+  install -Dm644 "$_src/system/uff-fingerprint.tmpfiles" \
+    "$pkgdir/usr/lib/tmpfiles.d/uff-fingerprint.conf"
+}

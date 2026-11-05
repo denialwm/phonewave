@@ -1,0 +1,107 @@
+--- a/libfprint/meson.build
++++ b/libfprint/meson.build
+@@ -305,73 +305,6 @@
+ 
+ udev_hwdb_list = 'fprint-list-udev-hwdb.c'
+ udev_hwdb_list_file = files(udev_hwdb_list)
+-udev_hwdb = executable('fprint-list-udev-hwdb',
+-    udev_hwdb_list_file,
+-    dependencies: libfprint_private_dep,
+-    link_with: libfprint_drivers,
+-    install: false,
+-    link_args: ['-Wl,--disable-new-dtags'],
+-)
+-
+-udev_hwdb_generator = custom_target('udev-hwdb',
+-    output: 'autosuspend.hwdb',
+-    depend_files: drivers_sources,
+-    capture: true,
+-    command: [ udev_hwdb ],
+-    install: false,
+-)
+-
+-metainfo = executable('fprint-list-metainfo',
+-    'fprint-list-metainfo.c',
+-    dependencies: libfprint_private_dep,
+-    link_with: libfprint_drivers,
+-    install: false,
+-    link_args: ['-Wl,--disable-new-dtags'],
+-)
+-
+-metainfo_generator = custom_target('metainfo',
+-    output: 'org.freedesktop.libfprint.metainfo.xml',
+-    depend_files: drivers_sources,
+-    capture: true,
+-    command: [ metainfo ],
+-    install: true,
+-    install_dir: datadir / 'metainfo'
+-)
+-
+-if install_udev_rules
+-    udev_rules = executable('fprint-list-udev-rules',
+-        'fprint-list-udev-rules.c',
+-        dependencies: libfprint_private_dep,
+-        link_with: libfprint_drivers,
+-        install: false,
+-        link_args: ['-Wl,--disable-new-dtags'],
+-    )
+-
+-    custom_target('udev-rules',
+-        output: '70-@0@.rules'.format(versioned_libname),
+-        depend_files: drivers_sources,
+-        capture: true,
+-        command: [ udev_rules ],
+-        install: true,
+-        install_dir: udev_rules_dir,
+-    )
+-endif
+-
+-udev_hwdb_list_updater = custom_target('udev-hwdb-list-updater',
+-    output: udev_hwdb_list,
+-    command: [ sync_unsupported_files, udev_hwdb_list_file ],
+-)
+-
+-run_target('sync-udev-hwdb',
+-    depends: udev_hwdb_list_updater,
+-    command: [
+-        'cp', '-v',
+-        udev_hwdb_generator.full_path(),
+-        meson.project_source_root() / 'data'
+-    ]
+-)
+-
+-alias_target('sync-unsupported-devices', udev_hwdb_list_updater)
+ 
+ supported_devices = executable('fprint-list-supported-devices',
+     'fprint-list-supported-devices.c',
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -385,28 +385,6 @@
+     )
+ endforeach
+ 
+-# Run udev rule generator with fatal warnings
+-hwdb_envs = envs
+-hwdb_envs.set('UDEV_HWDB', udev_hwdb.full_path())
+-hwdb_envs.set('UDEV_HWDB_CHECK_CONTENTS', default_drivers_are_enabled ? '1' : '0')
+-hwdb_envs.set('G_MESSAGES_DEBUG', '')
+-test('udev-hwdb',
+-     find_program('test-generated-hwdb.sh'),
+-     depends: udev_hwdb,
+-     suite: ['data', 'no-valgrind'],
+-     env: hwdb_envs,
+-)
+-
+-appstreamcli = find_program('appstreamcli', required: false)
+-if appstreamcli.found()
+-    test('metainfo-validate',
+-        appstreamcli,
+-        args: ['validate', metainfo_generator],
+-        depends: metainfo_generator,
+-        suite: ['data', 'no-valgrind'],
+-    )
+-endif
+-
+ gdb = find_program('gdb', required: false)
+ if gdb.found() and libfprint_sanitizers.length() == 0
+     libfprint_wrapper = [
