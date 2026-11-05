@@ -102,7 +102,7 @@ last.
 | Rotation | not started | | steinerd needs the phone's stock sensor files |
 | Light and proximity | not started | | |
 | Compass and gyroscope | not started | | |
-| Fingerprint | works | 2026-11-05, devices-227, user | UFF driver through fprintd: Settings enrolls as the phone's user, behind the lock PIN. Every image carries fingerprint-phonewave; the boot image's tail (boot-227-5) names the sensor in fingerprint/sensor.conf |
+| Fingerprint | works | 2026-11-05, devices-232, user | UFF driver through fprintd and fingerprint-phonewave like the other phones: Settings enrolls as the phone's user, behind the lock PIN, and it unlocks the phone, lit by the panel through `/dev/fp_illumination`. The boot image's tail names the sensor in fingerprint/sensor.conf. Needs Denial dev 0f47778 or later |
 | Suspend | not started | | |
 | Cooling | ? | | |
 | Denial | works | user | |

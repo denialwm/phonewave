@@ -23,12 +23,6 @@ not part of any device's configuration.
   screen-on power by about 0.4 W (0.82 W against 1.23 W); a packet after an
   idle period waited up to about 0.7 s for the next DTIM. Find out whether
   ath11k still needs either, and set what it needs for every phone.
-- **Fingerprint (JIIOV).** The Edge 70's optical sensor worked on the 6.6
-  kernel stack. The worker, clients and libfprint patches are in
-  `services/fingerprint/jiiov/`. The phone-side scripts (build libfprint on
-  the phone, install it, optical tests) are in git at
-  `9af1cc3:devices/roadstr/tools/fingerprint/`. Bring it up on
-  linux-perpetua.
 - **OnePlus Ace 3 (aston) onto the shared image.** Before the move, its
   root was saved in the vault, `aston/backups/aston-before-image-20261105/`:
   `system-owners.tar.zst` (/etc, /usr/local, /srv, the service state under
@@ -68,11 +62,9 @@ not part of any device's configuration.
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
   - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
     `boot/firstboot/` and the old denial-session.target.
-- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05:
-  - The phone carries `/etc/polkit-1/rules.d/50-denial-fingerprint.rules`
-    until a Denial release with the rule reaches it; remove it then.
-  - The helper runs the worker once per request. The worker's resident mode
-    (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
+- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05: the helper
+  runs the worker once per request. The worker's resident mode
+  (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
 - **Fingerprint enrollment on the RedMagic.** Its Gatekeeper keeps the lock
   PIN, and its reader adds a finger only with the PIN proven to it, which
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once
