@@ -3,6 +3,12 @@
 Open work, kept until it is done. A reminder says where it was seen; it is
 not part of any device's configuration.
 
+- **pacman warns `unknown key '%INSTALLED_DB%'`.** On the Ace 3, every
+  pacman command warns for the 33 packages the image build installed: the
+  build runs this workstation's pacman (CachyOS `7.1.0.r9-4`), which writes a
+  key into `/var/lib/pacman/local/*/desc` that the phone's Arch Linux ARM
+  pacman does not know. Install the image's packages with a pacman that
+  writes what the phone's reads.
 - **USB charging current.** On the Motorola Edge 70 the ADSP starts a
   computer's USB port (SDP) at 100 mA, less than the phone draws. A udev rule
   used to raise it to the 500 mA USB 2.0 allows. Fix it in the kernel's
