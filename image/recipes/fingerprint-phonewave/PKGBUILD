@@ -7,7 +7,7 @@
 # against and stays Arch's.
 # fingerprint-phonewave: the helper the uff driver starts, a worker for each
 # sensor family's signed app (uff for OPLUS's UFF, goodix for Goodix's TEE
-# sensors), the contact children (the overlay Denial
+# sensors, jiiov for JIIOV's), the contact children (the overlay Denial
 # lights for an optical sensor, the touchscreen for one that needs no
 # light), the factory calibration's import and fprintd's drop-in. A phone's
 # boot image tail names its sensor in fingerprint/sensor.conf and carries
@@ -102,7 +102,7 @@ build() {
   # carries the TEE client libraries and needs nothing from the phone.
   local out=$srcdir/uff include=$srcdir/uff/include
   mkdir -p "$out" "$include/linux"
-  cp "$_src"/{uff,goodix}/include/linux/*.h "$sysroot/usr/include/linux/tee.h" "$include/linux/"
+  cp "$_src"/{uff,goodix,jiiov}/include/linux/*.h "$sysroot/usr/include/linux/tee.h" "$include/linux/"
   local cc=(aarch64-linux-gnu-gcc -std=gnu11 -D_GNU_SOURCE -fPIC -O2 -g)
   local deps=(-DUSE_QCBOR -I"$include" -Iquic-teec/libqcomtee/include -Iqcbor/inc)
   local f objects=()
@@ -126,6 +126,9 @@ build() {
     -Iquic-teec/libqcomtee/src -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
     "$_src"/goodix/{goodix-service-worker,goodix-worker-ops,keymaster-shared-secret,keymaster-wrapped-key}.c \
     "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/goodix-worker"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread "${deps[@]}" \
+    -Iquic-teec/libqcomtee/src -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
+    "$_src"/jiiov/{jiiov-worker,anc-protocol}.c "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/jiiov-worker"
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static \
     "$_src/uff/uff-touch-contact.c" -o "$out/touch"
 
@@ -156,7 +159,7 @@ package_fingerprint-phonewave() {
   local lib=$pkgdir/usr/lib/phonewave-fingerprint
   install -Dm755 "helper-target/$TARGET/release/phonewave-fingerprint-helper" "$lib/helper"
   install -Dm755 "$_src/uff/calibration" "$lib/calibration"
-  install -Dm755 uff/uff-worker uff/goodix-worker uff/presentation uff/touch -t "$lib"
+  install -Dm755 uff/uff-worker uff/goodix-worker uff/jiiov-worker uff/presentation uff/touch -t "$lib"
   install -Dm644 "$_src/uff/system/phonewave-fingerprint-calibration.service" \
     "$pkgdir/usr/lib/systemd/system/phonewave-fingerprint-calibration.service"
   install -Dm644 "$_src/uff/system/fprintd.conf" \

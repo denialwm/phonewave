@@ -112,6 +112,8 @@ static const FpIdEntry id_table[] = {
     .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint" },
   { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
     .platform_driver = "goodix-tee-fp", .platform_compatible = "goodix,gum5228" },
+  { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
+    .platform_driver = "jiiov-tee-fp", .platform_compatible = "jiiov,jv0307" },
   { .udev_types = 0 }
 };
 

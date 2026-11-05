@@ -38,6 +38,11 @@ install -Dm644 -t $T/device/firmware/qca $F/bt/*
 mkdir -p $T/device/firmware/ath11k/WCN6750/hw1.0
 python3 $HERE/ath11k-board2 'bus=ahb,qmi-chip-id=1,qmi-board-id=255,variant=Motorola_roadstr' \
 	$F/ath11k/board.bin $F/ath11k/regdb.bin $T/device/firmware/ath11k/WCN6750/hw1.0/board-2.bin
+# The fingerprint sensor's signed app, joined from the stock segments.
+mkdir -p $T/device/firmware/jiiov
+python3 ${HERE:h:h:h}/services/fingerprint/jiiov/assemble-firmware.py $F/jiiov \
+	$T/device/firmware/jiiov/ancapp64.elf >/dev/null
+rm $T/device/firmware/jiiov/ancapp64.json
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
 cd $V/boot

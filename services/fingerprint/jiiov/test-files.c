@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-#define main probe_main
-#include "tee-probe.c"
-#undef main
+#include "jiiov-files.h"
 #include <assert.h>
+#include <stdlib.h>
 
 int main(void)
 {
@@ -69,20 +68,20 @@ int main(void)
     assert(mkdirat(fs.directory,"templates",0700)==0);
     fs.storage_directory=openat(fs.directory,"templates",O_RDONLY|O_DIRECTORY);
     assert(fs.storage_directory>=0);
-    const char *template_path="/droidloom-fingerprint-probe/template_941001.db.0";
+    const char *template_path="/denial-fingerprint/jiiov/template_941001.db.0";
     assert(fs_template_name(template_path,strlen(template_path)+1));
     assert(!fs_template_name(template_path,strlen(template_path)));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001.db.64",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001.db.5",256));
-    assert(fs_template_name("/droidloom-fingerprint-probe/template_941001.db.bak.4",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001.db.00",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941002.db.0",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/../template_941001.db.0",256));
-    assert(fs_template_name("/droidloom-fingerprint-probe/template_941001_0.0",256));
-    assert(fs_template_name("/droidloom-fingerprint-probe/template_941001_4.bak.4",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001_5.0",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001_00.0",256));
-    assert(!fs_template_name("/droidloom-fingerprint-probe/template_941001_0_images.image_0",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001.db.64",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001.db.5",256));
+    assert(fs_template_name("/denial-fingerprint/jiiov/template_941001.db.bak.4",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001.db.00",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941002.db.0",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/../template_941001.db.0",256));
+    assert(fs_template_name("/denial-fingerprint/jiiov/template_941001_0.0",256));
+    assert(fs_template_name("/denial-fingerprint/jiiov/template_941001_4.bak.4",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001_5.0",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001_00.0",256));
+    assert(!fs_template_name("/denial-fingerprint/jiiov/template_941001_0_images.image_0",256));
     tz_gpfile_write_req_t *write_req=gp;
     memset(gp,0,GPFILE_SERVICE_BUF_LEN);
     write_req->cmd_id=1;
@@ -121,7 +120,7 @@ int main(void)
     assert(fs_storage_open("template_941001.db.1",O_WRONLY)==-1 && errno==ELOOP);
     tz_gpfile_rename_req_t rename_req={.cmd_id=3};
     strcpy(rename_req.from,template_path);
-    strcpy(rename_req.to,"/droidloom-fingerprint-probe/template_941001.db.bak.0");
+    strcpy(rename_req.to,"/denial-fingerprint/jiiov/template_941001.db.bak.0");
     memcpy(gp,&rename_req,sizeof(rename_req));
     assert(gp_dispatch(gp)==0 && anc_get_le32((char *)gp+4)==0);
     tz_gpfile_remove_req_t remove_req={.cmd_id=2};
@@ -134,12 +133,12 @@ int main(void)
      */
     memset(gp,0,GPFILE_SERVICE_BUF_LEN);
     write_req->cmd_id=1;
-    strcpy(write_req->pathname,"/droidloom-fingerprint-probe/template_941001_0.0");
+    strcpy(write_req->pathname,"/denial-fingerprint/jiiov/template_941001_0.0");
     write_req->count=515824;
     ((unsigned char *)gp)[504*1024-1]=0x5a;
     assert(gp_dispatch(gp)==0 && anc_get_le32((char *)gp+8)==515824);
     gp_req=(tz_gpfile_read_req_t){.cmd_id=0,.count=515824};
-    strcpy(gp_req.pathname,"/droidloom-fingerprint-probe/template_941001_0.0");
+    strcpy(gp_req.pathname,"/denial-fingerprint/jiiov/template_941001_0.0");
     memcpy(gp,&gp_req,sizeof(gp_req));
     assert(gp_dispatch(gp)==0 && gp_rsp->num_bytes_read==515824);
     assert(((unsigned char *)gp)[12+515824-1]==0x5a);
