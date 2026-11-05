@@ -50,8 +50,11 @@ Phones update from two signed repositories at `packages.denialwm.org`:
 (`phone/$arch`), every package `recipes/` builds. Denial's
 `tools/denial-builder phone-packages` builds `[denial-phone]` from Phonewave,
 denial-apps and gpui-touch `main` on the package builder, signs it with the
-Denial key and publishes it. The image itself installs the packages
-`image/pack` built here, so a test image needs no publish.
+Denial key and publishes it. A recipe whose versions are all published
+already is downloaded, not built. The image itself installs the packages
+`image/pack` built here, so a test image needs no publish, and
+`tools/phone-install HOST RECIPE...` puts a recipe's packages on a running
+phone.
 
 ## The kernel's modules
 

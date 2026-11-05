@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Build aarch64 pacman packages from the recipes, for every image.
-# Usage: image/pack [RECIPE...]    (no names: all of them)
+# Usage: image/pack [RECIPE...]          (no names: all of them)
+#        image/pack --list [RECIPE...]   print the package files they make
 #
 # Writes $PHONEWAVE_CACHE/image/packages/, keeping only the newest build of
-# each package.
+# each package. With PHONEWAVE_PUBLISHED set to a repository URL, a recipe
+# whose every package file is already there is downloaded, not built.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}/image
 mkdir -p "$cache/packages" "$cache/makepkg" "$cache/sources"
 
+listing=
+[ "${1:-}" != --list ] || { listing=1; shift; }
 recipes=("$@")
 [ ${#recipes[@]} -gt 0 ] || mapfile -t recipes < <(cd "$here/recipes" && ls -d */ | tr -d /)
 
@@ -24,11 +28,28 @@ trap 'rm -f "$conf"' EXIT
   # Unset, not empty: any RUSTFLAGS hides cross.sh's per-target link flags.
   echo 'unset RUSTFLAGS'; } > "$conf"
 
+# Fetch every file from PHONEWAVE_PUBLISHED, or none.
+fetch_published() {
+  local file
+  for file; do
+    curl -fsSL --retry 2 -o "$file.part" "$PHONEWAVE_PUBLISHED/$(basename "$file")" \
+      || { for file; do rm -f "$file.part"; done; return 1; }
+  done
+  for file; do mv "$file.part" "$file"; done
+}
+
 for recipe in "${recipes[@]}"; do
+  mapfile -t files < <(cd "$here/recipes/$recipe" && makepkg --config "$conf" --packagelist)
+  if [ -n "$listing" ]; then printf '%s\n' "${files[@]}"; continue; fi
   echo "== $recipe"
-  (cd "$here/recipes/$recipe" && makepkg --config "$conf" -f --nodeps --noconfirm)
+  if [ -n "${PHONEWAVE_PUBLISHED:-}" ] && fetch_published "${files[@]}"; then
+    echo "already published: ${files[*]##*/}"
+  else
+    (cd "$here/recipes/$recipe" && makepkg --config "$conf" -f --nodeps --noconfirm)
+  fi
   # One build per package: drop the older files of what this recipe made.
-  for name in $(cd "$here/recipes/$recipe" && makepkg --config "$conf" --packagelist | xargs -n1 basename); do
+  for file in "${files[@]}"; do
+    name=$(basename "$file")
     pkg=${name%-*-*-*}
     for old in "$cache/packages/$pkg"-[0-9]*.pkg.tar.zst; do
       [ "$(basename "$old")" = "$name" ] || rm -f "$old"
