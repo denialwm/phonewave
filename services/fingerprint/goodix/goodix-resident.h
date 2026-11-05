@@ -3,8 +3,8 @@
 #define GOODIX_RESIDENT_H
 /* Cold-session broker: each request unloads its app and powers off. The
  * NX809J control ABI has no retained-power standby operation. */
-#define GOODIX_SOCKET "/run/nx809j-fingerprint/worker.sock"
-#define GOODIX_RUNTIME "/run/nx809j-fingerprint"
+#define GOODIX_SOCKET "/run/phonewave-fingerprint/worker.sock"
+#define GOODIX_RUNTIME "/run/phonewave-fingerprint"
 
 static void resident_notify(const char *message)
 {

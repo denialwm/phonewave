@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Build the native Goodix diagnostics and assemble the signed split ELF."""
+"""Assemble the signed split ELF and build the Goodix probe and the RedMagic's
+credential programs (Gatekeeper worker, secure storage). The sensor worker is
+in the fingerprint-phonewave package."""
 import argparse
 import hashlib
 import json
@@ -141,23 +143,10 @@ def main():
                 "inputs": {str(path): sha(path) for path in sorted(set(inputs))},
                 "output_sha256": sha(output / "goodix-probe"), "firmware": record}
     (output / "build-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    worker_sources = [SOURCE / "goodix-service-worker.c", SOURCE / "goodix-worker-ops.c",
-                      SOURCE / "keymaster-shared-secret.c", SOURCE / "keymaster-wrapped-key.c"]
     storage_includes = [mink / "listeners/libfsservice" / p for p in ("fs", "gpfs", "cmn")]
-    worker_command = [args.cc, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2", "-g",
-                      "-static", "-pthread", *include_flags,
-                      *["-I" + str(p) for p in storage_includes], *map(str, worker_sources),
-                      *archives, "-o", str(output / "goodix-service-worker")]
-    subprocess.run(worker_command, check=True)
-    worker_inputs = set(inputs) | set(worker_sources) | {
-        SOURCE / "goodix-storage.h", SOURCE / "goodix-resident.h", SOURCE / "goodix-worker-ops.h",
-        SOURCE / "goodix-authorization.h"}
+    worker_inputs = set(inputs) | {SOURCE / "goodix-storage.h"}
     for path in storage_includes:
         worker_inputs.update(path.glob("*.h"))
-    worker_manifest = {**manifest, "commands": [*commands[:-1], worker_command],
-                       "inputs": {str(p): sha(p) for p in sorted(worker_inputs)},
-                       "output_sha256": sha(output / "goodix-service-worker")}
-    (output / "worker-manifest.json").write_text(json.dumps(worker_manifest, indent=2) + "\n")
     gatekeeper_sources = [SOURCE / "gatekeeper-worker.c", SOURCE / "gatekeeper.c",
                           SOURCE / "keymaster-shared-secret.c"]
     gatekeeper_command = [args.cc, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2", "-g",
@@ -180,25 +169,8 @@ def main():
         "inputs": {str(p): sha(p) for p in sorted(secure_inputs)},
         "output_sha256": sha(output / "goodix-secure-storage")}
     (output / "secure-storage-manifest.json").write_text(json.dumps(secure_manifest, indent=2) + "\n")
-    helper = SOURCE / "native-helper"
-    target = WORKSPACE / ".worktrees/targets/goodix-helper"
-    helper_env = dict(os.environ, CARGO_TARGET_DIR=str(target),
-                      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=args.cc)
-    helper_command = ["cargo", "build", "--locked", "--release", "--target",
-                      "aarch64-unknown-linux-gnu", "--manifest-path", str(helper / "Cargo.toml")]
-    subprocess.run(helper_command, check=True, env=helper_env)
-    shutil.copyfile(target / "aarch64-unknown-linux-gnu/release/goodix-fprint-helper",
-                    output / "goodix-fprint-helper")
-    (output / "goodix-fprint-helper").chmod(0o755)
-    helper_inputs = [helper / "Cargo.toml", helper / "Cargo.lock", helper / "src/main.rs"]
-    helper_manifest = {"command": helper_command, "inputs": {str(p): sha(p) for p in helper_inputs},
-                       "output_sha256": sha(output / "goodix-fprint-helper")}
-    (output / "native-helper-manifest.json").write_text(json.dumps(helper_manifest, indent=2) + "\n")
-    print(f"Built {output / 'goodix-fprint-helper'}: {helper_manifest['output_sha256']}")
     print(f"Built {output / 'goodix-secure-storage'}: {secure_manifest['output_sha256']}")
     print(f"Built {output / 'goodix-gatekeeper-worker'}: {gatekeeper_manifest['output_sha256']}")
-    print(f"Built {output / 'goodix-service-worker'}: {worker_manifest['output_sha256']}")
-
     print(f"Built {output / 'goodix-probe'}: {manifest['output_sha256']}")
 
 

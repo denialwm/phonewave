@@ -6,7 +6,8 @@
 # fprintd runs on it. libgusb builds beside it as a subproject to link
 # against and stays Arch's.
 # fingerprint-phonewave: the helper the uff driver starts, a worker for each
-# sensor family's signed app, the contact children (the overlay Denial
+# sensor family's signed app (uff for OPLUS's UFF, goodix for Goodix's TEE
+# sensors), the contact children (the overlay Denial
 # lights for an optical sensor, the touchscreen for one that needs no
 # light), the factory calibration's import and fprintd's drop-in. A phone's
 # boot image tail names its sensor in fingerprint/sensor.conf and carries
@@ -24,7 +25,7 @@ _minkipc=6ab4aedfbbacd366f0e064c1c72b09ad54b31761
 pkgdesc='Fingerprint sensors under phone screens'
 url='https://github.com/denialwm/phonewave'
 license=(LGPL-2.1-or-later)
-_src=$startdir/../../../services/fingerprint/uff
+_src=$startdir/../../../services/fingerprint
 . "$startdir/../recipe.sh"
 source=("libfprint::git+https://gitlab.freedesktop.org/libfprint/libfprint.git#commit=$_libfprint"
         "libgusb::git+https://github.com/hughsie/libgusb.git#commit=$_gusb"
@@ -38,11 +39,11 @@ prepare() {
   # makepkg resets the checkouts; files earlier patches added stay.
   git -C libfprint clean -ffdxq
   git -C minkipc clean -ffdxq
-  for p in "$_src"/../jiiov/libfprint/*.patch "$_src"/libfprint/*.patch; do
+  for p in "$_src"/jiiov/libfprint/*.patch "$_src"/uff/libfprint/*.patch; do
     patch -d libfprint -Np1 -s < "$p"
   done
-  cp "$_src/libfprint/uff.c" libfprint/libfprint/drivers/uff.c
-  cp "$_src/libfprint/test-uff-suspend.c" libfprint/tests/test-uff-suspend.c
+  cp "$_src/uff/libfprint/uff.c" libfprint/libfprint/drivers/uff.c
+  cp "$_src/uff/libfprint/test-uff-suspend.c" libfprint/tests/test-uff-suspend.c
   # Cross-built, the programs that list the drivers' devices cannot run
   # here to make the hwdb and metainfo files; the phone needs neither.
   patch -d libfprint -Np1 -s < "$startdir/libfprint-cross-build.patch"
@@ -56,7 +57,7 @@ prepare() {
     xargs sed -i 's/"config.h"/"gusb-config.h"/'
   printf '[wrap-file]\ndirectory = libgusb\n\n[provide]\ngusb = gusb_dep\n' \
     > libfprint/subprojects/libgusb.wrap
-  for p in "$_src"/deps/minkipc/*.patch; do
+  for p in "$_src"/uff/deps/minkipc/*.patch; do
     patch -d minkipc -Np1 -s < "$p"
   done
   cat > cross.ini <<EOT
@@ -97,11 +98,11 @@ build() {
   # The library alone: the tests trip over the sysroot's headers here.
   meson compile -C libfprint-build -j "$(($(nproc) - 2))" fprint-2 fp-enums.h
 
-  # The worker is static, against the cross compiler's own C library: it
+  # The workers are static, against the cross compiler's own C library: it
   # carries the TEE client libraries and needs nothing from the phone.
   local out=$srcdir/uff include=$srcdir/uff/include
   mkdir -p "$out" "$include/linux"
-  cp "$_src"/include/linux/*.h "$sysroot/usr/include/linux/tee.h" "$include/linux/"
+  cp "$_src"/{uff,goodix}/include/linux/*.h "$sysroot/usr/include/linux/tee.h" "$include/linux/"
   local cc=(aarch64-linux-gnu-gcc -std=gnu11 -D_GNU_SOURCE -fPIC -O2 -g)
   local deps=(-DUSE_QCBOR -I"$include" -Iquic-teec/libqcomtee/include -Iqcbor/inc)
   local f objects=()
@@ -120,21 +121,25 @@ build() {
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread \
     -I"$include" -Iquic-teec/libqcomtee/include \
     -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
-    "$_src/uff-service-worker.c" "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/uff-worker"
+    "$_src/uff/uff-service-worker.c" "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/uff-worker"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread "${deps[@]}" \
+    -Iquic-teec/libqcomtee/src -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
+    "$_src"/goodix/{goodix-service-worker,goodix-worker-ops,keymaster-shared-secret,keymaster-wrapped-key}.c \
+    "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/goodix-worker"
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static \
-    "$_src/uff-touch-contact.c" -o "$out/touch"
+    "$_src/uff/uff-touch-contact.c" -o "$out/touch"
 
   cargo build --release --locked --target "$TARGET" \
-    --manifest-path "$_src/helper/Cargo.toml" --target-dir "$srcdir/helper-target"
+    --manifest-path "$_src/uff/helper/Cargo.toml" --target-dir "$srcdir/helper-target"
 
   local protocol
-  for protocol in "$_src/protocol/denial-fingerprint-v1.xml" \
+  for protocol in "$_src/uff/protocol/denial-fingerprint-v1.xml" \
       /usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml; do
     wayland-scanner client-header "$protocol" "$out/$(basename "$protocol" .xml | sed 's/-v1$//')-client-protocol.h"
     wayland-scanner private-code "$protocol" "$out/$(basename "$protocol" .xml | sed 's/-v1$//')-protocol.c"
   done
   aarch64-linux-gnu-gcc --sysroot="$sysroot" -B"$sysroot/usr/lib" -O2 -g -Wall -Wextra -Werror \
-    -I"$out" -I"$include" -I"$sysroot/usr/include" "$_src/uff-denial-presentation.c" "$out"/*-protocol.c \
+    -I"$out" -I"$include" -I"$sysroot/usr/include" "$_src/uff/uff-denial-presentation.c" "$out"/*-protocol.c \
     -Wl,-rpath-link,"$sysroot/usr/lib" -lwayland-client -o "$out/presentation"
 }
 
@@ -150,12 +155,12 @@ package_fingerprint-phonewave() {
   depends=(fprintd libfprint-phonewave wayland util-linux)
   local lib=$pkgdir/usr/lib/phonewave-fingerprint
   install -Dm755 "helper-target/$TARGET/release/phonewave-fingerprint-helper" "$lib/helper"
-  install -Dm755 "$_src/calibration" "$lib/calibration"
-  install -Dm755 uff/uff-worker uff/presentation uff/touch -t "$lib"
-  install -Dm644 "$_src/system/phonewave-fingerprint-calibration.service" \
+  install -Dm755 "$_src/uff/calibration" "$lib/calibration"
+  install -Dm755 uff/uff-worker uff/goodix-worker uff/presentation uff/touch -t "$lib"
+  install -Dm644 "$_src/uff/system/phonewave-fingerprint-calibration.service" \
     "$pkgdir/usr/lib/systemd/system/phonewave-fingerprint-calibration.service"
-  install -Dm644 "$_src/system/fprintd.conf" \
+  install -Dm644 "$_src/uff/system/fprintd.conf" \
     "$pkgdir/usr/lib/systemd/system/fprintd.service.d/50-phonewave-fingerprint.conf"
-  install -Dm644 "$_src/system/phonewave-fingerprint.tmpfiles" \
+  install -Dm644 "$_src/uff/system/phonewave-fingerprint.tmpfiles" \
     "$pkgdir/usr/lib/tmpfiles.d/phonewave-fingerprint.conf"
 }

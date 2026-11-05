@@ -234,41 +234,31 @@ enrollment and lock-screen matching have succeeded. Preserve persist's
 `goodix/` factory calibration and keep it read-only. Historical power-on
 resets and the voltage correction are recorded in the private device vault.
 
-fprintd (Arch's 1.94.5) runs on a libfprint built on the phone with
-Phonewave's `uff` driver, which serves this sensor too:
-
-```sh
-python3 services/fingerprint/uff/build/snapshot_libfprint.py nx809j
-python3 devices/nx809j/tools/fingerprint/build_libfprint.py
-python3 devices/nx809j/tools/fingerprint/install_fprintd.py
-```
-
-The build needs `meson ninja gcc pkgconf glib2-devel` on the phone and
-installs to `/opt/libfprint-uff/<hash>`; the system library stays.
-`install_fprintd.py` points fprintd at it with
-`/etc/systemd/system/fprintd.service.d/60-nx809j-native.conf`, which also
-opens the TEE, `/dev/goodix_fp`, DMA buffers and touch input inside
-fprintd's sandbox. The driver runs `/usr/local/libexec/goodix-fprint-helper`
-for every operation, which `install_helper.py` installs after
-`services/fingerprint/goodix/build.py`:
+fprintd runs on the `fingerprint-phonewave` packages, as on every phone
+(services/fingerprint). The phone's part is in the boot tail:
+`fingerprint/sensor.conf` names the sensor, the `goodix` worker, the touch
+contact and the warm worker, and points at the signed app,
+`firmware/goodix/goodixfp64.elf`, which
+`services/fingerprint/goodix/build.py --assemble-only` assembles from the
+stock `vendor_firmware_mnt`. `denial/fingerprint.json` places the mark. This
+phone boots without a tail: the same files sit in
+`/usr/lib/modules/<release>/` on the root, which must belong to root, or
+the helper refuses them.
 
 | Path | What |
 |---|---|
-| `/usr/local/libexec/goodix-fprint-helper` | Native Rust UFF1 bridge for this phone; no Python in the runtime path |
-| `/usr/local/libexec/nx809j-fingerprint/` | Goodix worker, signed app and `goodix-contact` |
-| `/etc/nx809j-fingerprint/backend.json` | Their paths and hashes, checked before every operation |
-| `/var/lib/nx809j-fingerprint/calibration` | This unit's calibration, copied once from persist mounted read-only |
-| `/var/lib/nx809j-fingerprint/templates` | The worker's private store |
+| `/var/lib/phonewave-fingerprint/calibration` | This unit's calibration, copied once from persist's `goodix/` mounted read-only |
+| `/var/lib/phonewave-fingerprint/templates` | The worker's private store |
+| `/etc/systemd/system/fprintd.service.d/70-nx809j-secure-storage.conf` | fprintd waits for secure storage, which serves the worker's GPFS |
 
 The worker runs one-shot per operation (about 0.8 s for a list). For
 verification it brings the sensor up and selects the templates while the
 lock screen listens, screen on or off, and keeps it asleep until the touch.
 After a rejected finger it stays up for the next attempt, up to 5 s, in
-`/run/nx809j-fingerprint` (created at boot by `tmpfiles.d`).
-Contact is `goodix-contact`: the TCM touchscreen reporting one finger held
-on stock's circle, centre (608, 2024) px, radius 120, also with the panel
-off; nothing is drawn or lit. A finger lifted before the image is captured
-fails the attempt; after it, the comparison goes on without it.
+`/run/phonewave-fingerprint`. Contact is the touchscreen reporting one
+finger held on stock's circle, centre (608, 2024) px, radius 120, also with
+the panel off; nothing is drawn or lit. A finger lifted before the image is
+captured fails the attempt; after it, the comparison goes on without it.
 
 Both Settings apps enroll through deniald's PIN-gated fingerprint session.
 The fingerprint marker uses the stock circle above.
@@ -292,6 +282,7 @@ delegates the shared listener so Gatekeeper can verify an enrollment challenge
 while the sensor is active.
 
 The phone's fingerprint runtime uses native executables. The Python scripts in
-the development checkout assemble and build artifacts, install them and run
-tests; they are not part of the on-device unlock path. The bridge and worker
+the development checkout assemble the signed app, build the credential
+programs, install them and run tests; they are not part of the on-device
+unlock path. The bridge and worker
 log unlock phase durations to fprintd's journal.

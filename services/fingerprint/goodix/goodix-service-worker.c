@@ -17,7 +17,7 @@
 
 /* A verification without a match leaves its worker warm for the next
  * attempt's bridge, which connects here; root-only directory. */
-#define GOODIX_WARM_DIRECTORY "/run/nx809j-fingerprint"
+#define GOODIX_WARM_DIRECTORY "/run/phonewave-fingerprint"
 #define GOODIX_WARM_SOCKET GOODIX_WARM_DIRECTORY "/verify.sock"
 #define GOODIX_WARM_MS 5000
 
@@ -215,8 +215,8 @@ static int worker_preload(struct worker_device *d,const char *firmware)
         (node.st_mode&077) || ioctl(d->control,GOODIX_FP_IOC_GET_STATE,&state) || state.version!=1 || state.powered)
         return -EACCES;
     const char *calibration=getenv("GOODIX_CALIBRATION_DIR"),*store=getenv("GOODIX_STORE_DIR");
-    if (!calibration) calibration="/var/lib/nx809j-fingerprint/calibration";
-    if (!store) store="/var/lib/nx809j-fingerprint/templates";
+    if (!calibration) calibration="/var/lib/phonewave-fingerprint/calibration";
+    if (!store) store="/var/lib/phonewave-fingerprint/templates";
     if (storage_start(&d->storage,d->root,d->env,calibration,store)) return -EIO;
     storage_ready=milliseconds();
     if (qcomtee_memory_object_alloc(2u*1024*1024,d->root,&d->primary)) return -ENOMEM;

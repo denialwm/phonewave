@@ -48,14 +48,11 @@ static int invoke(struct qcomtee_object *o, const char *name, uint32_t op,
     fprintf(stderr,"%s: transport=%d service=%d\n",name,ret,(int32_t)result);
     return ret ? -1 : (int32_t)result;
 }
+/* Any phone whose kernel bound the Goodix TEE sensor driver. */
 static int identity(void)
 {
-    char b[256];
-    int fd=open("/sys/firmware/devicetree/base/compatible",O_RDONLY|O_CLOEXEC);
-    if (fd<0) return -1;
-    ssize_t n=read(fd,b,sizeof(b)); close(fd);
-    const char expected[]="nubia,nx809j";
-    return n >= (ssize_t)sizeof(expected) && !memcmp(b,expected,sizeof(expected)) ? 0:-1;
+    struct stat driver;
+    return !stat("/sys/bus/platform/drivers/goodix-tee-fp",&driver) && S_ISDIR(driver.st_mode) ? 0:-1;
 }
 static struct qcomtee_object *load(struct qcomtee_object *root,
                                   struct qcomtee_object *loader, const char *path)
@@ -264,7 +261,7 @@ int main(int argc,char **argv)
         fprintf(stderr,"Usage: %s --transport | --keymaster-status | --keymaster-agree | --auth-setup goodixfp64.elf | --load goodixfp64.elf | --version goodixfp64.elf | --identify goodixfp64.elf\n",argv[0]);
         return 2;
     }
-    if (identity()) { fputs("Expected nubia,nx809j\n",stderr); return 1; }
+    if (identity()) { fputs("No Goodix TEE sensor driver\n",stderr); return 1; }
     setvbuf(stdout,NULL,_IONBF,0);
     int ret=1,control=-1;
     struct qcomtee_object *root=NULL,*env=NULL,*loader=NULL,*app=NULL;

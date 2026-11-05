@@ -152,8 +152,8 @@ int main(int argc,char **argv)
     if(s.authenticated){s.store.canonical=1;s.store.persist=fcntl(s.store.base,F_DUPFD_CLOEXEC,3);}
     else s.store.persist=private_directory("/var/lib/nx809j-secure-storage/persist");
     s.store.data=private_directory("/var/lib/nx809j-secure-storage/data");
-    s.goodix.store=private_directory("/var/lib/nx809j-fingerprint/templates");
-    s.goodix.calibration=storage_open_dir("/var/lib/nx809j-fingerprint/calibration",0);
+    s.goodix.store=private_directory("/var/lib/phonewave-fingerprint/templates");
+    s.goodix.calibration=storage_open_dir("/var/lib/phonewave-fingerprint/calibration",0);
     if(s.store.persist<0 || s.store.data<0 || s.goodix.store<0 || s.goodix.calibration<0)goto done;
     s.rpmb=open("/dev/bsg/0:0:0:49476",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
     if(s.rpmb<0 || fstat(s.rpmb,&st) || !S_ISCHR(st.st_mode))goto done;

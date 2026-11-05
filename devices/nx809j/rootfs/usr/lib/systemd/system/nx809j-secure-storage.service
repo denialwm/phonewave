@@ -3,13 +3,16 @@ Description=NX809J protected-file storage and RPMB callbacks
 Requires=run-nx809j-securestorage.mount
 After=run-nx809j-securestorage.mount
 Before=fprintd.service
+# It serves the sensor's calibration, which that unit imports once.
+Wants=phonewave-fingerprint-calibration.service
+After=phonewave-fingerprint-calibration.service
 
 [Service]
 Type=notify
 NotifyAccess=main
 User=root
 ExecStart=/usr/libexec/goodix-secure-storage
-StateDirectory=nx809j-secure-storage
+StateDirectory=nx809j-secure-storage phonewave-fingerprint/templates
 StateDirectoryMode=0700
 UMask=0077
 TimeoutStartSec=15
@@ -18,7 +21,6 @@ LimitCORE=0
 NoNewPrivileges=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/nx809j-secure-storage /var/lib/nx809j-fingerprint/templates
 RestrictAddressFamilies=AF_UNIX
 
 [Install]

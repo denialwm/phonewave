@@ -5,6 +5,8 @@
 #   [Calibration]
 #   Partition=persist
 #   Files=fingerprint/fingerprint_cali.bin;fingerprint/fp_cali_serial_number.txt
+# Each file lands by its own name; an entry ending in / copies that folder's
+# contents.
 # The partition is mounted read-only with noload, so its journal is never
 # replayed, and only in this program's own mount namespace.
 set -euo pipefail
@@ -28,9 +30,17 @@ trap 'rm -rf "$staging"' EXIT
 IFS=';' read -ra list <<<"$files"
 for file in "${list[@]}"; do
   [[ $file =~ ^[A-Za-z0-9_./-]+$ && $file != *..* ]] || { echo "invalid calibration file" >&2; exit 1; }
-  install -m 0400 "$source/$file" "$staging/$(basename "$file")"
+  if [[ $file == */ ]]; then
+    cp -r --no-preserve=all --no-dereference "$source/$file." "$staging/"
+  else
+    install -m 0400 "$source/$file" "$staging/$(basename "$file")"
+  fi
 done
+# Links would point into this system, not the partition.
+find "$staging" -type l -delete
+find "$staging" -mindepth 1 -type d -exec chmod 0500 {} +
+find "$staging" -type f -exec chmod 0400 {} +
 chmod 0700 "$staging"
-sync "$staging"/*
+sync -f "$staging"
 mv -T "$staging" "$state"
 trap - EXIT
