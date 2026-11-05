@@ -1,8 +1,10 @@
 # Where the sensor sits on the panel: the running kernel's boot image tail
-# says it, on a phone that has a sensor. A copy on each boot follows each
-# kernel; Denial reads only a regular file. Without the tail's file nothing
-# is copied.
-C+ /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
+# says it, on a phone that has a sensor. Denial reads only a regular file,
+# so each boot removes the copy and copies it again: C never replaces a file,
+# and tmpfiles removes before it creates. Without the tail's file nothing is
+# copied.
+r /etc/denial/fingerprint.json
+C /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
 # Root's only: a warm worker listens here between attempts, and fprintd's
 # drop-in binds the tail under it.
 d /run/phonewave-fingerprint 0700 root root -

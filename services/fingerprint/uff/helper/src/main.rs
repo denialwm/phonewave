@@ -455,10 +455,15 @@ impl Native {
                 if matches!(self.operation.as_str(), "verify" | "enroll") {
                     let s = self.sample.ok_or("missing sample")?;
                     require(
-                        self.cleaned
-                            && self.state == NState::Finishing
-                            && (code, id) == (s.code, s.id),
+                        self.cleaned && self.state == NState::Finishing,
                         "result before confirmed cleanup",
+                    )?;
+                    // A sensor that names a new print only when it stores it,
+                    // after the finish, reports the final sample with id 0.
+                    require(
+                        code == s.code
+                            && (id == s.id || (self.operation == "enroll" && s.id == 0)),
+                        "result differs from its sample",
                     )?;
                     if self.operation == "enroll" {
                         require(
@@ -1299,6 +1304,19 @@ mod tests {
         let result = run_at("enroll", "enroll", false, worker, &contact, None);
         std::fs::remove_dir_all(dir).unwrap();
         result.unwrap();
+    }
+
+    #[test]
+    fn an_enrollment_may_name_its_print_only_when_storing_it() {
+        let contact = "#!/bin/sh\necho 'DFP1 waiting'\necho 'DFP1 down 1'\nread c; [ \"$c\" = present ] || exit 2\necho 'DFP1 ready 1'\nread c; [ \"$c\" = finish ] || exit 2\necho 'DFP1 stopped 1 0'\n";
+        let worker = |id: u32| format!("#!/bin/sh\necho 'UFW1 prepared'\nread c; [ \"$c\" = capture ] || exit 2\necho 'UFW1 sample 0 0 {id} 1'\nread c; [ \"$c\" = finish ] || exit 2\necho 'UFW1 cleaned'\necho 'UFF1 result 0 77'\n");
+        let assigned = run_at("assigned", "enroll", false, &worker(0), contact, None);
+        let changed = run_at("changed", "enroll", false, &worker(78), contact, None);
+        for name in ["assigned", "changed"] {
+            std::fs::remove_dir_all(scratch(name)).unwrap();
+        }
+        assigned.unwrap();
+        assert!(changed.is_err());
     }
 
     #[test]

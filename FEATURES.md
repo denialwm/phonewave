@@ -144,7 +144,7 @@ last.
 | Rotation | ? | | |
 | Light and proximity | ? | | |
 | Compass and gyroscope | ? | | |
-| Fingerprint | not started | | JIIOV JV0307. Worked on the 6.6 vendor kernel; what to port and where: `services/fingerprint/jiiov/README.md` |
+| Fingerprint | partial | 2026-11-05, devices-229, user | JIIOV JV0307, optical, through fprintd and fingerprint-phonewave like the other phones: Settings adds a finger, lit by the panel through `/dev/fp_illumination`. Needs Denial dev 0f47778 or later. Unlocking not tried yet |
 | Suspend | ? | | |
 | Cooling | works | devices-12, probe | battmgr cooling device, checked with emulated temperatures |
 | Denial | works | user | |

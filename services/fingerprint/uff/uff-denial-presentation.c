@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// Aston privileged fprintd presentation worker, adapted from Roadstr's client.
+// Privileged fprintd presentation worker: Denial lights the sensor area of the
+// phone's profile while a finger is on it.
 // No biometric data is presented or logged here.
 #define _GNU_SOURCE
 #include <dirent.h>
@@ -38,6 +39,7 @@ static bool configured, active, presented, ready, lost, finishing, stopped, rele
 static bool linear_argb;
 static int inputs[2] = {-1, -1};
 static struct uff_contact contact;
+static struct uff_contact_area contact_area;
 
 static void signal_stop(int signal_number) { (void)signal_number; interrupted = 1; }
 static double now(void) {
@@ -49,9 +51,12 @@ static void configure(void *data, struct denial_fingerprint_session_v1 *object,
                       const char *output, uint32_t pw, uint32_t ph, int32_t px,
                       int32_t py, uint32_t w, uint32_t h, uint32_t duration) {
     (void)data; (void)object;
-    // This hardware worker is intentionally pinned to the validated board.
-    if (strcmp(output, "DSI-1") || pw != 1264 || ph != 2780 || px != 535 ||
-        py != 1928 || w != 195 || h != 195 || duration < 3000 || duration > 30000) {
+    // Denial must place the sensor where the phone's profile, which the
+    // helper read, says it is.
+    const struct uff_contact_area *a = &contact_area;
+    if (!*output || pw != (uint32_t)a->panel_width || ph != (uint32_t)a->panel_height ||
+        px != a->left || py != a->top || w != (uint32_t)a->size || h != (uint32_t)a->size ||
+        duration < 3000 || duration > 30000) {
         lost = true;
         return;
     }
@@ -146,7 +151,6 @@ static int make_image(void) {
     return rc;
 }
 
-static struct uff_contact_area contact_area;
 static int open_inputs(void) {
     inputs[0]=uff_contact_open(&contact,&contact_area);
     return inputs[0]>=0?0:-1;
@@ -215,6 +219,7 @@ int main(void) {
     if (!sensor || !*sensor || !lighting || strncmp(lighting,"/dev/",5)) return 2;
     // No contact exists during setup. Bound synchronous registry/import
     // roundtrips even if the compositor has stopped dispatching clients.
+    if (uff_contact_area_from_env(&contact_area)) return 2;
     alarm(5);
     display = wl_display_connect(NULL);
     if (!display) { perror("fingerprint Wayland connect"); return 2; }
