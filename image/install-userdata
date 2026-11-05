@@ -29,7 +29,7 @@ is_device() {
 
 is_device
 if ! in_rescue; then
-  "${phone[@]}" "touch $rescue_flag && sync && systemctl reboot" || true
+  "${phone[@]}" "touch /etc/phone-rescue && sync && systemctl reboot" || true
   echo "rebooting into rescue"
   sleep 10
   for _ in $(seq 30); do in_rescue && break; sleep 3; done

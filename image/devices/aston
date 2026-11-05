@@ -3,14 +3,6 @@
 # The device's own packages, found in packages/ of the device's image cache.
 packages=()
 
-# Boot images in the vault's boot/, until the image builds its own.
-boot_img=boot-227-5.img
-init_boot_img=init_boot-1.img
-# The stock init_boot, the template of image/init-boot's header and footer.
-init_boot_template=backups/aston-survey-20261018/init_boot_b.img
-
-# Our init_boot stops in rescue (SSH over USB, root not in use) when the root
-# holds rescue_flag: image/install-userdata, for quick tries on a phone that
-# already runs an image.
-rescue_flag=/etc/phone-rescue
+# The boot image in the vault's boot/, until the image builds its own.
+boot_img=boot-232.img
 ssh_host=aston

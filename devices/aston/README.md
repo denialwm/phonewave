@@ -4,8 +4,7 @@ The phone runs Arch Linux on linux-perpetua from slot B, from the image every
 phone shares (`image/`). Slot A keeps stock Android and is never written.
 boot_b holds the kernel with its device tree built in, and after it the tail:
 modules, the GPU, Wi-Fi and Bluetooth firmware, the voice profile and boot/tail/.
-init_boot_b holds the shared early userspace (`image/initramfs`) with
-boot/phone.conf. The ADSP, CDSP, modem and IPA firmware come from the phone's
+init_boot_b holds the init_boot every phone shares (`image/init-boot`). The ADSP, CDSP, modem and IPA firmware come from the phone's
 own `modem_b` (`image/stock-firmware`); the GPU zap shader and the video
 firmware live in vendor, inside super, so the tail carries them. `ssh aston`
 reaches the phone as root over USB at 10.77.71.2.
@@ -21,7 +20,7 @@ Private inputs live in the vault, `${PHONEWAVE_VAULT:-/mnt/development/denial-os
 boot/ the built images, the initramfs busybox and dropbear, and the old boot
 images; firmware/tail/ the firmware the tail carries, laid out as its
 firmware/; backups/ partition copies, among them the stock slot-B partitions
-(aston-survey-20261018), whose init_boot_b is the init_boot template, the
+(aston-survey-20261018), the
 modem EFS and the old root (aston-before-image-20261105); firmware/ also the
 factory fingerprint firmware; private-rootfs/ root's authorized_keys, which
 init_boot also carries, and sudoers; reference/ device trees; build-deps/ the
@@ -31,9 +30,7 @@ Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
 through linux-perpetua-build unless the release exists, and writes the vault's
 boot/boot-NAME.img on the devices224 boot image as header template.
 `boot/tail/stock-firmware.conf` and `.sha256` name the stock firmware the
-kernel was tested with. `image/init-boot aston NAME` writes init_boot-NAME.img;
-with `--rescue` it always stops in rescue, the way into an installed phone that
-lets nobody in.
+kernel was tested with.
 
 Installing a kernel: write boot-NAME.img to /dev/disk/by-partlabel/boot_b,
 compare its sha256 and reboot. The userdata image goes in with

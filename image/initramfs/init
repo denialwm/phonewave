@@ -1,8 +1,6 @@
 #!/bin/busybox sh
-# The early userspace every phone's init_boot carries; image/init-boot packs
-# it with the device's /etc/phone.conf, which names the phone (codename,
-# product), its USB addresses (host_addr, dev_addr) and rescue_flag; in a
-# rescue init_boot, stay_in_rescue.
+# The early userspace of the init_boot every phone shares; image/init-boot
+# packs it. What phone it runs on comes from the device tree.
 #
 # The bootloader loads it from init_boot_b and passes it after the
 # vendor_boot ramdisk, which only holds Android kernel modules; switch_root
@@ -15,10 +13,10 @@
 # /usr/lib/phonewave-system/root. The gadget stays bound; the installed
 # system gives usb0 its address (10.77.71.2) and SSH.
 #
-# If neither holds one, or the root contains rescue_flag, or phone.conf sets
-# stay_in_rescue, this stays as PID 1 in rescue: fastboot, which writes
-# denial or userdata, SSH at 10.77.71.2 and a shell on ttyGS0, and on the
-# bootloader's framebuffer why and how to install.
+# If neither holds one, or the root contains /etc/phone-rescue, or this is a
+# rescue init_boot (/etc/stay-in-rescue), this stays as PID 1 in rescue:
+# fastboot, which writes denial or userdata, SSH at 10.77.71.2 and a shell
+# on ttyGS0, and on the bootloader's framebuffer why and how to install.
 #
 # There is no firmware here: the drivers that need it are modules. The boot
 # partition carries them, after the kernel, as an erofs filesystem that is
@@ -35,7 +33,15 @@ mkdir -p /dev/pts /sys/kernel/config /sys/fs/pstore
 mount -t tmpfs -o mode=0755 tmpfs /run
 mount -t configfs configfs /sys/kernel/config
 exec </dev/null >>/dev/kmsg 2>&1
-. /etc/phone.conf
+# The phone: its codename from the board's compatible (motorola,roadstr),
+# its name from the model, and USB addresses that stay the same across boots,
+# one pair per codename.
+codename=$(tr '\0' '\n' < /proc/device-tree/compatible | head -n 1)
+codename=${codename#*,}
+product=$(tr -d '\0' < /proc/device-tree/model)
+mac=$(echo -n "$codename" | md5sum | sed 's/^\(..\)\(..\)\(..\)\(..\).*/02:\1:\2:\3:\4/')
+host_addr=$mac:01 dev_addr=$mac:02
+rescue_flag=/etc/phone-rescue
 mark() { echo "phone-init: $*" > /dev/kmsg; }
 mark "started on $(uname -r)"
 
@@ -109,7 +115,7 @@ for p in $denial $userdata; do
 	umount /newroot
 done
 [ -n "$root" ] || rescue "No system installed"
-[ -z "$stay_in_rescue" ] || rescue "This init_boot stops in rescue"
+[ ! -e /etc/stay-in-rescue ] || rescue "This init_boot stops in rescue"
 [ -e /newroot$rescue_flag ] && rescue "Rescue requested by the system"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 

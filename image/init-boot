@@ -1,32 +1,41 @@
 #!/usr/bin/env bash
-# Pack the early userspace into a device's init_boot image; no device access.
-# Usage: image/init-boot DEVICE NAME [--rescue]
-#   (writes the vault's boot/init_boot-NAME.img)
+# Pack the early userspace into the init_boot image every phone shares; no
+# device access.
+# Usage: image/init-boot OUTPUT [--dev-access] [--rescue]
 #
-# The rescue's fastboot is image/fastboot/fastboot.c, built static with the
-# kernel's Terminus 16x32 font from linux-perpetua's lib/fonts.
+#   --dev-access  root's SSH keys from every phone's vault let the rescue's
+#                 SSH in. Only for images that never leave this workstation.
+#                 Without it, fastboot and the USB serial shell are the way in.
+#   --rescue      always stops in rescue, with the root mounted read-only at
+#                 /newroot: a way into an installed phone that lets nobody in.
+#
+# The ramdisk is image/initramfs/, which reads what phone it runs on from the
+# device tree; busybox and dropbearmulti from the vault's
+# image/initramfs-bin/; and the rescue's fastboot, image/fastboot/fastboot.c,
+# built static with the kernel's Terminus 16x32 font from linux-perpetua's
+# lib/fonts.
 #
 # The ABL decompresses legacy-lz4 ramdisks and passes the vendor_boot ramdisk
-# followed by this one, so this /init is the one that runs. The ramdisk is
-# image/initramfs/ (the same init on every phone) with the device's
-# devices/DEVICE/boot/phone.conf as /etc/phone.conf, and from the vault
-# boot/initramfs-bin/{busybox,dropbearmulti} and root's authorized_keys. The
-# header and AVB footer come from the device's stock init_boot,
-# init_boot_template in image/devices/DEVICE, relative to the vault.
-#
-# --rescue packs one that always stops in rescue, with the root mounted
-# read-only at /newroot: a way into an installed phone that lets nobody in.
+# followed by this one, so this /init is the one that runs. The header is a
+# version 4 boot image header with no OS version or patch level, the AVB
+# footer an unsigned hash footer for the 8 MiB init_boot partition every
+# phone has so far.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-device=${1:?usage: image/init-boot DEVICE NAME [--rescue]}
-name=${2:?usage: image/init-boot DEVICE NAME [--rescue]}
-rescue=${3:-}
-. "$here/devices/$device"
-vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/$device
-gki=/mnt/development/denial-os/linux-perpetua/devices/boot/android-gki
-out=$vault/boot/init_boot-$name.img
-# Vault images are never rewritten: a name is used once.
-[ ! -e "$out" ] || { echo "init_boot-$name.img is already in the vault; take a new name" >&2; exit 1; }
+usage='usage: image/init-boot OUTPUT [--dev-access] [--rescue]'
+out=${1:?$usage}
+shift
+dev_access= rescue=
+for arg; do
+  case $arg in
+    --dev-access) dev_access=1 ;;
+    --rescue) rescue=1 ;;
+    *) echo "$usage" >&2; exit 2 ;;
+  esac
+done
+vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}
+font=/mnt/development/denial-os/linux-perpetua/lib/fonts/font_ter16x32.c
+partition_size=$((8 << 20))
 
 umask 022
 work=$(mktemp -d)
@@ -34,21 +43,27 @@ trap 'rm -rf "$work"' EXIT
 root=$work/root
 mkdir -m 755 "$root"
 cp -a "$here/initramfs/." "$root/"
-install -m 644 "$here/../devices/$device/boot/phone.conf" "$root/etc/phone.conf"
-[ "$rescue" != --rescue ] || echo stay_in_rescue=1 >> "$root/etc/phone.conf"
+[ -z "$rescue" ] || touch "$root/etc/stay-in-rescue"
 chmod 600 "$root/etc/shadow"
 mkdir -p "$root"/{bin,dev,etc/dropbear,newroot,proc,run,sys,tmp}
 install -d -m 700 "$root/root" "$root/root/.ssh"
-install -m 755 "$vault/boot/initramfs-bin/busybox" "$vault/boot/initramfs-bin/dropbearmulti" "$root/bin/"
-install -m 600 "$vault/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/"
-font=/mnt/development/denial-os/linux-perpetua/lib/fonts/font_ter16x32.c
+install -m 755 "$vault/image/initramfs-bin/busybox" "$vault/image/initramfs-bin/dropbearmulti" "$root/bin/"
+if [ -n "$dev_access" ]; then
+  cat "$vault"/*/private-rootfs/root/.ssh/authorized_keys | sort -u > "$root/root/.ssh/authorized_keys"
+  chmod 600 "$root/root/.ssh/authorized_keys"
+fi
 sed -n '/fontdata_ter16x32 = {/,/^} };/p' "$font" | grep -o '0x[0-9a-f]\{2\}' | paste -sd , > "$work/font.inc"
 [ "$(tr , '\n' < "$work/font.inc" | wc -l)" = 16384 ] || { echo "$font is not 256 glyphs of 16x32" >&2; exit 1; }
 aarch64-linux-gnu-gcc -static -O2 -pthread -Wall -Wextra -Werror -I"$work" \
   -o "$root/bin/fastboot" "$here/fastboot/fastboot.c"
 (cd "$root" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet) > "$work/ramdisk.cpio"
 lz4 -q -l -12 --favor-decSpeed "$work/ramdisk.cpio" "$work/ramdisk.cpio.lz4"
-"$gki" init_boot "$vault/$init_boot_template" "$work/ramdisk.cpio.lz4" "$out"
-cp "$work/ramdisk.cpio" "$vault/boot/ramdisk-$name.cpio"
-(cd "$vault/boot" && sha256sum "init_boot-$name.img" "ramdisk-$name.cpio" >> SHA256SUMS)
+
+mkbootimg --header_version 4 --ramdisk "$work/ramdisk.cpio.lz4" --output "$work/init_boot.img"
+avbtool add_hash_footer --image "$work/init_boot.img" --partition_size $partition_size \
+  --partition_name init_boot --hash_algorithm sha256 --algorithm NONE
+unpack_bootimg --boot_img "$work/init_boot.img" --out "$work/unpacked" > /dev/null
+cmp -s "$work/unpacked/ramdisk" "$work/ramdisk.cpio.lz4" || { echo "the packed ramdisk differs" >&2; exit 1; }
+mkdir -p "$(dirname "$out")"
+mv "$work/init_boot.img" "$out"
 echo "built $out"

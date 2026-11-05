@@ -132,9 +132,10 @@ EOF
     unshare --map-auto --map-root-user --mount --pid --fork --mount-proc \
     "$0" --inside "$device" "${flags[@]}"
 
-  # Boot images: the device's current ones, until the image builds its own.
+  # The device's boot image, until the image builds its own, and the
+  # init_boot every phone shares.
   cp "$vault/$device/boot/$boot_img" "$out/boot.img"
-  cp "$vault/$device/boot/$init_boot_img" "$out/init_boot.img"
+  "$here/init-boot" "$out/init_boot.img" ${dev_access:+--dev-access}
   {
     printf '#!/bin/sh\n# Flash this image on %s. The phone must be in its bootloader'"'"'s fastboot.\n' "$device"
     cat <<'EOF'

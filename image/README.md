@@ -8,7 +8,8 @@ partition, unpack and copy files by hand. Being tried on the Motorola Edge 70
 
 | Image | Built for | Holds |
 |---|---|---|
-| `boot.img`, `init_boot.img` | one device | that device's perpetua kernel with its modules, and its initramfs |
+| `boot.img` | one device | that device's perpetua kernel with its modules |
+| `init_boot.img` | every phone | the early userspace (`image/init-boot`) |
 | `userdata.img` | one selection | the root filesystem: Arch Linux ARM, Denial, the services |
 
 Only the active slot's `boot` and `init_boot`, and `userdata` or `denial`. Never the
@@ -34,7 +35,15 @@ This fastboot writes only those two partitions, raw or sparse, and reboots;
 `getvar denial-install` answers `yes` only here, which is how the flash
 script knows the bootloader handed over. Every rescue serves it, whatever
 stopped the boot, beside SSH at `10.77.71.2`. Over an earlier install the
-phone boots that root instead: `install-userdata` asks it for the rescue.
+phone boots that root instead: `install-userdata` asks it for the rescue,
+which a root holding `/etc/phone-rescue` gets.
+
+The init_boot is the same on every phone. The early userspace takes the
+phone's codename from the device tree's first compatible, its name from the
+model, and its USB addresses from the codename. `image/build` builds it into
+each image; built with `--dev-access`, the rescue's SSH lets in root's keys
+from every phone's vault, and without, nobody. The rescue draws its screen
+only where the device tree describes the bootloader's framebuffer.
 
 ## The builder
 
@@ -146,7 +155,7 @@ by DHCP, so any computer reaches it with nothing to set up; SSH listens there
 and on Wi-Fi. Several phones on one computer need a pair each: a lab phone's
 vault `private-rootfs/etc/` carries its own `systemd/network/10-phone-usb.network`
 and `ssh/sshd_config.d/11-phone-usb.conf`, which `--dev-access` puts over the
-image's. Its rescue init_boot is built per device with the same address.
+image's. The rescue is always at `10.77.71.2`.
 Tools that write to a phone without checking its host key, such as
 `install-userdata`, first read its device tree's model and stop on another
 phone.
