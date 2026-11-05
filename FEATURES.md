@@ -102,7 +102,7 @@ last.
 | Rotation | not started | | steinerd needs the phone's stock sensor files |
 | Light and proximity | not started | | |
 | Compass and gyroscope | not started | | |
-| Fingerprint | works | user | UFF driver |
+| Fingerprint | works | 2026-11-05, devices-227, user | UFF driver through fprintd: Settings enrolls as the phone's user, behind the lock PIN. The fingerprint-uff package is installed by hand; the image does not carry it yet |
 | Suspend | not started | | |
 | Cooling | ? | | |
 | Denial | works | user | |
