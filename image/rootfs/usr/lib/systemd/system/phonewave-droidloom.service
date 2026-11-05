@@ -1,0 +1,14 @@
+[Unit]
+Description=Set Droidloom up for the phone's user
+ConditionPathExists=/usr/lib/droidloom/droidloom-package-helper
+ConditionPathExists=!/etc/droidloom/cell.json
+ConditionPathExists=/etc/systemd/system/denial.service.d/user.conf
+After=systemd-user-sessions.service
+Before=denial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave-system/droidloom-owner
+
+[Install]
+WantedBy=multi-user.target

@@ -13,3 +13,4 @@ enable pacman-keyring.service
 enable zram-swap.service
 enable battery-statsd.service
 enable hapticd.service
+enable phonewave-droidloom.service

@@ -1,0 +1,30 @@
+#!/bin/sh
+# Sets Droidloom up for the phone's user, once, and starts it with their
+# session, as the Settings switch does. A phone has one user: the one
+# denial.service runs as. Runs from the pacman hook when Droidloom is
+# installed and at boot until it is set up; does nothing without Droidloom,
+# without that user, or once Droidloom has its configuration, so a user who
+# turned Android off keeps it off.
+set -eu
+helper=/usr/lib/droidloom/droidloom-package-helper
+[ -x "$helper" ] || exit 0
+[ ! -e /etc/droidloom/cell.json ] || exit 0
+# Setup reads the phone's GPU: not inside an image build.
+[ -d /run/systemd/system ] || exit 0
+user=$(sed -n 's/^User=//p' /etc/systemd/system/denial.service.d/user.conf 2>/dev/null | tail -n 1)
+[ -n "$user" ] || exit 0
+uid=$(id -u "$user")
+# At boot the GPU driver may still be probing.
+for _ in $(seq 30); do
+  ls /sys/class/drm | grep -q "^renderD" && break
+  sleep 1
+done
+home=$(getent passwd "$user" | cut -d: -f6)
+"$helper" setup --uid "$uid" --data-home "$home/.local/share" --state-home "$home/.local/state"
+runuser -u "$user" -- sh -c 'mkdir -p "$1" && ln -sfn /usr/lib/systemd/user/droidloom.service "$1/droidloom.service"' \
+  sh "$home/.config/systemd/user/graphical-session.target.wants"
+# A session already running starts it now; otherwise the session will.
+if systemctl is-active --quiet "user@$uid.service"; then
+  systemctl --user --machine="$user@" daemon-reload
+  systemctl --user --machine="$user@" --no-block start droidloom.service
+fi

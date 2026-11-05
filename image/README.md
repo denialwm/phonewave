@@ -112,6 +112,14 @@ Unattended, before Denial, from systemd's own tools where they exist:
 
 Nothing in the image belongs to one phone: no keys, no machine-id, no user.
 
+Droidloom, in an image built with `--droidloom` or installed later from its
+repository, is set up for the phone's user (the one `denial.service` runs
+as) and starts with their session, as the Settings switch turns it on:
+`phonewave-system`'s `droidloom-owner`, from a pacman hook when Droidloom is
+installed and at boot until it is set up. Its setup reads the phone's GPU,
+so it never runs inside the image build. Once set up it leaves Droidloom
+alone, so Android the user turned off stays off.
+
 ## USB
 
 Every phone is `10.77.71.2` on its cable and hands the computer `10.77.71.1`

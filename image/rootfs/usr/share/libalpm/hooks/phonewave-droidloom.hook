@@ -1,0 +1,10 @@
+# Sets Droidloom up for the phone's user when it is first installed.
+[Trigger]
+Type = Package
+Operation = Install
+Target = droidloom-runtime
+
+[Action]
+Description = Setting Droidloom up for the phone's user...
+When = PostTransaction
+Exec = /usr/lib/phonewave-system/droidloom-owner
