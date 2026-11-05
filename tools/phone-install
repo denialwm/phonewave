@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Build image/recipes on this computer and install what they make on a phone,
+# with no publish: the loop for trying a change.
+#   phone-install HOST RECIPE...
+# Uncommitted changes keep the version, so pacman -Syu replaces these files
+# only with a newer one.
+set -euo pipefail
+usage='usage: phone-install HOST RECIPE...'
+host=${1:?$usage}
+shift
+[ $# -gt 0 ] || { echo "$usage" >&2; exit 2; }
+pack=$(cd "$(dirname "$0")/.." && pwd)/image/pack
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=15
+  -o ServerAliveCountMax=4)
+# The SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+
+"$pack" "$@"
+mapfile -t files < <("$pack" --list "$@")
+# A fresh folder, not pacman's cache: pacman checks a package against a .sig
+# beside it, and the cache may hold the published one of a file so named.
+dir=$(ssh "${ssh_options[@]}" "$host" mktemp -d)
+trap 'ssh "${ssh_options[@]}" "$host" rm -rf "$dir"' EXIT
+scp -q "${ssh_options[@]}" "${files[@]}" "$host:$dir/"
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh \
+  pacman -U --noconfirm "${files[@]/#*\//$dir/}"
