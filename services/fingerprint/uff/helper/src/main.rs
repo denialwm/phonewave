@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-//! NX809J fprintd bridge. Contact and trusted operations are separate children.
+//! fprintd's bridge to a phone's fingerprint sensor. Contact and trusted
+//! operations are separate children. The phone's boot image tail says which:
+//! its fingerprint/sensor.conf names the worker that speaks the sensor's
+//! signed app, the app, and the contact child, which asks Denial to light an
+//! optical sensor or watches the touchscreen for one that needs no light.
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::{
+    collections::HashMap,
     env,
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
@@ -15,9 +19,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// A verification without a match leaves its worker warm; the next
+/// fprintd's drop-in binds the running kernel's boot image tail here.
+const TAIL: &str = "/run/phonewave-fingerprint/tail";
+const PROGRAMS: &str = "/usr/lib/phonewave-fingerprint";
+const LOCK: &str = "/run/lock/phonewave-fingerprint.lock";
+/// Where the sensor sits on the panel, as Denial reads it.
+const PROFILE: &str = "/etc/denial/fingerprint.json";
+/// A verification without a match leaves a warm worker warm; the next
 /// attempt's bridge connects here (root-only directory).
-const WARM_SOCKET: &str = "/run/nx809j-fingerprint/verify.sock";
+const WARM_SOCKET: &str = "/run/phonewave-fingerprint/verify.sock";
 
 static STOP: AtomicBool = AtomicBool::new(false);
 extern "C" fn stop(_: libc::c_int) {
@@ -82,48 +92,185 @@ struct Config {
     worker: PathBuf,
     firmware: PathBuf,
     contact: PathBuf,
+    /// Denial's profile and the lighting device, for an optical sensor.
+    presentation: Option<(String, String)>,
+    /// The worker keeps the sensor up asleep in standby and rests after a
+    /// miss for the next attempt.
+    warm: bool,
+    templates: u32,
+    /// The sensor's circle for the contact children.
+    area: String,
+}
+/// The groups of a key file: `[Group]` then `Key=value` lines.
+fn key_file(text: &str) -> Result<HashMap<String, HashMap<String, String>>> {
+    let mut groups: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut group = None;
+    for line in text.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            group = Some(name.to_string());
+            groups.entry(name.into()).or_default();
+            continue;
+        }
+        let (key, value) = line.split_once('=').ok_or("invalid sensor description")?;
+        let group = group.as_ref().ok_or("sensor key outside a group")?;
+        groups
+            .get_mut(group)
+            .unwrap()
+            .insert(key.trim().into(), value.trim().into());
+    }
+    Ok(groups)
+}
+fn name_ok(name: &str, max: usize, extra: &[u8]) -> bool {
+    !name.is_empty()
+        && name.len() <= max
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || extra.contains(&b))
 }
 fn configuration() -> Result<Config> {
     require(unsafe { libc::geteuid() } == 0, "root required")?;
-    let board = fs::read("/proc/device-tree/compatible").map_err(|_| "board unavailable")?;
-    require(
-        board.split(|b| *b == 0).next() == Some(b"nubia,nx809j"),
-        "unsupported board",
-    )?;
-    let boot =
-        fs::read_to_string("/proc/bootconfig").map_err(|_| "boot configuration unavailable")?;
-    require(
-        boot.contains("androidboot.slot_suffix = \"_b\""),
-        "wrong slot",
-    )?;
-    let v: Value = serde_json::from_slice(&protected(
-        Path::new("/etc/nx809j-fingerprint/backend.json"),
-        8192,
-    )?)
-    .map_err(|_| "invalid configuration")?;
-    require(v["format"].as_u64() == Some(1), "unsupported configuration")?;
-    fn artifact(v: &Value, key: &str) -> Result<PathBuf> {
-        let path = PathBuf::from(v[key]["path"].as_str().ok_or("missing artifact path")?);
-        let digest = v[key]["sha256"].as_str().ok_or("missing artifact hash")?;
-        require(
-            digest.len() == 64
-                && digest
-                    .bytes()
-                    .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)),
-            "invalid artifact hash",
-        )?;
-        let bytes = protected(&path, 32 * 1024 * 1024)?;
-        require(
-            format!("{:x}", Sha256::digest(&bytes)) == digest,
-            "artifact checksum mismatch",
-        )?;
+    let tail = Path::new(TAIL);
+    let text = protected(&tail.join("fingerprint/sensor.conf"), 8192)?;
+    let groups = key_file(std::str::from_utf8(&text).map_err(|_| "invalid sensor description")?)?;
+    let sensor = groups.get("Sensor").ok_or("missing [Sensor]")?;
+    let get = |key: &str| -> Result<&str> {
+        sensor
+            .get(key)
+            .map(String::as_str)
+            .ok_or_else(|| format!("missing sensor {key}"))
+    };
+    let program = |name: &str| -> Result<PathBuf> {
+        require(name_ok(name, 32, b"-"), "invalid program name")?;
+        let path = Path::new(PROGRAMS).join(name);
+        protected(&path, 32 * 1024 * 1024)?;
         Ok(path)
-    }
+    };
+    let relative = Path::new(get("Firmware")?);
+    require(
+        relative.is_relative()
+            && relative
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_))),
+        "firmware outside the tail",
+    )?;
+    let firmware = tail.join(relative);
+    protected(&firmware, 32 * 1024 * 1024)?;
+    let contact = get("Contact")?;
+    let presentation = if contact == "presentation" {
+        let profile = get("Presentation")?;
+        let lighting = get("Illumination")?;
+        require(
+            name_ok(profile, 64, b"-")
+                && lighting
+                    .strip_prefix("/dev/")
+                    .is_some_and(|n| name_ok(n, 64, b"_")),
+            "invalid presentation",
+        )?;
+        Some((profile.to_string(), lighting.to_string()))
+    } else {
+        None
+    };
+    let templates = number(get("Templates")?)?;
+    require((1..=20).contains(&templates), "invalid sensor Templates")?;
     Ok(Config {
-        worker: artifact(&v, "worker")?,
-        firmware: artifact(&v, "firmware")?,
-        contact: artifact(&v, "contact")?,
+        worker: program(&format!("{}-worker", get("Worker")?))?,
+        firmware,
+        contact: program(contact)?,
+        presentation,
+        warm: matches!(sensor.get("Warm").map(String::as_str), Some("true")),
+        templates,
+        area: contact_area(Path::new(PROFILE))?,
     })
+}
+/// The sensor's circle on the panel, from Denial's profile, as the contact
+/// children read it: "panel_width panel_height left top size".
+fn contact_area(profile: &Path) -> Result<String> {
+    let v: Value = serde_json::from_slice(&protected(profile, 8192)?)
+        .map_err(|_| "invalid sensor profile")?;
+    let field = |key: &str| v[key].as_u64().ok_or("invalid sensor area");
+    let size = field("width")?;
+    require(field("height")? == size, "sensor area is not square")?;
+    Ok(format!(
+        "{} {} {} {} {size}",
+        field("panel_width")?,
+        field("panel_height")?,
+        field("x")?,
+        field("y")?
+    ))
+}
+/// The phone's user's Denial, its runtime folder and its one Wayland socket.
+/// The presentation client pins its peer to exactly this process.
+fn compositor() -> Result<(i32, u32, String, String)> {
+    let out = Command::new("systemctl")
+        .args([
+            "show",
+            "denial.service",
+            "--property=MainPID",
+            "--property=User",
+            "--property=ActiveState",
+        ])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|_| "Denial service unavailable")?;
+    let text = String::from_utf8(out.stdout).map_err(|_| "Denial service unavailable")?;
+    let fields: HashMap<&str, &str> = text.lines().filter_map(|l| l.split_once('=')).collect();
+    let main: i32 = fields
+        .get("MainPID")
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(0);
+    let user = fields.get("User").copied().unwrap_or("");
+    require(
+        out.status.success() && main > 0 && !user.is_empty() && fields.get("ActiveState") == Some(&"active"),
+        "Denial service unavailable",
+    )?;
+    let executable = |pid: i32| fs::read_link(format!("/proc/{pid}/exe")).ok();
+    let deniald = Path::new("/usr/bin/deniald");
+    // The service runs deniald itself or a session script whose one deniald
+    // child is Denial. Its PAM session moves both out of the service cgroup.
+    let denial: Vec<i32> = if executable(main).as_deref() == Some(deniald) {
+        vec![main]
+    } else {
+        fs::read_to_string(format!("/proc/{main}/task/{main}/children"))
+            .map_err(|_| "Denial process unavailable")?
+            .split_whitespace()
+            .filter_map(|p| p.parse().ok())
+            .filter(|&p| executable(p).as_deref() == Some(deniald))
+            .collect()
+    };
+    require(denial.len() == 1, "Denial process unavailable")?;
+    let pid = denial[0];
+    let name = std::ffi::CString::new(user).map_err(|_| "invalid Denial user")?;
+    let entry = unsafe { libc::getpwnam(name.as_ptr()) };
+    require(!entry.is_null(), "unknown Denial user")?;
+    let uid = unsafe { (*entry).pw_uid };
+    let owner = fs::metadata(format!("/proc/{pid}"))
+        .map_err(|_| "Denial process unavailable")?
+        .uid();
+    require(uid > 0 && owner == uid, "wrong compositor owner")?;
+    let runtime = format!("/run/user/{uid}");
+    // The listener is created after exec, so the process environment need
+    // not name WAYLAND_DISPLAY: take the one live socket the user owns.
+    let sockets: Vec<String> = fs::read_dir(&runtime)
+        .map_err(|_| "compositor runtime unavailable")?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            let digits = name.strip_prefix("wayland-")?;
+            let m = fs::symlink_metadata(e.path()).ok()?;
+            use std::os::unix::fs::FileTypeExt;
+            (!digits.is_empty()
+                && digits.bytes().all(|b| b.is_ascii_digit())
+                && m.file_type().is_socket()
+                && m.uid() == uid)
+                .then_some(name)
+        })
+        .collect();
+    require(sockets.len() == 1, "ambiguous compositor socket")?;
+    Ok((pid, uid, runtime, sockets[0].clone()))
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum CState {
@@ -223,10 +370,12 @@ struct Native {
     sample: Option<Sample>,
     result: Option<(u32, u32)>,
     ids: Vec<u32>,
+    templates: u32,
 }
 impl Native {
-    fn new(operation: &str) -> Self {
+    fn new(operation: &str, templates: u32) -> Self {
         Self {
+            templates,
             operation: operation.into(),
             state: NState::Starting,
             captured: false,
@@ -294,7 +443,7 @@ impl Native {
             ["UFF1", "item", id] if self.operation == "list" => {
                 let id = number(id)?;
                 require(
-                    id != 0 && !self.ids.contains(&id) && self.ids.len() < 10,
+                    id != 0 && !self.ids.contains(&id) && (self.ids.len() as u32) < self.templates,
                     "invalid template identifier",
                 )?;
                 self.ids.push(id);
@@ -513,12 +662,12 @@ struct Bridge {
 impl Bridge {
     fn new(config: Config, operation: &str, argument: Option<String>) -> Self {
         Self {
+            n: Native::new(operation, config.templates),
             config,
             operation: operation.into(),
             argument,
             native: None,
             contact: None,
-            n: Native::new(operation),
             c: Contact::new(),
             control: Vec::new(),
             control_fd: 0,
@@ -531,6 +680,7 @@ impl Bridge {
         // deletion need the sensor to themselves, so they stop one first.
         // Probe and open only look, and accept a warm worker's power.
         match self.operation.as_str() {
+            _ if !self.config.warm => {}
             "verify" => {
                 if let Some(warm) = connect_warm(&self.warm) {
                     self.native = Some(Process::adopt(warm)?);
@@ -556,7 +706,18 @@ impl Bridge {
         let mut c = Command::new(&self.config.contact);
         c.env_clear()
             .env("PATH", "/usr/bin:/bin")
-            .env("UFF_SUSPEND_PROTOCOL", "1");
+            .env("UFF_SUSPEND_PROTOCOL", "1")
+            .env("UFF_CONTACT_AREA", &self.config.area);
+        if let Some((profile, lighting)) = &self.config.presentation {
+            let (pid, uid, runtime, display) = compositor()?;
+            c.env("XDG_RUNTIME_DIR", runtime)
+                .env("WAYLAND_DISPLAY", display)
+                .env("UFF_DENIAL_PID", pid.to_string())
+                .env("UFF_DENIAL_UID", uid.to_string())
+                .env("UFF_DEFER_PRESENT", "1")
+                .env("UFF_PRESENTATION", profile)
+                .env("UFF_ILLUMINATION", lighting);
+        }
         self.contact = Some(Process::spawn(c)?);
         self.c = Contact::new();
         Ok(())
@@ -727,8 +888,9 @@ impl Bridge {
             self.start_contact()?;
             if self.operation == "verify" {
                 self.wait(20, |s| s.n.state == NState::Standby)?;
-                // Initialized and asleep until the touch.
-                emit("power 2")?;
+                // A warm worker keeps the sensor initialized and asleep
+                // until the touch; another waits with it off.
+                emit(if self.config.warm { "power 2" } else { "power 0" })?;
             }
             self.wait(
                 if self.operation == "enroll" {
@@ -776,7 +938,12 @@ impl Bridge {
             let reported = Instant::now();
             // Without a match the next attempt follows: the worker rests
             // with the sensor up instead of shutting down.
-            let rest = verify && sample.code != 0;
+            let rest = verify && sample.code != 0 && self.config.warm;
+            // An enrollment commits its template at the finish: the contact
+            // must have withdrawn first, Denial's overlay included.
+            if !verify {
+                self.wait(5, |s| s.joined_contact())?;
+            }
             self.n.state = NState::Finishing;
             self.n.rest = rest;
             self.native
@@ -801,7 +968,7 @@ impl Bridge {
                     );
                 }
                 let done = Instant::now();
-                eprintln!("goodix timing phase_ms start_to_touch={} touch_to_ready={} capture={} compare={} touch_to_result={} cleanup_after_result={} rested={rest}",touch.duration_since(op_start).as_millis(),ready.duration_since(touch).as_millis(),captured.duration_since(ready).as_millis(),sample_at.duration_since(captured).as_millis(),reported.duration_since(touch).as_millis(),done.duration_since(reported).as_millis());
+                eprintln!("fingerprint timing phase_ms start_to_touch={} touch_to_ready={} capture={} compare={} touch_to_result={} cleanup_after_result={} rested={rest}",touch.duration_since(op_start).as_millis(),ready.duration_since(touch).as_millis(),captured.duration_since(ready).as_millis(),sample_at.duration_since(captured).as_millis(),reported.duration_since(touch).as_millis(),done.duration_since(reported).as_millis());
                 if verify {
                     return emit(if rest { "power 2" } else { "power 0" });
                 }
@@ -829,6 +996,7 @@ impl Bridge {
     /// the worker says before it rests belongs to the failed attempt.
     fn rest_after_failure(&mut self) {
         if self.operation != "verify"
+            || !self.config.warm
             || STOP.load(Ordering::Relaxed)
             || !matches!(
                 self.n.state,
@@ -916,7 +1084,7 @@ fn main_inner() -> Result<()> {
         .create(true)
         .mode(0o600)
         .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-        .open("/run/lock/nx809j-fingerprint.lock")
+        .open(LOCK)
         .map_err(|_| "lock unavailable")?;
     require(
         unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
@@ -927,7 +1095,7 @@ fn main_inner() -> Result<()> {
     if result.is_err() {
         if let Some(touch) = bridge.touch_at {
             eprintln!(
-                "goodix timing failed phase={:?} touch_elapsed_ms={}",
+                "fingerprint timing failed phase={:?} touch_elapsed_ms={}",
                 bridge.n.state,
                 touch.elapsed().as_millis()
             );
@@ -936,13 +1104,13 @@ fn main_inner() -> Result<()> {
     }
     let cleanup = bridge.close();
     if let Err(error) = &cleanup {
-        eprintln!("Goodix bridge cleanup: {error}");
+        eprintln!("fingerprint bridge cleanup: {error}");
     }
     result.and(cleanup)
 }
 fn main() {
     if let Err(error) = main_inner() {
-        eprintln!("Goodix bridge: {error}");
+        eprintln!("fingerprint bridge: {error}");
         std::process::exit(1);
     }
 }
@@ -966,7 +1134,7 @@ mod tests {
         c.complete(true).unwrap();
     }
     fn sample() -> Native {
-        let mut n = Native::new("verify");
+        let mut n = Native::new("verify", 5);
         n.record("UFW1 standby").unwrap();
         assert!(n.record("UFW1 prepared").is_err());
         n.state = NState::Activating;
@@ -989,16 +1157,16 @@ mod tests {
     }
     #[test]
     fn verify_rejects_false_identifiers_and_list_duplicates() {
-        let mut n = Native::new("verify");
+        let mut n = Native::new("verify", 5);
         n.state = NState::Capturing;
         assert!(n.record("UFW1 sample 1 0 123 0").is_err());
-        let mut n = Native::new("list");
+        let mut n = Native::new("list", 5);
         n.record("UFF1 item 1").unwrap();
         assert!(n.record("UFF1 item 1").is_err());
     }
     #[test]
     fn enrollment_retry_keeps_session_but_cannot_finish_early() {
-        let mut n = Native::new("enroll");
+        let mut n = Native::new("enroll", 5);
         n.record("UFW1 prepared").unwrap();
         n.state = NState::Capturing;
         n.record("UFW1 sample 3 100 0 0").unwrap();
@@ -1011,7 +1179,7 @@ mod tests {
         assert!(n.record("UFF1 result 0 123").is_err());
     }
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("goodix-bridge-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("fingerprint-bridge-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -1023,6 +1191,16 @@ mod tests {
         result
     }
     fn verify_at(name: &str, worker: &str, contact: &str, warm: Option<&Path>) -> Result<()> {
+        run_at(name, "verify", true, worker, contact, warm)
+    }
+    fn run_at(
+        name: &str,
+        operation: &str,
+        warm_sensor: bool,
+        worker: &str,
+        contact: &str,
+        warm: Option<&Path>,
+    ) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         // A script written while another test forks is busy text for exec.
         static SCRIPTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -1043,8 +1221,12 @@ mod tests {
                 worker,
                 firmware: dir.join("firmware"),
                 contact,
+                presentation: None,
+                warm: warm_sensor,
+                templates: 5,
+                area: "1264 2780 535 1928 195".into(),
             },
-            "verify",
+            operation,
             None,
         );
         bridge.control_fd = fds[0];
@@ -1096,6 +1278,35 @@ mod tests {
         assert!(verify_at("lifted", lifted, early, None).is_err());
         assert!(scratch("lifted").join("rested").exists());
         std::fs::remove_dir_all(scratch("lifted")).unwrap();
+    }
+
+    #[test]
+    fn a_sensor_that_is_not_warm_finishes_after_a_miss() {
+        let miss = "#!/bin/sh\necho 'UFW1 standby'\nread c; [ \"$c\" = activate ] || exit 2\necho 'UFW1 prepared'\nread c; [ \"$c\" = capture ] || exit 2\necho 'UFW1 sample 1 100 0 0'\nread c; [ \"$c\" = finish ] || exit 2\necho 'UFW1 cleaned'\necho 'UFF1 result 1 0'\n";
+        let result = run_at("cold", "verify", false, miss, HOLD, None);
+        std::fs::remove_dir_all(scratch("cold")).unwrap();
+        result.unwrap();
+    }
+
+    #[test]
+    fn an_enrollment_finishes_only_after_the_contact_withdrew() {
+        // The contact says it stopped only after a pause; the worker
+        // records whether it had by the time it was told to finish.
+        let contact = "#!/bin/sh\necho 'DFP1 waiting'\necho 'DFP1 down 1'\nread c; [ \"$c\" = present ] || exit 2\necho 'DFP1 ready 1'\nread c; [ \"$c\" = finish ] || exit 2\nsleep 0.3\ntouch @/withdrawn\necho 'DFP1 stopped 1 0'\n";
+        let worker = "#!/bin/sh\necho 'UFW1 prepared'\nread c; [ \"$c\" = capture ] || exit 2\necho 'UFW1 sample 0 0 77 1'\nread c; [ \"$c\" = finish ] || exit 2\n[ -e @/withdrawn ] || exit 2\necho 'UFW1 cleaned'\necho 'UFF1 result 0 77'\n";
+        let dir = scratch("enroll");
+        let contact = contact.replace('@', dir.to_str().unwrap());
+        let result = run_at("enroll", "enroll", false, worker, &contact, None);
+        std::fs::remove_dir_all(dir).unwrap();
+        result.unwrap();
+    }
+
+    #[test]
+    fn the_sensor_description_is_a_key_file() {
+        let groups = key_file("# c\n[Sensor]\nId=a-b\nTemplates = 5\n\n[Calibration]\nFiles=x;y\n").unwrap();
+        assert_eq!(groups["Sensor"]["Templates"], "5");
+        assert_eq!(groups["Calibration"]["Files"], "x;y");
+        assert!(key_file("Id=outside\n").is_err());
     }
 
     #[test]

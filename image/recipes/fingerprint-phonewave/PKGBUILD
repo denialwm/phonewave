@@ -124,6 +124,9 @@ build() {
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static \
     "$_src/uff-touch-contact.c" -o "$out/touch"
 
+  cargo build --release --locked --target "$TARGET" \
+    --manifest-path "$_src/helper/Cargo.toml" --target-dir "$srcdir/helper-target"
+
   local protocol
   for protocol in "$_src/protocol/denial-fingerprint-v1.xml" \
       /usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml; do
@@ -144,9 +147,9 @@ package_libfprint-phonewave() {
 }
 
 package_fingerprint-phonewave() {
-  depends=(fprintd libfprint-phonewave python wayland util-linux)
+  depends=(fprintd libfprint-phonewave wayland util-linux)
   local lib=$pkgdir/usr/lib/phonewave-fingerprint
-  install -Dm755 "$_src/uff-fprint-helper.py" "$lib/helper"
+  install -Dm755 "helper-target/$TARGET/release/phonewave-fingerprint-helper" "$lib/helper"
   install -Dm755 "$_src/calibration" "$lib/calibration"
   install -Dm755 uff/uff-worker uff/presentation uff/touch -t "$lib"
   install -Dm644 "$_src/system/phonewave-fingerprint-calibration.service" \

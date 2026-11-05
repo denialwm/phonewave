@@ -3,3 +3,6 @@
 # kernel; Denial reads only a regular file. Without the tail's file nothing
 # is copied.
 C+ /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
+# Root's only: a warm worker listens here between attempts, and fprintd's
+# drop-in binds the tail under it.
+d /run/phonewave-fingerprint 0700 root root -
