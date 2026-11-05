@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Copy a phone's whole Android storage (Droidloom's data_dir) to this
+# computer, or put such a copy back. Android stops while it runs and starts
+# again after. The host folders shared into Android are not part of it.
+#   phone-backup HOST DIR               write DIR/HOST-droidloom-DATE.tar.zst
+#   phone-backup HOST --restore FILE    replace the phone's storage with FILE
+# A restore keeps the replaced storage on the phone, beside the new one, as
+# DATA_DIR.before-restore-DATE.
+set -euo pipefail
+usage='usage: phone-backup HOST DIR | phone-backup HOST --restore FILE'
+host=${1:?$usage}
+target=${2:?$usage}
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=15
+  -o ServerAliveCountMax=4)
+# droidloomd takes backups from root or the phone's owner, restores from root
+# only; the SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+
+if [ "$target" = --restore ]; then
+  file=${3:?$usage}
+  zstd --quiet --test "$file"
+  ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh droidloomctl restore - <"$file"
+  exit
+fi
+
+[ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
+file=$target/${host##*@}-droidloom-$(date +%Y%m%d-%H%M%S).tar.zst
+partial=$file.partial
+trap 'rm -f -- "$partial"' EXIT
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh droidloomctl backup - >"$partial"
+zstd --quiet --test "$partial"
+mv --no-clobber -- "$partial" "$file"
+trap - EXIT
+echo "$file"
