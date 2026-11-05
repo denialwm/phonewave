@@ -494,7 +494,7 @@ start (FpDevice *dev)
         fpi_device_get_identify_data (dev, &gallery);
         /* No enrolled print can match an empty gallery. This also lets
          * fprintd proceed with its duplicate check for the first enrollment. */
-        if (fpi_device_get_driver_data (dev) == 1 && gallery->len == 0)
+        if (gallery->len == 0)
           {
             fpi_device_identify_report (dev, NULL, NULL, NULL);
             fpi_device_identify_complete (dev, NULL);
