@@ -1,25 +1,27 @@
-# Phonewave's UFF fingerprint stack (services/fingerprint/uff), on every phone.
-# Build: image/pack fingerprint-uff
+# Phonewave's fingerprint stack (services/fingerprint), on every phone.
+# Build: image/pack fingerprint-phonewave
 #
-# libfprint-uff: libfprint at the release Arch Linux ARM ships, with its
-# default drivers and the uff driver, in place of Arch's libfprint; fprintd
-# runs on it. libgusb builds beside it as a subproject to link against and
-# stays Arch's.
-# fingerprint-uff: the helper the uff driver starts, the sensor's worker, the
-# client that asks Denial to light the sensor, and the factory calibration's
-# import from the phone's persist partition. A phone with the sensor turns
-# them on from its boot image's tail, which holds fprintd's drop-in, the
-# sensor's signed app and where the sensor sits on the panel. Elsewhere the
-# uff driver finds no sensor and nothing of this runs.
-pkgbase=fingerprint-uff
-pkgname=(libfprint-uff fingerprint-uff)
+# libfprint-phonewave: libfprint at the release Arch Linux ARM ships, with
+# its default drivers and the uff driver, in place of Arch's libfprint;
+# fprintd runs on it. libgusb builds beside it as a subproject to link
+# against and stays Arch's.
+# fingerprint-phonewave: the helper the uff driver starts, a worker for each
+# sensor family's signed app, the contact children (the overlay Denial
+# lights for an optical sensor, the touchscreen for one that needs no
+# light), the factory calibration's import and fprintd's drop-in. A phone's
+# boot image tail names its sensor in fingerprint/sensor.conf and carries
+# the signed app and Denial's denial/fingerprint.json. On a phone whose
+# tail names no sensor the uff driver finds no device and nothing of this
+# runs.
+pkgbase=fingerprint-phonewave
+pkgname=(libfprint-phonewave fingerprint-phonewave)
 _libfprint=80a4b5ec612892c5c056c48dddaa561452cf37ec # v1.94.100
 _libfprint_version=1.94.100
 _gusb=ed31c8134d80d006bd45450e84180be2a7c0742e # 0.4.9
 _teec=736419e25a2036aac3292a10a93e394a90750ca3
 _qcbor=a3fce5f34d7b30f12d7b9161185171c6fe137737
 _minkipc=6ab4aedfbbacd366f0e064c1c72b09ad54b31761
-pkgdesc='UFF fingerprint sensors under phone screens'
+pkgdesc='Fingerprint sensors under phone screens'
 url='https://github.com/denialwm/phonewave'
 license=(LGPL-2.1-or-later)
 _src=$startdir/../../../services/fingerprint/uff
@@ -67,7 +69,7 @@ pkg-config = 'pkg-config'
 
 [built-in options]
 # glib's headers declare pthread_yield again; libfprint makes that an error.
-c_args = ['--sysroot=$sysroot', '-Wno-error=redundant-decls', '-DUFF_HELPER="/usr/lib/uff-fingerprint/uff-fprint-helper"']
+c_args = ['--sysroot=$sysroot', '-Wno-error=redundant-decls', '-DUFF_HELPER="/usr/lib/phonewave-fingerprint/helper"']
 c_link_args = ['--sysroot=$sysroot', '-B$sysroot/usr/lib', '-Wl,-rpath-link,$sysroot/usr/lib']
 
 [properties]
@@ -118,7 +120,9 @@ build() {
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread \
     -I"$include" -Iquic-teec/libqcomtee/include \
     -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
-    "$_src/uff-service-worker.c" "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/uff-service-worker"
+    "$_src/uff-service-worker.c" "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/uff-worker"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static \
+    "$_src/uff-touch-contact.c" -o "$out/touch"
 
   local protocol
   for protocol in "$_src/protocol/denial-fingerprint-v1.xml" \
@@ -128,25 +132,27 @@ build() {
   done
   aarch64-linux-gnu-gcc --sysroot="$sysroot" -B"$sysroot/usr/lib" -O2 -g -Wall -Wextra -Werror \
     -I"$out" -I"$include" -I"$sysroot/usr/include" "$_src/uff-denial-presentation.c" "$out"/*-protocol.c \
-    -Wl,-rpath-link,"$sysroot/usr/lib" -lwayland-client -o "$out/uff-denial-presentation"
+    -Wl,-rpath-link,"$sysroot/usr/lib" -lwayland-client -o "$out/presentation"
 }
 
-package_libfprint-uff() {
-  pkgdesc='Library for fingerprint readers, with the UFF driver'
+package_libfprint-phonewave() {
+  pkgdesc='Library for fingerprint readers, with the uff driver for phone sensors'
   depends=(glib2 libgudev libgusb openssl pixman)
   provides=("libfprint=$_libfprint_version" libfprint-2.so=2-64)
   conflicts=(libfprint)
   meson install -C libfprint-build --destdir "$pkgdir" --skip-subprojects --no-rebuild
 }
 
-package_fingerprint-uff() {
-  depends=(fprintd libfprint-uff python wayland util-linux)
-  install -Dm755 "$_src/uff-fprint-helper.py" "$pkgdir/usr/lib/uff-fingerprint/uff-fprint-helper"
-  install -Dm755 "$_src/uff-calibration" "$pkgdir/usr/lib/uff-fingerprint/uff-calibration"
-  install -Dm755 uff/uff-service-worker "$pkgdir/usr/lib/uff-fingerprint/uff-service-worker"
-  install -Dm755 uff/uff-denial-presentation "$pkgdir/usr/lib/uff-fingerprint/uff-denial-presentation"
-  install -Dm644 "$_src/system/uff-calibration.service" \
-    "$pkgdir/usr/lib/systemd/system/uff-calibration.service"
-  install -Dm644 "$_src/system/uff-fingerprint.tmpfiles" \
-    "$pkgdir/usr/lib/tmpfiles.d/uff-fingerprint.conf"
+package_fingerprint-phonewave() {
+  depends=(fprintd libfprint-phonewave python wayland util-linux)
+  local lib=$pkgdir/usr/lib/phonewave-fingerprint
+  install -Dm755 "$_src/uff-fprint-helper.py" "$lib/helper"
+  install -Dm755 "$_src/calibration" "$lib/calibration"
+  install -Dm755 uff/uff-worker uff/presentation uff/touch -t "$lib"
+  install -Dm644 "$_src/system/phonewave-fingerprint-calibration.service" \
+    "$pkgdir/usr/lib/systemd/system/phonewave-fingerprint-calibration.service"
+  install -Dm644 "$_src/system/fprintd.conf" \
+    "$pkgdir/usr/lib/systemd/system/fprintd.service.d/50-phonewave-fingerprint.conf"
+  install -Dm644 "$_src/system/phonewave-fingerprint.tmpfiles" \
+    "$pkgdir/usr/lib/tmpfiles.d/phonewave-fingerprint.conf"
 }

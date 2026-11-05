@@ -336,7 +336,7 @@ static int storage_start(struct uff_storage *s,struct qcomtee_object *root,
 {
     s->initialized=1;s->directory=-1;
     for (size_t i=0;i<8;i++) s->files[i]=-1;
-    const char *path="/var/lib/uff-fingerprint/secure-cache";
+    const char *path="/var/lib/phonewave-fingerprint/secure-cache";
     if (mkdir(path,0700) && errno!=EEXIST) goto fail;
     s->directory=open(path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
     struct stat st;

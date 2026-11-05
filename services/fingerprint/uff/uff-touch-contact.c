@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// NX809J contact child for goodix-fprint-helper: a finger held on the
-// ultrasonic sensor's circle. The sensor needs no light, so unlike the
-// Aston's presentation client this one never talks to the compositor; it
+// Contact child for the fingerprint helper on a phone whose sensor needs no
+// light, such as an ultrasonic one: a finger held on the sensor's circle.
+// Unlike the presentation client this one never talks to the compositor; it
 // only watches the touchscreen and answers in the same DFP1 records.
 // No input injection or event grabbing; no biometric data passes here.
 #define _GNU_SOURCE
@@ -17,7 +17,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include "../uff/uff-contact.h"
+#include "uff-contact.h"
 
 static volatile sig_atomic_t interrupted;
 static struct uff_contact contact;
@@ -25,70 +25,7 @@ static bool active, ready, suspended;
 
 static void signal_stop(int signal_number) { (void)signal_number; interrupted = 1; }
 
-static bool identity(void)
-{
-    char text[256] = {0};
-    int fd = open("/proc/device-tree/compatible", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return false;
-    ssize_t n = read(fd, text, sizeof(text) - 1);
-    close(fd);
-    if (n <= 0 || strcmp(text, "nubia,nx809j")) return false;
-    static char boot[16384];
-    FILE *bootconfig = fopen("/proc/bootconfig", "r");
-    if (!bootconfig) return false;
-    size_t size = fread(boot, 1, sizeof(boot) - 1, bootconfig);
-    boot[size] = 0;
-    fclose(bootconfig);
-    return strstr(boot, "androidboot.slot_suffix = \"_b\"") != NULL;
-}
-
-/* The TCM touchscreen, its current slots read in: a finger already held when
- * the child starts must lift before it counts. */
-static int open_touch(void)
-{
-    DIR *directory = opendir("/dev/input");
-    if (!directory) return -1;
-    int found = -1;
-    struct dirent *entry;
-    while (found < 0 && (entry = readdir(directory))) {
-        if (strncmp(entry->d_name, "event", 5)) continue;
-        int fd = openat(dirfd(directory), entry->d_name, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
-        if (fd < 0) continue;
-        char name[128] = {0};
-        struct input_id id;
-        struct input_absinfo slot, ax, ay;
-        if (ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name) < 0 || strcmp(name, "synaptics_tcm_touch") ||
-            ioctl(fd, EVIOCGID, &id) || id.bustype != BUS_SPI ||
-            ioctl(fd, EVIOCGABS(ABS_MT_SLOT), &slot) || ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &ax) ||
-            ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &ay) ||
-            slot.minimum != 0 || slot.maximum != UFF_CONTACT_SLOTS - 1 || slot.value < 0 ||
-            slot.value >= UFF_CONTACT_SLOTS || ax.minimum != 0 || ax.maximum != UFF_CONTACT_NX809J.max_x ||
-            ay.minimum != 0 || ay.maximum != UFF_CONTACT_NX809J.max_y) {
-            close(fd);
-            continue;
-        }
-        uff_contact_init(&contact, &UFF_CONTACT_NX809J);
-        contact.slot = slot.value;
-        int values[UFF_CONTACT_SLOTS + 1];
-        const int axes[] = {ABS_MT_TRACKING_ID, ABS_MT_POSITION_X, ABS_MT_POSITION_Y};
-        bool read_all = true;
-        for (unsigned a = 0; read_all && a < 3; a++) {
-            values[0] = axes[a];
-            if (ioctl(fd, EVIOCGMTSLOTS(sizeof(values)), values)) { read_all = false; break; }
-            for (unsigned i = 0; i < UFF_CONTACT_SLOTS; i++) {
-                if (a == 0) {
-                    contact.slots[i].id = values[i + 1];
-                    if (values[i + 1] >= 0) contact.armed = false;
-                } else if (a == 1) contact.slots[i].x = values[i + 1];
-                else contact.slots[i].y = values[i + 1];
-            }
-        }
-        if (read_all) found = fd;
-        else close(fd);
-    }
-    closedir(directory);
-    return found;
-}
+static struct uff_contact_area area;
 
 /* 0 to go on, 1 when the finger lifted early, -1 when the stream broke. */
 static int read_touch(int fd)
@@ -136,8 +73,8 @@ int main(void)
     setvbuf(stdout, NULL, _IOLBF, 0);
     signal(SIGINT, signal_stop); signal(SIGTERM, signal_stop); signal(SIGHUP, signal_stop);
     signal(SIGPIPE, SIG_IGN);
-    if (geteuid() != 0 || !identity()) return 2;
-    int touch = open_touch();
+    if (geteuid() != 0) return 2;
+    int touch = uff_contact_open(&contact, &area);
     if (touch < 0) { fputs("DFP1 unavailable\n", stderr); return 2; }
     puts("DFP1 waiting");
     char buffer[32];

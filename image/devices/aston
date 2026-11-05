@@ -4,7 +4,7 @@
 packages=()
 
 # Boot images in the vault's boot/, until the image builds its own.
-boot_img=boot-227-4.img
+boot_img=boot-227-5.img
 init_boot_img=init_boot-1.img
 # The stock init_boot, the template of image/init-boot's header and footer.
 init_boot_template=backups/aston-survey-20261018/init_boot_b.img

@@ -44,7 +44,7 @@ A phone with the sensor says so in its boot image's tail, which carries what
 is the phone's own:
 
 - `systemd/system/fprintd.service.d/50-uff.conf`: the sensor's devices in
-  fprintd's sandbox, the state folder `/var/lib/uff-fingerprint` and the
+  fprintd's sandbox, the state folder `/var/lib/phonewave-fingerprint` and the
   calibration import. fprintd's sandbox hides `/usr/lib/modules`, so the
   drop-in binds the signed app at `/run/uff-firmware`.
 - the signed `uff_gx` app (`firmware/uff/uff_gx.elf`, from the vault's
@@ -55,9 +55,9 @@ is the phone's own:
 On a phone without them the uff driver finds no sensor, fprintd lists none and
 nothing of this runs. The factory calibration stays on the phone:
 `uff-calibration` copies it from the persist partition's `fingerprint/` into
-`/var/lib/uff-fingerprint/calibration` once, before fprintd first opens the
+`/var/lib/phonewave-fingerprint/calibration` once, before fprintd first opens the
 sensor. Templates stay in the TEE's storage under
-`/var/lib/uff-fingerprint/secure-cache`.
+`/var/lib/phonewave-fingerprint/secure-cache`.
 
 The helper finds the compositor through `denial.service`: its `User` is the
 phone's user, and the presentation client accepts only that user's Denial.

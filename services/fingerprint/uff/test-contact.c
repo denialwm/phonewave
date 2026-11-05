@@ -2,6 +2,10 @@
 #include "uff-contact.h"
 #include <assert.h>
 #include <stdio.h>
+/* The Aston's S3910 and the NX809J's TCM, ten units per panel pixel. */
+static const struct uff_contact_area UFF_CONTACT_ASTON={12639,27799,1264,2780,535,1928,195};
+/* Stock's touch circle: centre (608,2024), radius 120. */
+static const struct uff_contact_area UFF_CONTACT_NX809J={12159,26879,1216,2688,488,1904,240};
 static int event(struct uff_contact *c,int type,int code,int value)
 {struct input_event e={.type=type,.code=code,.value=value};return uff_contact_event(c,&e);}
 static int frame(struct uff_contact *c) {return event(c,EV_SYN,SYN_REPORT,0);}

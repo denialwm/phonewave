@@ -18,10 +18,10 @@ denial-app-messages
 denial-app-sensors
 denial-app-settings
 slot-success
-# fprintd's library with the UFF driver, in place of Arch's, and the UFF
-# sensor's programs; a phone's tail turns the sensor on.
-libfprint-uff
-fingerprint-uff
+# fprintd's library with the uff driver, in place of Arch's, and the phone
+# sensors' programs; a phone's tail names its sensor.
+libfprint-phonewave
+fingerprint-phonewave
 # Mesa main, for the Adreno 722, in place of Arch's.
 mesa-denial
 vulkan-freedreno-denial

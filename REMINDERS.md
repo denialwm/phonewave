@@ -63,7 +63,7 @@ not part of any device's configuration.
     braun sensor files and the libcamera patches in `devices/aston/packaging`
     (by sensor, so one package for every phone). The old enrollments in
     /var/lib/aston-fingerprint are in the backup; the fingerprint stack
-    itself is the fingerprint-uff recipe and the boot image's tail now.
+    itself is the fingerprint-phonewave recipe and the boot image's tail now.
   - Packages the old root had that the image lacks, such as noto-fonts-cjk,
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
   - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
@@ -72,7 +72,7 @@ not part of any device's configuration.
   - The phone carries `/etc/polkit-1/rules.d/50-denial-fingerprint.rules`
     until a Denial release with the rule reaches it; remove it then.
   - The helper runs the worker once per request. The worker's resident mode
-    (`uff-resident.h`, socket in `/run/uff-fingerprint`) has no unit.
+    (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
 - **Fingerprint enrollment on the RedMagic.** Its Gatekeeper keeps the lock
   PIN, and its reader adds a finger only with the PIN proven to it, which
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once

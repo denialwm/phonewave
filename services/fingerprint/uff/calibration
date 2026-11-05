@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Copies the sensor's factory calibration from the partition the phone's boot
+# image tail names into the fingerprint state, once, before fprintd first
+# opens the sensor. The tail's fingerprint/sensor.conf says where:
+#   [Calibration]
+#   Partition=persist
+#   Files=fingerprint/fingerprint_cali.bin;fingerprint/fp_cali_serial_number.txt
+# The partition is mounted read-only with noload, so its journal is never
+# replayed, and only in this program's own mount namespace.
+set -euo pipefail
+sensor=/usr/lib/modules/$(uname -r)/fingerprint/sensor.conf
+state=/var/lib/phonewave-fingerprint/calibration
+[ -d "$state" ] && exit 0
+value() {
+  awk -F= -v key="$1" '/^\[/ {in_group = ($0 == "[Calibration]")}
+    in_group && $1 == key {sub(/^[^=]*=/, ""); print; exit}' "$sensor"
+}
+partition=$(value Partition)
+files=$(value Files)
+[ -n "$partition" ] && [ -n "$files" ] || exit 0
+[[ $partition =~ ^[a-z0-9_]+$ ]] || { echo "invalid calibration partition" >&2; exit 1; }
+[ "${1:-}" = --inside ] || exec unshare --mount --propagation private "$0" --inside
+
+source=$(mktemp -d)
+mount -o ro,noload "/dev/disk/by-partlabel/$partition" "$source"
+staging=$(mktemp -d /var/lib/phonewave-fingerprint/.calibration.XXXXXX)
+trap 'rm -rf "$staging"' EXIT
+IFS=';' read -ra list <<<"$files"
+for file in "${list[@]}"; do
+  [[ $file =~ ^[A-Za-z0-9_./-]+$ && $file != *..* ]] || { echo "invalid calibration file" >&2; exit 1; }
+  install -m 0400 "$source/$file" "$staging/$(basename "$file")"
+done
+chmod 0700 "$staging"
+sync "$staging"/*
+mv -T "$staging" "$state"
+trap - EXIT

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
-/* Experimental native driver for sensors behind a root UFF1 helper: the
- * Aston's G7s UFF and the NX809J's Goodix GUM5228. The helper's worker
- * isolates blocking Qualcomm secure calls and owns their complete resource
- * lifetime. UFF1 is a private, versioned worker interface, not a public
- * libfprint API.
+/* Experimental native driver for phone sensors behind a root UFF1 helper.
+ * The helper's worker isolates blocking Qualcomm secure calls and owns their
+ * complete resource lifetime. UFF1 is a private, versioned worker interface,
+ * not a public libfprint API. What fprintd calls the sensor and how many
+ * templates it keeps come from the phone's boot image tail.
  */
 #define FP_COMPONENT "uff"
 #include "drivers_api.h"
@@ -16,23 +16,12 @@
 #include <unistd.h>
 
 #ifndef UFF_HELPER
-#define UFF_HELPER "/usr/local/libexec/uff-fprint-helper"
+#define UFF_HELPER "/usr/lib/phonewave-fingerprint/helper"
 #endif
-#ifndef GOODIX_HELPER
-#define GOODIX_HELPER "/usr/local/libexec/goodix-fprint-helper"
+/* fprintd's drop-in binds the running kernel's boot image tail here. */
+#ifndef UFF_SENSOR
+#define UFF_SENSOR "/run/phonewave-fingerprint/tail/fingerprint/sensor.conf"
 #endif
-
-/* Each phone's sensor: what fprintd calls it and how many templates its
- * secure side keeps. The id table's driver_data indexes it. */
-typedef struct {
-  const char *driver, *name;
-  guint prints;
-} UffSensor;
-
-static const UffSensor sensors[] = {
-  { "aston-goodix-g7s-uff", "UFF G7s UFF (native, experimental)", 5 },
-  { "nx809j-goodix-gum5228", "Goodix GUM5228 ultrasonic (native, experimental)", 10 },
-};
 
 typedef struct {
   FpDevice parent;
@@ -40,6 +29,8 @@ typedef struct {
   GDataInputStream *output;
   GOutputStream *control;
   GPtrArray *prints;
+  gchar *sensor_id, *sensor_name;
+  guint templates;
   GSource *deadline;
   GSource *sleep_deadline;
   gboolean cancelled, failed, result_seen, reported;
@@ -118,26 +109,36 @@ static void resume_device (FpDevice *dev) { sleep_command (dev, FALSE); }
 
 static const FpIdEntry id_table[] = {
   { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
-    .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint",
-    .driver_data = 0 },
+    .platform_driver = "oplus-uff-fp", .platform_compatible = "oneplus,aston-fingerprint" },
   { .udev_types = FPI_DEVICE_UDEV_SUBTYPE_PLATFORM,
-    .platform_driver = "goodix-tee-fp", .platform_compatible = "goodix,gum5228",
-    .driver_data = 1 },
+    .platform_driver = "goodix-tee-fp", .platform_compatible = "goodix,gum5228" },
   { .udev_types = 0 }
 };
 
-/* The secure side matches a touch against every template and says which:
- * verify checks it is the expected print, identify finds it in the gallery. */
-static const UffSensor *
-sensor (FpDevice *dev)
+/* The tail's [Sensor] group: Id, the device ID fprintd stores with each
+ * print, Name and Templates, how many the secure side keeps. */
+static gboolean
+load_sensor (FpiDeviceUff *self, GError **error)
 {
-  return &sensors[fpi_device_get_driver_data (dev)];
-}
-
-static const char *
-helper (FpDevice *dev)
-{
-  return fpi_device_get_driver_data (dev) == 1 ? GOODIX_HELPER : UFF_HELPER;
+  g_autoptr(GKeyFile) file = g_key_file_new ();
+  if (!g_key_file_load_from_file (file, UFF_SENSOR, G_KEY_FILE_NONE, error))
+    return FALSE;
+  g_autofree gchar *id = g_key_file_get_string (file, "Sensor", "Id", error);
+  g_autofree gchar *name = id ? g_key_file_get_string (file, "Sensor", "Name", error) : NULL;
+  gint templates = name ? g_key_file_get_integer (file, "Sensor", "Templates", error) : 0;
+  if (!name || templates < 1 || templates > 20)
+    {
+      if (error && !*error)
+        g_set_error (error, G_KEY_FILE_ERROR, G_KEY_FILE_ERROR_INVALID_VALUE,
+                     "invalid sensor Templates");
+      return FALSE;
+    }
+  g_free (self->sensor_id);
+  g_free (self->sensor_name);
+  self->sensor_id = g_steal_pointer (&id);
+  self->sensor_name = g_steal_pointer (&name);
+  self->templates = templates;
+  return TRUE;
 }
 
 static gboolean
@@ -245,7 +246,7 @@ finished (GObject *object, GAsyncResult *result, gpointer user_data)
   switch (fpi_device_get_current_action (dev))
     {
     case FPI_DEVICE_ACTION_PROBE:
-      fpi_device_probe_complete (dev, sensor (dev)->driver, sensor (dev)->name, NULL);
+      fpi_device_probe_complete (dev, self->sensor_id, self->sensor_name, NULL);
       break;
     case FPI_DEVICE_ACTION_OPEN:
       fpi_device_open_complete (dev, NULL);
@@ -360,7 +361,7 @@ read_line (GObject *object, GAsyncResult *result, gpointer user_data)
                                 fpi_device_retry_new (FP_DEVICE_RETRY_CENTER_FINGER));
   else if (!self->result_seen && length <= 80 && sscanf (line, "UFF1 item %u%n", &identifier, &consumed) == 1 &&
            consumed == (int) length && identifier && self->prints &&
-           self->prints->len < sensor (dev)->prints &&
+           self->prints->len < self->templates &&
            fpi_device_get_current_action (dev) == FPI_DEVICE_ACTION_LIST)
     {
       gboolean duplicate = FALSE;
@@ -475,7 +476,16 @@ start (FpDevice *dev)
   g_autoptr(GError) error = NULL;
   switch (fpi_device_get_current_action (dev))
     {
-    case FPI_DEVICE_ACTION_PROBE: operation = "probe"; break;
+    case FPI_DEVICE_ACTION_PROBE:
+      if (!load_sensor (self, &error))
+        {
+          fpi_device_probe_complete (dev, NULL, NULL,
+                                     fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
+                                                               "%s", error->message));
+          return;
+        }
+      operation = "probe";
+      break;
     case FPI_DEVICE_ACTION_OPEN: operation = "open"; break;
     case FPI_DEVICE_ACTION_ENROLL: operation = "enroll"; break;
     case FPI_DEVICE_ACTION_VERIFY:
@@ -533,7 +543,7 @@ start (FpDevice *dev)
   self->control = open_control (launcher, &error);
   if (self->control)
     self->worker = g_subprocess_launcher_spawn (launcher, &error,
-                                             helper (dev), operation, argument, NULL);
+                                             UFF_HELPER, operation, argument, NULL);
   if (!self->worker)
     {
       g_clear_object (&self->control);
@@ -549,10 +559,19 @@ start (FpDevice *dev)
 static void close_device (FpDevice *dev) { fpi_device_close_complete (dev, NULL); }
 static void fpi_device_uff_init (FpiDeviceUff *self) { (void) self; }
 static void
+finalize (GObject *object)
+{
+  FpiDeviceUff *self = (FpiDeviceUff *) object;
+  g_free (self->sensor_id);
+  g_free (self->sensor_name);
+  G_OBJECT_CLASS (fpi_device_uff_parent_class)->finalize (object);
+}
+static void
 fpi_device_uff_class_init (FpiDeviceUffClass *klass)
 {
+  G_OBJECT_CLASS (klass)->finalize = finalize;
   klass->id = "uff";
-  klass->full_name = "UFF1 native platform sensor (experimental)";
+  klass->full_name = "Phone sensor behind a UFF1 helper (experimental)";
   klass->type = FP_DEVICE_TYPE_UDEV;
   klass->id_table = id_table;
   klass->nr_enroll_stages = 20;

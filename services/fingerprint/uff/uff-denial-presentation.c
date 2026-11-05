@@ -24,7 +24,6 @@
 #include "linux-dmabuf-client-protocol.h"
 #include "denial-fingerprint-client-protocol.h"
 #include "uff-contact.h"
-#include <linux/aston_fp_illumination.h>
 
 #define ARGB8888 0x34325241u
 static volatile sig_atomic_t interrupted;
@@ -147,42 +146,9 @@ static int make_image(void) {
     return rc;
 }
 
+static struct uff_contact_area contact_area;
 static int open_inputs(void) {
-    DIR *directory=opendir("/dev/input");
-    if (!directory) return -1;
-    struct dirent *entry;
-    while ((entry=readdir(directory))) {
-        if (strncmp(entry->d_name,"event",5)) continue;
-        int fd=openat(dirfd(directory),entry->d_name,O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_NOFOLLOW);
-        if (fd<0) continue;
-        char name[128]={0};struct input_id id;
-        if (ioctl(fd,EVIOCGNAME(sizeof(name)-1),name)<0 ||
-            strcmp(name,"synaptics_tcm_touch") || ioctl(fd,EVIOCGID,&id) || id.bustype!=BUS_SPI) {close(fd);continue;}
-        struct input_absinfo slot,ax,ay;
-        if (inputs[0]>=0 || ioctl(fd,EVIOCGABS(ABS_MT_SLOT),&slot) ||
-            ioctl(fd,EVIOCGABS(ABS_MT_POSITION_X),&ax) || ioctl(fd,EVIOCGABS(ABS_MT_POSITION_Y),&ay) ||
-            slot.minimum!=0 || slot.maximum!=9 || slot.value<0 || slot.value>9 ||
-            ax.minimum!=0 || ax.maximum!=12639 || ay.minimum!=0 || ay.maximum!=27799) {
-            close(fd);closedir(directory);return -1;
-        }
-        uff_contact_init(&contact,&UFF_CONTACT_ASTON);contact.slot=slot.value;
-        /* Snapshot current slots. A finger already held when the worker starts
-         * must release before it can authorize a new optical acquisition.
-         */
-        int values[UFF_CONTACT_SLOTS+1];
-        const int axes[]={ABS_MT_TRACKING_ID,ABS_MT_POSITION_X,ABS_MT_POSITION_Y};
-        for (unsigned a=0;a<3;a++) {
-            values[0]=axes[a];
-            if (ioctl(fd,EVIOCGMTSLOTS(sizeof(values)),values)) {close(fd);closedir(directory);return -1;}
-            for (unsigned i=0;i<UFF_CONTACT_SLOTS;i++) {
-                if (a==0) {contact.slots[i].id=values[i+1];if(values[i+1]>=0)contact.armed=false;}
-                else if (a==1) contact.slots[i].x=values[i+1];
-                else contact.slots[i].y=values[i+1];
-            }
-        }
-        inputs[0]=fd;
-    }
-    closedir(directory);
+    inputs[0]=uff_contact_open(&contact,&contact_area);
     return inputs[0]>=0?0:-1;
 }
 static void cancel_contact(void) {
@@ -243,14 +209,10 @@ int main(void) {
     signal(SIGINT, signal_stop); signal(SIGTERM, signal_stop); signal(SIGHUP, signal_stop);
     signal(SIGPIPE, SIG_IGN);
     if (geteuid() != 0) return 2;
-    char boot[16384];FILE *identity=fopen("/proc/bootconfig","r");
-    if (!identity) return 2;
-    size_t identity_size=fread(boot,1,sizeof(boot)-1,identity);boot[identity_size]=0;fclose(identity);
-    char model[32]={0};identity=fopen("/proc/device-tree/compatible","r");
-    if (!identity) return 2;
-    size_t model_size=fread(model,1,sizeof(model)-1,identity);fclose(identity);
-    if (model_size<sizeof("oneplus,aston") || strcmp(model,"oneplus,aston") ||
-        !strstr(boot,"androidboot.slot_suffix = \"_b\"")) return 2;
+    /* The root helper names the sensor's Denial profile and its lighting
+     * device, both from the phone's boot image tail. */
+    const char *sensor=getenv("UFF_PRESENTATION"),*lighting=getenv("UFF_ILLUMINATION");
+    if (!sensor || !*sensor || !lighting || strncmp(lighting,"/dev/",5)) return 2;
     // No contact exists during setup. Bound synchronous registry/import
     // roundtrips even if the compositor has stopped dispatching clients.
     alarm(5);
@@ -271,9 +233,9 @@ int main(void) {
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, NULL);
     if (wl_display_roundtrip(display) < 0 || !manager || !dmabuf) goto fail;
-    session = denial_fingerprint_manager_v1_get_session(manager, "goodix-g7s-uff");
+    session = denial_fingerprint_manager_v1_get_session(manager, sensor);
     denial_fingerprint_session_v1_add_listener(session, &session_listener, NULL);
-    int illumination=open("/dev/aston_fp_illumination",O_RDWR|O_CLOEXEC|O_NOFOLLOW);
+    int illumination=open(lighting,O_RDWR|O_CLOEXEC|O_NOFOLLOW);
     if (illumination<0) goto fail;
     denial_fingerprint_session_v1_set_illumination_fd(session,illumination);
     close(illumination);

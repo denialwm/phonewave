@@ -1,0 +1,15 @@
+# Started by fprintd's drop-in on a phone whose boot image tail names a
+# fingerprint sensor.
+[Unit]
+Description=Fingerprint sensor calibration from the phone's partition
+ConditionPathExists=/usr/lib/modules/%v/fingerprint/sensor.conf
+ConditionPathExists=!/var/lib/phonewave-fingerprint/calibration
+DefaultDependencies=no
+After=local-fs.target
+Before=fprintd.service
+
+[Service]
+Type=oneshot
+StateDirectory=phonewave-fingerprint
+StateDirectoryMode=0700
+ExecStart=/usr/lib/phonewave-fingerprint/calibration

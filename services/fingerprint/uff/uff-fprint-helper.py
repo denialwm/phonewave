@@ -5,13 +5,14 @@
 No result is trusted until both children have finished their respective cleanup.
 The native child cannot commit an enrollment until contact has withdrawn.
 
-One helper serves every UFF1 phone: installed as uff-fprint-helper on the
-Aston, whose optical sensor needs Denial to light it, and as
-goodix-fprint-helper on the NX809J, whose ultrasonic sensor needs only the
-touchscreen to say a finger is on it.
+One helper serves every phone with a sensor behind UFF1. The phone's boot
+image tail says which: its fingerprint/sensor.conf names the worker that
+speaks the sensor's signed app, the app, and the child that reports contact,
+which asks Denial to light an optical sensor or reads the touchscreen for an
+ultrasonic one.
 """
+import configparser
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -26,21 +27,12 @@ import time
 
 STOP = False
 
-# Each phone: its files, or the configuration that names them, its lock,
-# the child that reports contact, and whether its worker stays resident
-# between requests. The Aston's come from the fingerprint-uff package and
-# its boot image's tail, which carries the sensor's signed app; fprintd's
-# drop-in binds the tail's firmware/uff at /run/uff-firmware.
-PHONES = {
-    'aston': {'files': {'worker': {'path': '/usr/lib/uff-fingerprint/uff-service-worker'},
-                        'presentation': {'path': '/usr/lib/uff-fingerprint/uff-denial-presentation'},
-                        'firmware': {'path': '/run/uff-firmware/uff_gx.elf'}},
-              'lock': '/run/lock/uff-fingerprint.lock',
-              'contact': 'presentation', 'resident': False},
-    'nx809j': {'config': '/etc/nx809j-fingerprint/backend.json',
-               'lock': '/run/lock/nx809j-fingerprint.lock',
-               'contact': 'contact', 'resident': False},
-}
+# fprintd's drop-in binds the running kernel's boot image tail here.
+TAIL = Path('/run/phonewave-fingerprint/tail')
+PROGRAMS = Path('/usr/lib/phonewave-fingerprint')
+LOCK = '/run/lock/phonewave-fingerprint.lock'
+# Where the sensor sits on the panel, as Denial reads it.
+PROFILE = '/etc/denial/fingerprint.json'
 
 
 class ProtocolError(Exception):
@@ -56,7 +48,7 @@ def emit(line):
     print('UFF1 ' + line, flush=True)
 
 
-def protected(path, digest=None, limit=32*1024*1024):
+def protected(path, limit=32*1024*1024):
     require(os.path.isabs(path), 'absolute artifact path required')
     # Every ancestor must also resist replacement by an unprivileged process.
     for parent in Path(path).parents:
@@ -71,34 +63,44 @@ def protected(path, digest=None, limit=32*1024*1024):
                 'unprotected artifact')
         data = stream.read(limit + 1)
     require(len(data) == s.st_size, 'artifact changed while reading')
-    if digest is not None:
-        require(re.fullmatch('[0-9a-f]{64}', digest) and
-                hashlib.sha256(data).hexdigest() == digest, 'artifact checksum mismatch')
     return data
-
-
-def phone():
-    boot = Path('/proc/bootconfig').read_text()
-    require('androidboot.slot_suffix = "_b"' in boot, 'wrong slot')
-    model = Path('/proc/device-tree/compatible').read_bytes().split(b'\0')[0]
-    if model == b'oneplus,aston':
-        return 'aston'
-    require(model == b'nubia,nx809j', 'unsupported phone')
-    return 'nx809j'
 
 
 def configuration():
     require(os.geteuid() == 0, 'root required')
-    name = phone()
-    if 'files' in PHONES[name]:
-        # pacman and the boot image hold these; only their owners are checked.
-        config = PHONES[name]['files']
-    else:
-        config = json.loads(protected(PHONES[name]['config'], limit=8192))
-        require(config['format'] == 1, 'unsupported configuration')
-    for entry in ('worker', 'firmware', PHONES[name]['contact']):
-        protected(config[entry]['path'], config[entry].get('sha256'))
-    return dict(config, phone=PHONES[name])
+    sensor = configparser.ConfigParser(interpolation=None)
+    sensor.optionxform = str
+    sensor.read_string(protected(str(TAIL / 'fingerprint/sensor.conf'), limit=8192).decode())
+    section = sensor['Sensor']
+    def program(name):
+        require(re.fullmatch(r'[a-z][a-z0-9-]{0,31}', name), 'invalid program name')
+        return str(PROGRAMS / name)
+    firmware = os.path.normpath(TAIL / section['Firmware'])
+    require(firmware.startswith(str(TAIL) + '/'), 'firmware outside the tail')
+    contact = section['Contact']
+    config = {'worker': {'path': program(section['Worker'] + '-worker')},
+              'firmware': {'path': firmware},
+              'contact': {'path': program(contact)},
+              'kind': contact,
+              'resident': section.getboolean('Resident', False)}
+    if contact == 'presentation':
+        config['presentation'] = section['Presentation']
+        config['illumination'] = section['Illumination']
+        require(re.fullmatch(r'[a-z0-9-]{1,64}', config['presentation']) and
+                re.fullmatch(r'/dev/[a-z0-9_]{1,64}', config['illumination']),
+                'invalid presentation')
+    # pacman and the boot image hold these; only their owners are checked.
+    for entry in ('worker', 'firmware', 'contact'):
+        protected(config[entry]['path'])
+    return config
+
+
+def contact_area():
+    profile = json.loads(protected(PROFILE, limit=8192))
+    values = [profile[key] for key in ('panel_width', 'panel_height', 'x', 'y', 'width')]
+    require(all(type(v) is int and v >= 0 for v in values) and profile['height'] == values[4],
+            'invalid sensor area')
+    return ' '.join(map(str, values))
 
 
 def compositor_environment():
@@ -312,20 +314,22 @@ class Bridge:
         args = [self.config['worker']['path'], self.operation, self.config['firmware']['path']]
         if self.argument is not None:
             args.append(self.argument)
-        resident = self.config['phone']['resident']
+        resident = self.config['resident']
         env = dict(os.environ, UFF_RESIDENT='1') if resident else dict(os.environ)
         self.native = Process(args, Native(self.operation, resident=resident), env)
         self.children.append(self.native)
         self.sel.register(self.native.p.stdout, selectors.EVENT_READ, self.native)
 
     def start_contact(self):
-        name = self.config['phone']['contact']
-        if name == 'presentation':
+        if self.config['kind'] == 'presentation':
             env = compositor_environment()
             env['UFF_DEFER_PRESENT'] = '1'
+            env['UFF_PRESENTATION'] = self.config['presentation']
+            env['UFF_ILLUMINATION'] = self.config['illumination']
         else:
             env = {'PATH': '/usr/bin:/bin', 'UFF_SUSPEND_PROTOCOL': '1'}
-        self.presentation = Process([self.config[name]['path']], Contact(), env)
+        env['UFF_CONTACT_AREA'] = contact_area()
+        self.presentation = Process([self.config['contact']['path']], Contact(), env)
         self.children.append(self.presentation)
         self.sel.register(self.presentation.p.stdout, selectors.EVENT_READ, self.presentation)
 
@@ -481,7 +485,7 @@ def main():
         require(re.fullmatch(r'[1-9][0-9]{0,9}', argument) and int(argument) <= 0xffffffff,
                 'invalid template identifier')
     config = configuration()
-    lock = os.open(config['phone']['lock'], os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    lock = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         bridge = Bridge(config, operation, argument)

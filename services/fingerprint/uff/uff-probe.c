@@ -44,16 +44,12 @@ static struct qcomtee_param object_in(struct qcomtee_object *p)
 }
 #include "uff-storage.h"
 
+/* The worker speaks the OPLUS UFF control driver's ABI: refuse a phone
+ * without it. */
 static int device_identity(void)
 {
-    char b[16384],model[32]={0};
-    FILE *f=fopen("/proc/bootconfig","r");
-    if (!f) return -1;
-    size_t n=fread(b,1,sizeof(b)-1,f);b[n]=0;fclose(f);
-    if (!(f=fopen("/proc/device-tree/compatible","r"))) return -1;
-    n=fread(model,1,sizeof(model)-1,f);fclose(f);
-    return n>=sizeof("oneplus,aston") && !strcmp(model,"oneplus,aston") &&
-           strstr(b,"androidboot.slot_suffix = \"_b\"") ? 0:-1;
+    struct stat st;
+    return stat("/sys/bus/platform/drivers/oplus-uff-fp",&st) || !S_ISDIR(st.st_mode) ? -1:0;
 }
 /* A complete signed split ELF is assembled locally, with segment hashes. */
 static struct qcomtee_object *load_app(struct qcomtee_object *root,
@@ -177,7 +173,7 @@ static int inspect_config(struct qcomtee_object *root,struct qcomtee_object *app
 }
 static int load_factory_calibration(struct qcomtee_object *root,struct qcomtee_object *app)
 {
-    const char *path="/var/lib/uff-fingerprint/calibration/fingerprint_cali.bin";
+    const char *path="/var/lib/phonewave-fingerprint/calibration/fingerprint_cali.bin";
     struct stat st;
     int fd=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW),ret=-1;
     unsigned char *data=NULL;
@@ -263,7 +259,7 @@ static int uff_run_device(const char *mode,const char *firmware,
     int prepare=standby || database || !strcmp(mode,"--prepare");
     int inspect=prepare || !strcmp(mode,"--inspect");
     int query=inspect || !strcmp(mode,"--identify");
-    if (device_identity()) {fputs("Refusing non-Aston or non-B-slot device\n",stderr);return 1;}
+    if (device_identity()) {fputs("No OPLUS UFF sensor driver\n",stderr);return 1;}
     setvbuf(stdout,NULL,_IONBF,0);
     root=qcomtee_object_root_init("/dev/tee0",tee_call,NULL,NULL);
     if (!root) goto out;

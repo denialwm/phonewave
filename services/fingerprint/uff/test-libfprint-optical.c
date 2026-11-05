@@ -12,7 +12,7 @@ static void progress(FpDevice *d,gint n,FpPrint *p,gpointer user,GError *error)
 int main(int argc,char **argv)
 {
     if (getuid()!=0 || argc!=2 || (strcmp(argv[1],"enroll") && strcmp(argv[1],"verify") && strcmp(argv[1],"recover"))) return 2;
-    const char *path="/var/lib/uff-fingerprint/native-test-print.bin";
+    const char *path="/var/lib/phonewave-fingerprint/native-test-print.bin";
     g_autoptr(FpContext) context=fp_context_new();fp_context_enumerate(context);
     GPtrArray *devices=fp_context_get_devices(context);if(devices->len!=1)return 2;
     FpDevice *device=g_ptr_array_index(devices,0);if(strcmp(fp_device_get_driver(device),"uff"))return 2;

@@ -7,7 +7,7 @@
 int main(void)
 {
     assert(geteuid()==0);
-    char directory[]="/var/lib/uff-fingerprint/storage-test-XXXXXX";
+    char directory[]="/var/lib/phonewave-fingerprint/storage-test-XXXXXX";
     assert(mkdtemp(directory));
     struct uff_storage s={.directory=open(directory,O_RDONLY|O_DIRECTORY|O_CLOEXEC)};
     assert(s.directory>=0);

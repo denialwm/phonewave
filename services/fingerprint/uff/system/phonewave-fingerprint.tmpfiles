@@ -1,5 +1,5 @@
 # Where the sensor sits on the panel: the running kernel's boot image tail
-# says it, on a phone that has the sensor. A copy on each boot follows each
+# says it, on a phone that has a sensor. A copy on each boot follows each
 # kernel; Denial reads only a regular file. Without the tail's file nothing
 # is copied.
 C+ /etc/denial/fingerprint.json - - - - /usr/lib/modules/%v/denial/fingerprint.json
