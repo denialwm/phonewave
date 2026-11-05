@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pack the early userspace into a device's init_boot image; no device access.
+# Usage: image/init-boot DEVICE NAME [--rescue]
+#   (writes the vault's boot/init_boot-NAME.img)
+#
+# The ABL decompresses legacy-lz4 ramdisks and passes the vendor_boot ramdisk
+# followed by this one, so this /init is the one that runs. The ramdisk is
+# image/initramfs/ (the same init on every phone) with the device's
+# devices/DEVICE/boot/phone.conf as /etc/phone.conf, and from the vault
+# boot/initramfs-bin/{busybox,dropbearmulti} and root's authorized_keys. The
+# header and AVB footer come from the device's stock init_boot,
+# init_boot_template in image/devices/DEVICE, relative to the vault.
+#
+# --rescue packs one that always stops in rescue, with the root mounted
+# read-only at /newroot: a way into an installed phone that lets nobody in.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+device=${1:?usage: image/init-boot DEVICE NAME [--rescue]}
+name=${2:?usage: image/init-boot DEVICE NAME [--rescue]}
+rescue=${3:-}
+. "$here/devices/$device"
+vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/$device
+gki=/mnt/development/denial-os/linux-perpetua/devices/boot/android-gki
+out=$vault/boot/init_boot-$name.img
+# Vault images are never rewritten: a name is used once.
+[ ! -e "$out" ] || { echo "init_boot-$name.img is already in the vault; take a new name" >&2; exit 1; }
+
+umask 022
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+root=$work/root
+mkdir -m 755 "$root"
+cp -a "$here/initramfs/." "$root/"
+install -m 644 "$here/../devices/$device/boot/phone.conf" "$root/etc/phone.conf"
+[ "$rescue" != --rescue ] || echo stay_in_rescue=1 >> "$root/etc/phone.conf"
+chmod 600 "$root/etc/shadow"
+mkdir -p "$root"/{bin,dev,etc/dropbear,newroot,proc,run,sys,tmp}
+install -d -m 700 "$root/root" "$root/root/.ssh"
+install -m 755 "$vault/boot/initramfs-bin/busybox" "$vault/boot/initramfs-bin/dropbearmulti" "$root/bin/"
+install -m 600 "$vault/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/"
+(cd "$root" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet) > "$work/ramdisk.cpio"
+lz4 -q -l -12 --favor-decSpeed "$work/ramdisk.cpio" "$work/ramdisk.cpio.lz4"
+"$gki" init_boot "$vault/$init_boot_template" "$work/ramdisk.cpio.lz4" "$out"
+cp "$work/ramdisk.cpio" "$vault/boot/ramdisk-$name.cpio"
+(cd "$vault/boot" && sha256sum "init_boot-$name.img" "ramdisk-$name.cpio" >> SHA256SUMS)
+echo "built $out"

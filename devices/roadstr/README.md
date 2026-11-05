@@ -23,7 +23,7 @@ boot/boot-NAME.img: the kernel, then its modules, the GPU microcode, the
 Bluetooth patch, the Wi-Fi board data and `boot/tail/`, as the filesystem
 `image/boot-tail` packs. `boot/tail/stock-firmware.conf` and `.sha256` name
 the stock firmware the kernel was tested with, W1WR36.39-115. init_boot rarely changes;
-`boot/build-init-boot.sh NAME` writes init_boot-NAME.img.
+`image/init-boot roadstr NAME` writes init_boot-NAME.img.
 
 Installing a kernel by hand: write boot-NAME.img to
 /dev/disk/by-partlabel/boot_b and compare its sha256. `tools/phone-reboot

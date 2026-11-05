@@ -1,5 +1,8 @@
 #!/bin/busybox sh
-# Moto Edge 70 mainline early userspace.
+# The early userspace every phone's init_boot carries; image/init-boot packs
+# it with the device's /etc/phone.conf, which names the phone (codename,
+# product), its USB addresses (host_addr, dev_addr) and rescue_flag; in a
+# rescue init_boot, stay_in_rescue.
 #
 # The bootloader loads it from init_boot_b and passes it after the
 # vendor_boot ramdisk, which only holds Android kernel modules; switch_root
@@ -10,8 +13,8 @@
 # checks it and remounts it read-write from fstab. The gadget stays bound;
 # the installed system gives usb0 its address (10.77.71.2) and SSH.
 #
-# If the root cannot be mounted, or it contains /etc/moto70-mainline-rescue,
-# this stays as PID 1 with SSH at 10.77.71.2 and a shell on ttyGS0.
+# If the root cannot be mounted, or it contains rescue_flag, or phone.conf
+# sets stay_in_rescue, this stays as PID 1 with SSH at 10.77.71.2 and a shell on ttyGS0.
 #
 # There is no firmware here: the drivers that need it are modules. The boot
 # partition carries them, after the kernel, as an erofs filesystem that is
@@ -28,22 +31,23 @@ mkdir -p /dev/pts /sys/kernel/config /sys/fs/pstore
 mount -t tmpfs -o mode=0755 tmpfs /run
 mount -t configfs configfs /sys/kernel/config
 exec </dev/null >>/dev/kmsg 2>&1
-mark() { echo "moto70-init: $*" > /dev/kmsg; }
+. /etc/phone.conf
+mark() { echo "phone-init: $*" > /dev/kmsg; }
 mark "started on $(uname -r)"
 
-g=/sys/kernel/config/usb_gadget/moto70
+g=/sys/kernel/config/usb_gadget/phone
 mkdir -p $g/strings/0x409 $g/configs/c.1/strings/0x409 $g/functions/acm.usb0 $g/functions/ecm.usb0
 echo 0x1d6b > $g/idVendor
 echo 0x0104 > $g/idProduct
 echo 0x0200 > $g/bcdUSB
 echo 0x0200 > $g/bcdDevice
-echo "roadstr-mainline-$(uname -r)" > $g/strings/0x409/serialnumber
+echo "$codename-$(uname -r)" > $g/strings/0x409/serialnumber
 echo 'Linux' > $g/strings/0x409/manufacturer
-echo 'Edge 70' > $g/strings/0x409/product
+echo "$product" > $g/strings/0x409/product
 echo 'ACM serial + ECM network' > $g/configs/c.1/strings/0x409/configuration
 echo 100 > $g/configs/c.1/MaxPower
-echo 02:70:70:00:00:01 > $g/functions/ecm.usb0/host_addr
-echo 02:70:70:00:00:02 > $g/functions/ecm.usb0/dev_addr
+echo $host_addr > $g/functions/ecm.usb0/host_addr
+echo $dev_addr > $g/functions/ecm.usb0/dev_addr
 ln -s $g/functions/ecm.usb0 $g/configs/c.1/ecm.usb0
 ln -s $g/functions/acm.usb0 $g/configs/c.1/acm.usb0
 
@@ -86,7 +90,8 @@ for i in $(seq 30); do
 done
 [ -n "$root" ] || rescue "no userdata partition"
 mount -t ext4 -o ro "$root" /newroot || rescue "cannot mount $root"
-[ -e /newroot/etc/moto70-mainline-rescue ] && rescue "rescue requested by the root"
+[ -z "$stay_in_rescue" ] || rescue "this init_boot always stops in rescue"
+[ -e /newroot$rescue_flag ] && rescue "rescue requested by the root"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "no systemd on $root"
 
 # The boot partition with this kernel's modules: its filesystem starts at the

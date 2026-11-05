@@ -2,7 +2,7 @@
 # Build the Moto's own build of linux-perpetua and its boot image: the kernel,
 # then the filesystem image/boot-tail packs with its modules, the firmware
 # that overrides linux-firmware's and the units in tail/, if any. The boot userspace
-# is the init_boot image of build-init-boot.sh; no device access.
+# is the init_boot image of image/init-boot; no device access.
 # Usage: build-boot.sh N [--name NAME] [BUILD-OPTIONS...]
 #   (release <version>-devicesN-roadstr, built unless it exists; writes the
 #   vault's boot/boot-NAME.img, NAME defaulting to N)

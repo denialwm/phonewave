@@ -6,6 +6,8 @@ packages=()
 # Boot images in the vault's boot/, until the image builds its own.
 boot_img=boot-35.img
 init_boot_img=init_boot-6.img
+# The stock init_boot, the template of image/init-boot's header and footer.
+init_boot_template=stock/firmware-W1WR36.39-115/init_boot.img
 
 # The bootloader answers "flash permission denied" for userdata; fastbootd
 # takes it. fastbootd needs the slot's stock boot and init_boot, of this
