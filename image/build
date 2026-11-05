@@ -136,28 +136,21 @@ EOF
   cp "$vault/$device/boot/$boot_img" "$out/boot.img"
   cp "$vault/$device/boot/$init_boot_img" "$out/init_boot.img"
   {
-    printf '#!/bin/sh\n# Flash this image on %s. The phone must be in fastboot.\n' "$device"
-    if [ "${userdata_by:-fastboot}" = fastbootd ]; then
-      printf '%s\n' "# The bootloader refuses userdata, so all goes in from fastbootd, which runs" \
-        "# from the slot's stock boot and init_boot ($stock_firmware). Over an earlier" \
-        "# install of this image, name the unpacked stock firmware: flash.sh STOCK_DIR"
-      cat <<'EOF'
+    printf '#!/bin/sh\n# Flash this image on %s. The phone must be in its bootloader'"'"'s fastboot.\n' "$device"
+    cat <<'EOF'
+# The bootloader takes boot and init_boot. The root goes in from the
+# init_boot's own fastboot, which comes up while no denial or userdata
+# partition holds a system.
 set -eu
-stock=${1:+$(cd "$1" && pwd)}
 cd "$(dirname "$0")"
-if [ -n "$stock" ]; then
-  fastboot flash boot_b "$stock/boot.img"
-  fastboot flash init_boot_b "$stock/init_boot.img"
-fi
-fastboot reboot fastboot
-fastboot getvar is-userspace 2>&1 | grep -q 'is-userspace: yes' ||
-  { echo "no fastbootd: give the stock firmware folder" >&2; exit 1; }
+fastboot flash boot_b boot.img
+fastboot flash init_boot_b init_boot.img
+fastboot reboot
+echo "waiting for Denial OS's install screen"
+until fastboot getvar denial-install 2>&1 | grep -q '^denial-install: yes'; do sleep 2; done
+fastboot flash userdata userdata.img
+fastboot reboot
 EOF
-    else
-      printf 'set -eu\ncd "$(dirname "$0")"\n'
-    fi
-    printf 'fastboot flash boot_b boot.img\nfastboot flash init_boot_b init_boot.img\n'
-    printf 'fastboot flash userdata userdata.img\nfastboot reboot\n'
   } > "$out/flash.sh"
   chmod +x "$out/flash.sh"
   ls -la "$out"

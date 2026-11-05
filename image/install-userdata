@@ -16,7 +16,7 @@ image=$cache/$device/image/userdata.img
 phone=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
   -o ConnectTimeout=3 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 "$ssh_host")
 
-in_rescue() { "${phone[@]}" 'mountpoint -q /newroot' 2>/dev/null; }
+in_rescue() { "${phone[@]}" "test -e /run/rescue" 2>/dev/null; }
 
 # Every phone answers at the same USB address and the host key is not
 # checked: act only on the phone whose device tree names this device.
@@ -44,7 +44,7 @@ simg2img "$image" "$raw"
 trap 'rm -f "$raw"' EXIT
 size=$(stat -c%s "$raw")
 echo "writing $size bytes to /dev/$part"
-gzip -1c "$raw" | "${phone[@]}" "umount /newroot && gunzip -c | dd of=/dev/$part bs=4M 2>/dev/null && sync"
+gzip -1c "$raw" | "${phone[@]}" "{ ! mountpoint -q /newroot || umount /newroot; } && gunzip -c | dd of=/dev/$part bs=4M 2>/dev/null && sync"
 want=$(sha256sum "$raw" | cut -d' ' -f1)
 have=$("${phone[@]}" "head -c $size /dev/$part | sha256sum" | cut -d' ' -f1)
 [ "$want" = "$have" ] || { echo "read back $have, wrote $want" >&2; exit 1; }

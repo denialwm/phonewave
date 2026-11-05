@@ -11,14 +11,30 @@ partition, unpack and copy files by hand. Being tried on the Motorola Edge 70
 | `boot.img`, `init_boot.img` | one device | that device's perpetua kernel with its modules, and its initramfs |
 | `userdata.img` | one selection | the root filesystem: Arch Linux ARM, Denial, the services |
 
-Only the active slot's `boot` and `init_boot`, and `userdata`. Never the
+Only the active slot's `boot` and `init_boot`, and `userdata` or `denial`. Never the
 partition table, never an `_a` partition, never a slot command.
 
-All through fastboot. Where the bootloader refuses `userdata` (the Edge 70),
-everything goes in from fastbootd instead, which runs from the slot's stock
-`boot` and `init_boot`. A phone fresh from Android has them; over an earlier
-install the flash script first writes them back from the stock firmware
-folder it is given.
+All through fastboot: the bootloader takes `boot` and `init_boot`, and the
+root goes in from the init_boot's own fastboot.
+
+## Installing
+
+The early userspace boots the first of the partitions `denial` and
+`userdata` that holds a Phonewave root, which phonewave-system marks with
+`/usr/lib/phonewave-system/root`. `denial` comes first: a user who made one
+beside Android's `userdata` keeps Android's data. A phone fresh from Android
+has no root on either, so it stops in rescue, and the rescue serves fastboot
+(`fastboot/fastboot.c`). The screen, drawn on the framebuffer the bootloader
+left lit, says why the phone stopped and what to run:
+
+    fastboot flash userdata userdata.img
+    fastboot flash denial denial.img
+
+This fastboot writes only those two partitions, raw or sparse, and reboots;
+`getvar denial-install` answers `yes` only here, which is how the flash
+script knows the bootloader handed over. Every rescue serves it, whatever
+stopped the boot, beside SSH at `10.77.71.2`. Over an earlier install the
+phone boots that root instead: `install-userdata` asks it for the rescue.
 
 ## The builder
 
@@ -181,7 +197,7 @@ the welcome flow instead of the lock screen. No "configured" flag.
 Build, flash, look, change, rebuild. The loop has to be quick.
 
     image/build roadstr --dev-access
-    /mnt/development/phonewave-cache/roadstr/image/flash.sh STOCK_DIR   # phone in fastboot
+    /mnt/development/phonewave-cache/roadstr/image/flash.sh   # phone in its bootloader
 
 For a quicker try on a phone that already runs an image, `image/install-userdata
 roadstr` writes only `userdata`, over SSH from the initramfs rescue.

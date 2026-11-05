@@ -1,0 +1,2 @@
+# The early userspace boots a denial or userdata partition only when it holds
+# this file: the sign that the partition is a Phonewave root.

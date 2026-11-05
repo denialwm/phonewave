@@ -9,12 +9,16 @@
 # frees both.
 #
 # Brings up the USB gadget (ECM network + ACM serial), mounts the Arch root
-# from the userdata partition read-only and hands over to systemd, which
-# checks it and remounts it read-write from fstab. The gadget stays bound;
-# the installed system gives usb0 its address (10.77.71.2) and SSH.
+# read-only and hands over to systemd, which checks it and remounts it
+# read-write from fstab. The root is the first of the partitions denial and
+# userdata that holds a Phonewave root, marked by phonewave-system's
+# /usr/lib/phonewave-system/root. The gadget stays bound; the installed
+# system gives usb0 its address (10.77.71.2) and SSH.
 #
-# If the root cannot be mounted, or it contains rescue_flag, or phone.conf
-# sets stay_in_rescue, this stays as PID 1 with SSH at 10.77.71.2 and a shell on ttyGS0.
+# If neither holds one, or the root contains rescue_flag, or phone.conf sets
+# stay_in_rescue, this stays as PID 1 in rescue: fastboot, which writes
+# denial or userdata, SSH at 10.77.71.2 and a shell on ttyGS0, and on the
+# bootloader's framebuffer why and how to install.
 #
 # There is no firmware here: the drivers that need it are modules. The boot
 # partition carries them, after the kernel, as an erofs filesystem that is
@@ -59,8 +63,15 @@ part() {
 	return 1
 }
 
+# The reason goes on the screen too: a line of at most 36 characters.
 rescue() {
 	mark "rescue: $*"
+	touch /run/rescue
+	mkdir -p $g/functions/ffs.fastboot /dev/usb-ffs/fastboot
+	ln -s $g/functions/ffs.fastboot $g/configs/c.1/ffs.fastboot
+	mount -t functionfs fastboot /dev/usb-ffs/fastboot &&
+		fastboot /dev/usb-ffs/fastboot "$product" "$(cat $g/strings/0x409/serialnumber)" "$*" ||
+		{ mark "rescue: no fastboot"; rm $g/configs/c.1/ffs.fastboot; }
 	udc=
 	for i in $(seq 30); do
 		udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
@@ -83,16 +94,24 @@ rescue() {
 	done
 }
 
-root=
+denial= userdata=
 for i in $(seq 30); do
-	root=$(part userdata) && break
+	denial=$(part denial)
+	userdata=$(part userdata)
+	[ -n "$denial$userdata" ] && break
 	sleep 1
 done
-[ -n "$root" ] || rescue "no userdata partition"
-mount -t ext4 -o ro "$root" /newroot || rescue "cannot mount $root"
-[ -z "$stay_in_rescue" ] || rescue "this init_boot always stops in rescue"
-[ -e /newroot$rescue_flag ] && rescue "rescue requested by the root"
-[ -x /newroot/usr/lib/systemd/systemd ] || rescue "no systemd on $root"
+[ -n "$denial$userdata" ] || rescue "No denial or userdata partition"
+root=
+for p in $denial $userdata; do
+	mount -t ext4 -o ro $p /newroot 2>/dev/null || continue
+	[ -e /newroot/usr/lib/phonewave-system/root ] && { root=$p; break; }
+	umount /newroot
+done
+[ -n "$root" ] || rescue "No system installed"
+[ -z "$stay_in_rescue" ] || rescue "This init_boot stops in rescue"
+[ -e /newroot$rescue_flag ] && rescue "Rescue requested by the system"
+[ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 
 # The boot partition with this kernel's modules: its filesystem starts at the
 # page after the kernel, whose size is in the header. Whichever slot holds
@@ -118,7 +137,7 @@ if modules; then
 	mark "modules of $release from $boot"
 	fw=/newroot/usr/lib/modules/$release/libexec/stock-firmware
 	[ ! -x $fw ] || $fw /newroot/usr/lib/modules/$release "$slot" ||
-		rescue "required stock firmware missing"
+		rescue "Required stock firmware missing"
 else
 	mark "no boot partition holds the modules of $release"
 fi

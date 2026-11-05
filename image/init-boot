@@ -3,6 +3,9 @@
 # Usage: image/init-boot DEVICE NAME [--rescue]
 #   (writes the vault's boot/init_boot-NAME.img)
 #
+# The rescue's fastboot is image/fastboot/fastboot.c, built static with the
+# kernel's Terminus 16x32 font from linux-perpetua's lib/fonts.
+#
 # The ABL decompresses legacy-lz4 ramdisks and passes the vendor_boot ramdisk
 # followed by this one, so this /init is the one that runs. The ramdisk is
 # image/initramfs/ (the same init on every phone) with the device's
@@ -38,6 +41,11 @@ mkdir -p "$root"/{bin,dev,etc/dropbear,newroot,proc,run,sys,tmp}
 install -d -m 700 "$root/root" "$root/root/.ssh"
 install -m 755 "$vault/boot/initramfs-bin/busybox" "$vault/boot/initramfs-bin/dropbearmulti" "$root/bin/"
 install -m 600 "$vault/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/"
+font=/mnt/development/denial-os/linux-perpetua/lib/fonts/font_ter16x32.c
+sed -n '/fontdata_ter16x32 = {/,/^} };/p' "$font" | grep -o '0x[0-9a-f]\{2\}' | paste -sd , > "$work/font.inc"
+[ "$(tr , '\n' < "$work/font.inc" | wc -l)" = 16384 ] || { echo "$font is not 256 glyphs of 16x32" >&2; exit 1; }
+aarch64-linux-gnu-gcc -static -O2 -pthread -Wall -Wextra -Werror -I"$work" \
+  -o "$root/bin/fastboot" "$here/fastboot/fastboot.c"
 (cd "$root" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet) > "$work/ramdisk.cpio"
 lz4 -q -l -12 --favor-decSpeed "$work/ramdisk.cpio" "$work/ramdisk.cpio.lz4"
 "$gki" init_boot "$vault/$init_boot_template" "$work/ramdisk.cpio.lz4" "$out"
