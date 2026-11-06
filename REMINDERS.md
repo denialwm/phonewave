@@ -71,10 +71,11 @@ not part of any device's configuration.
     profile; the braun calibrations in the tail; Denial's scale from the
     panel's density; the haptics, ambient-display and lockup panic rules,
     sudo for wheel, the dmail group.
-  - Still to find a home: the Gatekeeper and secure-storage units the
-    fingerprint PIN step needs. Their programs are written for this board
-    alone (they check `nubia,nx809j`, keep their state under nx809j paths)
-    and the socket belongs to the user `logix`; they are not packaged.
+  - Shared since 2026-11-06, boot image 233-fingerprint: the Goodix
+    Gatekeeper and secure-storage units, in fingerprint-phonewave, turned on
+    from the tail; the `gatekeeper` group. Canonical secure storage is off
+    on the image until the owner writes its drop-ins again
+    (services/fingerprint).
   - Retired with the move: `boot/package.py`, `boot/initramfs/`,
     `nx809j-denial.service`, `nx809j-usb` and its networkd profile,
     `outputs.conf`, `tools/sensor-files`. The phone

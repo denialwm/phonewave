@@ -38,9 +38,9 @@ too, ask the user before any slot command. The rollback for each partition
 is its stock copy in `backups/slot_b/`.
 
 Native credential storage has one explicit user-authorized exception:
-`nx809j-secure-storage.service` may update encrypted secure files under
-`persist/data` and relay trusted-app authenticated RPMB commits in its selected
-canonical mode. Factory calibration files remain read-only; RPMB key
+`goodix-secure-storage.service` may update encrypted secure files under
+`persist/data` and relay trusted-app authenticated RPMB commits in its
+canonical mode (`services/fingerprint`). Factory calibration files remain read-only; RPMB key
 programming and raw partition flashing remain forbidden. A fresh persist
 backup is held privately, but RPMB monotonic state has no verified rollback.
 The user accepted that limitation for native PIN/fingerprint bring-up.
@@ -182,16 +182,15 @@ fprintd runs on the `fingerprint-phonewave` packages, as on every phone
 contact and the warm worker, and points at the signed app,
 `firmware/goodix/goodixfp64.elf`, which
 `services/fingerprint/goodix/build.py --assemble-only` assembles from the
-stock `vendor_firmware_mnt`. `denial/fingerprint.json` places the mark. This
-phone boots without a tail: the same files sit in
-`/usr/lib/modules/<release>/` on the root, which must belong to root, or
-the helper refuses them.
+stock `vendor_firmware_mnt`. `denial/fingerprint.json` places the mark. The
+tail also turns on the Goodix PIN and secure storage units, with fprintd's
+`70-goodix.conf` drop-in.
 
 | Path | What |
 |---|---|
 | `/var/lib/phonewave-fingerprint/calibration` | This unit's calibration, copied once from persist's `goodix/` mounted read-only |
 | `/var/lib/phonewave-fingerprint/templates` | The worker's private store |
-| `/etc/systemd/system/fprintd.service.d/70-nx809j-secure-storage.conf` | fprintd waits for secure storage, which serves the worker's GPFS |
+| `/var/lib/goodix-secure-storage` | Secure storage's private overlay, the default mode |
 
 The worker runs one-shot per operation (about 0.8 s for a list). For
 verification it brings the sensor up and selects the templates while the
@@ -205,26 +204,15 @@ captured fails the attempt; after it, the comparison goes on without it.
 Both Settings apps enroll through deniald's PIN-gated fingerprint session.
 The fingerprint marker uses the stock circle above.
 
-The native PIN provider uses `nx809j-gatekeeper.socket` and the per-connection
-`nx809j-gatekeeper@.service`. Install the generated `goodix-gatekeeper-worker`
-at `/usr/libexec/goodix-gatekeeper-worker`, install the units from rootfs/ and
-enable the socket. Socket access is private to `logix`; the worker runs as root
-and verifies the board. The Denial PIN record keeps the opaque handle and SID,
-never the PIN. The updated sensor worker can request an enrollment HAT from
-Denial's one-enrollment root broker without extending fprintd's API. This
-integration has host tests and live PIN and fingerprint enrollment results.
+The native PIN provider and secure storage are the package's
+`goodix-gatekeeper.socket` and `goodix-secure-storage.service`
+(services/fingerprint). The sensor worker delegates the shared listener so
+Gatekeeper can verify an enrollment challenge while the sensor is active.
+The user authorized canonical mode for this phone on its old root, with the
+rollback limitation in Partitions; on the shared image it is off until its
+drop-ins are written again.
 
-
-The Gatekeeper socket and fprintd require `nx809j-secure-storage.service`.
-The default mode uses a private overlay and rejects hardware writes. The user
-explicitly authorized this phone's canonical mode: protected secure files in
-persist/data and authenticated RPMB writes, with the rollback limitation in the
-Careful section. Factory calibration remains read-only. The sensor worker
-delegates the shared listener so Gatekeeper can verify an enrollment challenge
-while the sensor is active.
-
-The phone's fingerprint runtime uses native executables. The Python scripts in
-the development checkout assemble the signed app, build the credential
-programs, install them and run tests; they are not part of the on-device
-unlock path. The bridge and worker
+The phone's fingerprint runtime uses native executables from the package.
+The Python scripts in the development checkout assemble the signed app and
+run tests; they are not part of the on-device unlock path. The bridge and worker
 log unlock phase durations to fprintd's journal.

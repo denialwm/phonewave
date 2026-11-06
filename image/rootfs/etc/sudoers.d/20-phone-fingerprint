@@ -1,0 +1,4 @@
+# Settings adds a finger through Denial's root fingerprint session, which
+# checks the lock PIN itself before it touches the reader; the phone's user
+# is in the gatekeeper group.
+%gatekeeper ALL=(root) NOPASSWD: /usr/bin/deniald --fingerprint-settings

@@ -44,6 +44,41 @@ for aston, `drivers/misc/tee-fp.c` (`/dev/tee_fp`) for the Goodix and JIIOV
 sensors, and `/dev/fp_illumination` in the panel drivers of the optical
 phones (`Documentation/ABI/testing/dev-fp-illumination`).
 
+## PIN and secure storage
+
+A Goodix phone also keeps the lock PIN in the TEE's Gatekeeper, and its
+trusted apps keep protected files. The package ships the units
+(`goodix/system/`); a phone whose sensor needs them turns them on from its
+tail with links to `goodix-gatekeeper.socket`, `goodix-secure-storage.service`
+and fprintd's `70-goodix.conf` drop-in.
+
+- `goodix-secure-storage` serves the trusted apps' protected files and RPMB
+  callbacks. It reads `persist`, mounted read-only at `/run/goodix/persist`,
+  and writes only under `/var/lib/goodix-secure-storage`.
+- `goodix-gatekeeper.socket` at `/run/gatekeeper/worker.sock`, one
+  `goodix-gatekeeper-worker` per connection. Denial uses the native PIN
+  wherever this socket exists. Its record keeps the opaque handle and SID,
+  never the PIN.
+- The phone's user is in the `gatekeeper` group, which reaches the socket
+  and may start Denial's PIN-gated fingerprint session for Settings
+  (`/etc/sudoers.d/20-phone-fingerprint`).
+
+Writing the stock protected files under `persist/data` and committing
+authenticated RPMB writes is the owner's decision; RPMB has no rollback.
+Two drop-ins turn it on:
+
+    /etc/systemd/system/run-goodix-persist.mount.d/80-canonical.conf
+      [Mount]
+      Options=rw,noload,nosuid,nodev,noexec
+
+    /etc/systemd/system/goodix-secure-storage.service.d/80-canonical.conf
+      [Service]
+      Environment=GOODIX_CANONICAL_AUTHENTICATED_STORAGE=1
+      ReadWritePaths=/run/goodix/persist/data
+
+Then `systemctl daemon-reload` and restart `goodix-secure-storage`. Factory
+calibration stays read-only, and nothing here programs an RPMB key.
+
 ## Adding a phone
 
 A sensor family already here needs only the kernel side, the tail's

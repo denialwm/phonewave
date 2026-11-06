@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 source = Path(__file__).resolve().parent
 mink = Path(os.environ.get('PHONEWAVE_DEPENDENCIES', str(Path.home()/'.cache/phonewave/src'))) / 'minkipc/listeners/libfsservice'
-with tempfile.TemporaryDirectory(prefix='nx809j-secure-storage-test-') as folder:
+with tempfile.TemporaryDirectory(prefix='goodix-secure-storage-test-') as folder:
     binary = Path(folder) / 'test'
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                     '-g', '-O1', '-fsanitize=address,undefined', '-fno-omit-frame-pointer',

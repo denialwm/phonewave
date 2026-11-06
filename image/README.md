@@ -179,6 +179,8 @@ the welcome flow instead of the lock screen. No "configured" flag.
   and fingerprint, and the phone's name.
 - A root helper creates the account in one step, password included, and
   refuses once a person's account exists.
+- The account joins `wheel`, `audio`, `input`, `render`, `video`, `dmail`
+  and `gatekeeper`, as `--dev-access` does for `logix`.
 - `denial.service` is the phone session, the same on every device. The
   helper names the account in its `denial.service.d/user.conf` drop-in and
   restarts it. It starts `denial-session`, which finds the screen's GPU; no
@@ -209,7 +211,8 @@ the welcome flow instead of the lock screen. No "configured" flag.
   (`power_save_allowed`, the seat group's).
 - The msm driver keeps GPU buffers out of swap; a hung kernel reboots after
   10 s; core dumps are logged, not stored; wheel uses sudo; the phone's user
-  is in the `dmail` group.
+  is in the `dmail` group, and in `gatekeeper`, which reaches a hardware PIN
+  provider and Denial's fingerprint session where the phone has one.
 - The home screen starts with the clock and the image's apps
   (`rootfs/etc/skel/.config/denia-home/layout.json`).
 - Denial may raise the Adreno's minimum clock while the user touches the

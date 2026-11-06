@@ -115,12 +115,6 @@ static int private_directory(const char *path)
     if(fd>=0 && (fstat(fd,&st) || st.st_uid || (st.st_mode&077))){close(fd);errno=EACCES;return -1;}
     return fd;
 }
-static int board(void)
-{
-    char b[256];const char expected[]="nubia,nx809j";
-    int fd=open("/sys/firmware/devicetree/base/compatible",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return -1;
-    ssize_t n=read(fd,b,sizeof(b));close(fd);return n>=(ssize_t)sizeof(expected) && !memcmp(b,expected,sizeof(expected))?0:-1;
-}
 static int ready(void)
 {
     const char *path=getenv("NOTIFY_SOCKET");if(!path)return 0;
@@ -134,24 +128,24 @@ static int ready(void)
 int main(int argc,char **argv)
 {
     (void)argv;
-    if(argc!=1 || geteuid() || board() || prctl(PR_SET_DUMPABLE,0))return 2;
+    if(argc!=1 || geteuid() || prctl(PR_SET_DUMPABLE,0))return 2;
     umask(077);struct sigaction action={.sa_handler=stop};
     sigemptyset(&action.sa_mask);sigaction(SIGTERM,&action,NULL);sigaction(SIGINT,&action,NULL);signal(SIGPIPE,SIG_IGN);
     struct service s={.store={.base=-1,.persist=-1,.data=-1},.goodix={.calibration=-1,.store=-1},.rpmb=-1,.lock=-1};int ret=1;
     /* Fixed deployment paths: the daemon cannot be directed at arbitrary
      * partitions or a different private credential store through argv/env. */
-    s.lock=open("/var/lib/nx809j-secure-storage/listener.lock",O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600);
-    const char *commit=getenv("NX809J_CANONICAL_AUTHENTICATED_STORAGE");
+    s.lock=open("/var/lib/goodix-secure-storage/listener.lock",O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600);
+    const char *commit=getenv("GOODIX_CANONICAL_AUTHENTICATED_STORAGE");
     s.authenticated=commit && !strcmp(commit,"1");
     struct stat st;
     if(s.lock<0 || fstat(s.lock,&st) || !S_ISREG(st.st_mode) || st.st_uid || st.st_nlink!=1 || (st.st_mode&077) || flock(s.lock,LOCK_EX|LOCK_NB))goto done;
-    s.store.base=open("/run/nx809j/securestorage/data",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
+    s.store.base=open("/run/goodix/persist/data",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
     struct statvfs vfs;
     if(s.store.base<0 || fstatvfs(s.store.base,&vfs) ||
         (s.authenticated?!!(vfs.f_flag&ST_RDONLY):!(vfs.f_flag&ST_RDONLY)))goto done;
     if(s.authenticated){s.store.canonical=1;s.store.persist=fcntl(s.store.base,F_DUPFD_CLOEXEC,3);}
-    else s.store.persist=private_directory("/var/lib/nx809j-secure-storage/persist");
-    s.store.data=private_directory("/var/lib/nx809j-secure-storage/data");
+    else s.store.persist=private_directory("/var/lib/goodix-secure-storage/persist");
+    s.store.data=private_directory("/var/lib/goodix-secure-storage/data");
     s.goodix.store=private_directory("/var/lib/phonewave-fingerprint/templates");
     s.goodix.calibration=storage_open_dir("/var/lib/phonewave-fingerprint/calibration",0);
     if(s.store.persist<0 || s.store.data<0 || s.goodix.store<0 || s.goodix.calibration<0)goto done;

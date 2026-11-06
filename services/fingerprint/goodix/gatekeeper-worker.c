@@ -152,15 +152,6 @@ static void disconnect_keymaster(struct transport *t)
     if (t->root) qcomtee_object_refs_dec(t->root);
 }
 
-static int board(void)
-{
-    char b[256]; const char expected[] = "nubia,nx809j";
-    int fd = open("/sys/firmware/devicetree/base/compatible", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) return -ENODEV;
-    ssize_t n = read(fd, b, sizeof(b)); close(fd);
-    return n >= (ssize_t)sizeof(expected) && !memcmp(b, expected, sizeof(expected)) ? 0 : -ENODEV;
-}
-
 static int validate_request(const uint8_t header[HEADER_SIZE])
 {
     uint32_t op = get32(header + 8), h = get32(header + 32), p = get32(header + 36), n = get32(header + 40);
@@ -203,7 +194,6 @@ int main(int argc, char **argv)
     uint64_t challenge = get64(header + 16);
     if (!ret) ret = validate_request(header);
     if (!ret) ret = read_private(secrets->body, (size_t)h + p + n, deadline);
-    if (!ret) ret = board();
     if (!ret) ret = connect_keymaster(&t);
     if (!ret) {
         secrets->current.uid = GATEKEEPER_NATIVE_UID;

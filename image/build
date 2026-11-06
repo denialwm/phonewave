@@ -254,7 +254,7 @@ inside() {
   if [ -n "$dev_access" ]; then
     install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
     cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
-    chroot "$root" useradd -m -u 1000 -U -G wheel,audio,input,render,video,dmail logix
+    chroot "$root" useradd -m -u 1000 -U -G wheel,audio,input,render,video,dmail,gatekeeper logix
     # What the first-user helper will write for the account it creates.
     install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<'EOF'
 [Service]

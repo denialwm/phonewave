@@ -1,0 +1,31 @@
+# The Goodix trusted app's protected files and RPMB callbacks. A phone whose
+# sensor needs it turns it on from its boot image's tail, with fprintd's
+# drop-in. Without GOODIX_CANONICAL_AUTHENTICATED_STORAGE=1 (a drop-in in
+# /etc, the owner's decision) it reads persist and RPMB and writes only
+# under /var/lib/goodix-secure-storage.
+[Unit]
+Description=Goodix protected-file storage and RPMB callbacks
+Requires=run-goodix-persist.mount
+After=run-goodix-persist.mount
+Before=fprintd.service
+Wants=phonewave-fingerprint-calibration.service
+After=phonewave-fingerprint-calibration.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=root
+ExecStart=/usr/lib/phonewave-fingerprint/goodix-secure-storage
+StateDirectory=goodix-secure-storage phonewave-fingerprint/templates
+StateDirectoryMode=0700
+UMask=0077
+TimeoutStartSec=15
+TimeoutStopSec=5
+LimitCORE=0
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

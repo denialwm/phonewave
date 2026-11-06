@@ -127,6 +127,14 @@ build() {
     "$_src"/goodix/{goodix-service-worker,goodix-worker-ops,keymaster-shared-secret,keymaster-wrapped-key}.c \
     "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/goodix-worker"
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread "${deps[@]}" \
+    -Iquic-teec/libqcomtee/src \
+    "$_src"/goodix/{gatekeeper-worker,gatekeeper,keymaster-shared-secret}.c \
+    "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/goodix-gatekeeper-worker"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -O2 -g -static -pthread "${deps[@]}" \
+    -Iquic-teec/libqcomtee/src -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
+    "$_src"/goodix/{secure-storage-service,secure-storage}.c \
+    "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/goodix-secure-storage"
+  aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static -pthread "${deps[@]}" \
     -Iquic-teec/libqcomtee/src -Iminkipc/listeners/libfsservice/{fs,gpfs,cmn} \
     "$_src"/jiiov/{jiiov-worker,anc-protocol}.c "$out/libqcomtee.a" "$out/libqcbor.a" -o "$out/jiiov-worker"
   aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -g -static \
@@ -177,7 +185,14 @@ package_fingerprint-phonewave() {
   local lib=$pkgdir/usr/lib/phonewave-fingerprint
   install -Dm755 "helper-target/$TARGET/release/phonewave-fingerprint-helper" "$lib/helper"
   install -Dm755 "$_src/uff/calibration" "$lib/calibration"
-  install -Dm755 uff/uff-worker uff/goodix-worker uff/jiiov-worker uff/presentation uff/touch -t "$lib"
+  install -Dm755 uff/uff-worker uff/goodix-worker uff/jiiov-worker uff/presentation uff/touch \
+    uff/goodix-gatekeeper-worker uff/goodix-secure-storage -t "$lib"
+  # Goodix's PIN provider and secure storage, which a phone turns on from its
+  # boot image's tail, linking fprintd-goodix.conf as an fprintd drop-in.
+  install -Dm644 "$_src"/goodix/system/{goodix-secure-storage.service,run-goodix-persist.mount,goodix-gatekeeper.socket,goodix-gatekeeper@.service} \
+    -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 "$_src/goodix/system/fprintd-goodix.conf" "$lib/fprintd-goodix.conf"
+  install -Dm644 "$_src/goodix/system/gatekeeper.sysusers" "$pkgdir/usr/lib/sysusers.d/gatekeeper.conf"
   install -Dm644 "$_src/uff/system/phonewave-fingerprint-calibration.service" \
     "$pkgdir/usr/lib/systemd/system/phonewave-fingerprint-calibration.service"
   install -Dm644 "$_src/uff/system/fprintd.conf" \

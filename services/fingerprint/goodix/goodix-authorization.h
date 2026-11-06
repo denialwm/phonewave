@@ -12,12 +12,12 @@
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
-#define GOODIX_AUTH_SOCKET "/run/nx809j-fingerprint/enroll.sock"
+#define GOODIX_AUTH_SOCKET "/run/fingerprint-enroll/enroll.sock"
 
 static int authorization_available(void)
 {
     struct stat parent, socket_node;
-    return !lstat("/run/nx809j-fingerprint", &parent) && S_ISDIR(parent.st_mode) &&
+    return !lstat("/run/fingerprint-enroll", &parent) && S_ISDIR(parent.st_mode) &&
         !parent.st_uid && (parent.st_mode & 0777) == 0700 &&
         !lstat(GOODIX_AUTH_SOCKET, &socket_node) && S_ISSOCK(socket_node.st_mode) &&
         !socket_node.st_uid && (socket_node.st_mode & 0777) == 0600;

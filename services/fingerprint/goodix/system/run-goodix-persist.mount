@@ -1,0 +1,12 @@
+[Unit]
+Description=The phone's persist partition, read-only, for Goodix secure storage
+Before=goodix-secure-storage.service
+StopWhenUnneeded=yes
+
+[Mount]
+What=/dev/disk/by-partlabel/persist
+Where=/run/goodix/persist
+Type=ext4
+# noload: never replay persist's journal.
+Options=ro,noload,nosuid,nodev,noexec
+DirectoryMode=0700

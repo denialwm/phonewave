@@ -1,0 +1,17 @@
+# The phone's hardware PIN provider, which Denial finds by this socket. The
+# phone's user is in the gatekeeper group.
+[Unit]
+Description=Gatekeeper PIN requests for the phone's user
+
+[Socket]
+ListenStream=/run/gatekeeper/worker.sock
+DirectoryMode=0755
+SocketUser=root
+SocketGroup=gatekeeper
+SocketMode=0660
+Accept=yes
+MaxConnections=4
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target
