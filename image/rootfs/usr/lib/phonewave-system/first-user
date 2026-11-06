@@ -12,7 +12,7 @@
 # The account, password included, is made in one step: if any part fails,
 # nothing of it stays and setup can try again. It refuses once a person's
 # account exists. Then denial.service runs as the new account, and Denial
-# starts again as that person, on its lock screen.
+# starts again as that person.
 set -euo pipefail
 
 fail() { echo "$1" >&2; exit "${2:-1}"; }

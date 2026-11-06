@@ -184,8 +184,8 @@ its setup instead of the lock screen. No "configured" flag.
 - `phonewave-system/first-user`, through pkexec, makes the account in one
   step, password included, and refuses once a person's account exists. It
   sets the phone's name, time zone and language, names the account in
-  `denial.service.d/user.conf`, and restarts Denial, which then opens on the
-  new account's lock screen. Droidloom, where installed, is set up for it.
+  `denial.service.d/user.conf`, and restarts Denial as the new account, on
+  its home screen. Droidloom, where installed, is set up for it.
 - The account joins `wheel`, `audio`, `input`, `render`, `video`, `dmail`
   and `gatekeeper`, as `--dev-access` does for `logix`.
 - `47-phone-setup.rules` lets `denial-setup`, at the phone, run the helper
