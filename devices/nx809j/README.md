@@ -1,14 +1,32 @@
 # Nubia RedMagic 11 Pro (nx809j)
 
-Bring-up on the shared devices kernel (linux-perpetua), from slot B. The
-phone keeps its stock Android boot chain; the kernel replaces the
-bootloader's device tree with its own (FDT handoff).
+The phone runs Arch Linux on linux-perpetua from slot B, from the image every
+phone shares (`image/`), on a partition of its own named `denial`; Android
+keeps `userdata`. The kernel replaces the bootloader's device tree with its
+own (FDT handoff). boot_b holds the kernel and after it the tail: modules,
+the GPU, Wi-Fi, Bluetooth and fingerprint firmware and boot/tail/. init_boot_b
+holds the init_boot every phone shares (`image/init-boot`). `ssh nx809j`
+reaches the phone as root over USB at 10.77.71.2.
+
+The phone moved to the image on 2026-11-06. What the old root held and where
+each piece goes is in REMINDERS.md; rootfs/ and the old packaging stay until
+each piece has its new place.
 
 Private inputs live in the vault,
 `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/nx809j`:
-record.md, the add-device record; backups/ this unit's partition copies
-(`backups/manifest.json`); survey/ what was read from the phone; ssh/ the
-rescue host key once one exists.
+record.md, the add-device record; boot/ the built images and the devices231
+boot image they take their header from; firmware/tail/ the firmware the tail
+carries, laid out as its firmware/; backups/ this unit's partition copies
+(`backups/manifest.json`), the old root (nx809j-before-image-20261106) and
+Android's storage (droidloom-20261106); private-rootfs/ root's
+authorized_keys, which init_boot also carries, the SSH host keys, the Wi-Fi
+connection and sudoers; survey/ what was read from the phone.
+
+Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
+through linux-perpetua-build unless the release exists, and writes the vault's
+boot/boot-NAME.img. The ADSP and modem firmware are not in the tail: they do
+not fit beside the rest, and come next from the phone's own modem partition
+(`image/stock-firmware`), as on the Ace 3.
 
 ## Partitions
 
@@ -29,71 +47,39 @@ The user accepted that limitation for native PIN/fingerprint bring-up.
 
 The stock ABL answers `fastboot flash` and `fastboot boot` with "unknown
 command", and fastbootd reports the device locked and refuses downloads.
-Images are written with `dd` from a running system: rooted Android, or
-the rescue. Before each write, check the image against the packaging
-manifest and that the running slot is `_b`; read the partition back and
-compare hashes afterwards. If nothing boots, the partitions are restored
-over EDL.
+Images are written with `dd` from the running system, or with fastboot from
+the init_boot's rescue, which writes this slot's `boot` and `init_boot` and
+the `denial` partition. Before each write, check that the running slot is
+`_b`; read the partition back and compare hashes afterwards. If nothing
+boots, the partitions are restored over EDL.
 
 Slot B's boot attributes live in the GPT entry of `boot_b` on `sde`. This
 bootloader leaves the successful bit set on every boot, so rescue boots
 do not use up retries.
 
-## Packaging
+## Installing
 
-Build linux-perpetua through linux-perpetua-build
-(`tools/devices-build nx809j N`), then:
+Android's f2fs `userdata` was shrunk online from rooted Android
+(`F2FS_IOC_RESIZE_FS`) and the end of `sda` became sda13, GPT PARTUUID
+`2225dabe-3937-4455-83a4-58a737b38f2f`; the vault keeps the partition tables
+(`backups/gpt*`). It was named `linux` until the move, `denial` since, so
+the image boots from it and leaves Android's data alone. Android still boots
+from slot B's stock images; formatting `userdata` from Android is its own
+recovery and leaves `denial` alone.
+
+`image/build nx809j --droidloom --dev-access` builds the image; its
+`userdata.img` goes on `denial`. With boot-NAME.img on boot_b and the shared
+init_boot on init_boot_b, a phone whose `denial` holds no image stops in the
+rescue (SSH at 10.77.71.2, fastboot), and from there:
 
 ```sh
-boot/package.py RELEASE_DIR \
-  --busybox STATIC_ARM64_BUSYBOX --dropbear STATIC_ARM64_DROPBEARMULTI \
-  --authorized-keys ~/.ssh/id_ed25519.pub
+fastboot flash denial userdata.img
+fastboot reboot
 ```
 
-It writes `boot_b.img` (the kernel) and `init_boot_b.img` (the rescue
-ramdisk) to `~/.cache/phonewave/nx809j/rescue`, through Perpetua's
-`android-gki` adapter with this unit's stock images as templates, and
-records hashes in `manifest.json`. The ramdisk is LZ4 legacy: the
-bootloader appends it to the vendor ramdisk, which is LZ4 legacy too and
-has no end marker, so the kernel would read any other format as more LZ4
-chunks and lose the rescue. `--root-partuuid UUID` makes the
-ramdisk start an installed ext4 root from that GPT partition; without it
-the phone stays in the RAM rescue. It never formats anything.
-
-## RAM rescue
-
-SSH as root on 10.77.73.2 over USB ECM; the phone's DHCP server gives the
-host 10.77.73.1 with no gateway or DNS. An ACM serial console runs on the
-same gadget. Without a host key in the vault, dropbear makes one on the
-first connection; copy it to `ssh/dropbear_ed25519_host_key` in the vault
-so later images keep it.
-
-## Root filesystem
-
-Arch Linux ARM on a partition of its own, following Perpetua's
-`devices/arch-linux-arm.md`. Android keeps `userdata`: its f2fs was shrunk
-online from rooted Android (`F2FS_IOC_RESIZE_FS`) and the end of `sda`
-became a partition named `linux`, GPT PARTUUID
-`2225dabe-3937-4455-83a4-58a737b38f2f`, ext4 labelled `ALARM`. The vault
-keeps the partition tables from before and after (`backups/gpt*`). Android
-still boots from slot B's stock images; formatting `userdata` from Android
-is its own recovery and leaves `linux` alone.
-
-Package with `--root-partuuid 2225dabe-3937-4455-83a4-58a737b38f2f` to boot
-the installed root; without it the phone stays in the RAM rescue.
-
-`rootfs/` installs the ECM+ACM gadget service and a networkd profile matched
-by the device-side MAC, on the rescue's link: the phone is 10.77.73.2 and
-leases 10.77.73.1 to the host, without a router, DNS or NTP. Enable `sshd`
-and `systemd-networkd`; root and `logix` log in with keys only. Install the
-exact release's module tree under `/usr/lib/modules`. `etc/sudoers.d/` goes
-in with mode 0440: `nx809j-wheel` lets `wheel` (`logix`) use sudo with its
-password, as on any Arch install.
-
-`usr/lib/sysctl.d/60-nx809j-hang.conf` panics on a soft or hard lockup and
-reboots 10 s later; the ramoops console keeps the kernel log up to the
-panic. Kernels from devices-160 carry the hard lockup and CSD lock wait
-detectors.
+Android's storage goes back with `droidloomctl restore` from a
+`phone-backup`, or, for the archive taken before the move, by unpacking it
+into Droidloom's `data_dir` with the cell stopped.
 
 ## Audio
 
@@ -117,33 +103,10 @@ linux-perpetua 9ba37ef1db70 (devices-223).
 
 ## Denial
 
-`nx809j-denial.service` runs Denial as `logix` on tty1, in a logind
-session, and starts at boot (`systemctl enable nx809j-denial`). It opens
-the display and the GPU by path (`platform-9801000.display-controller-card`
-and `-render`) and runs the set that `/var/lib/nx809j-denial/current`
-names. Its output configuration starts from `/usr/share/nx809j/outputs.conf`
-(scale 2). Besides the base image it needs `seatd` (libseat), `libinput`,
-`wayland`, `xorg-xwayland`, `polkit`, `xkeyboard-config` and fonts
-(`noto-fonts`, `noto-fonts-emoji`, `noto-fonts-cjk`, `ttf-dejavu`,
-`ttf-liberation`); deniald stops at startup without Xwayland.
-
-To install a build of the `dev` stream (`tools/build start denial aston`
-builds the same AArch64 candidate for every phone):
-
-```sh
-B=$(readlink -f /mnt/development/denial-os/builds/aston/denial/latest)
-id=denial-${B##*/}
-ssh nx809j mkdir -p /var/lib/nx809j-denial/.staging-$id
-rsync -a --chown=root:root $B/native $B/shell $B/settings $B/SHA256SUMS \
-    $B/manifest.json $B/source-manifest.json $B/source.patch \
-    $B/flutter.patch $B/skia.patch $B/build-recipe.py \
-    nx809j:/var/lib/nx809j-denial/.staging-$id/
-ssh nx809j "set -e; cd /var/lib/nx809j-denial
-    (cd .staging-$id && sha256sum --quiet -c SHA256SUMS && chmod -R a-w .)
-    mv -T .staging-$id $id; echo previous=\$(readlink current)
-    ln -sfn $id .current.new; mv -T .current.new current
-    systemctl restart nx809j-denial"
-```
+The image's `denial` package and `denial.service`, as on every phone;
+`pacman -Syu` takes a new release. Its output configuration used to start
+from `/usr/share/nx809j/outputs.conf` (scale 2), which the image does not
+carry yet.
 
 ## Always-on display
 

@@ -27,7 +27,7 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | 2026-10-28, devices-141 | `boot_b` and `init_boot_b`; Arch beside Android |
+| Boot | works | 2026-11-06, devices-231, probe | The shared image on `denial` (sda13), Android keeps `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
 | Display | works | 2026-10-27, devices-125, user | RM692H5, 60 to 144 Hz (devices-128). Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
 | Brightness | works | 2026-10-28, devices-141, user | |
 | Wake from screen off | works | 2026-11-02, devices-222, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms. Beside a monitor the phone sleeps to its always-on picture without locking |
@@ -43,27 +43,27 @@ last.
 | Battery | works | devices-130, probe | battmgr |
 | Wi-Fi | works | devices-128, user | WCN7860, ath12k |
 | Bluetooth | works | devices-130, probe | RX and TX checked with btmon |
-| Speakers | works | 2026-10-28, devices-138 | Tested at near-zero volume |
-| Microphones | works | 2026-11-02, devices-223, probe | AMIC1 (default), AMIC4 and AMIC3 through PipeWire; each hears a tone from the speakers |
+| Speakers | broken | 2026-11-06, devices-231, probe | No sound card: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Microphones | broken | 2026-11-06, devices-231, probe | No sound card: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
 | Headphone jack | not started | | Reixo0's patches 0068 and on |
-| Mobile data | works | devices-137, probe | dmail, IPA |
-| SMS | works | 2026-10-28, user | dmail |
-| Calls | partial | 2026-11-03, user | Incoming calls ring over VoLTE; answering with call audio not done |
+| Mobile data | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| SMS | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Calls | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06). Before: incoming calls rang over VoLTE, no call audio |
 | Call audio | not started | | |
-| VoLTE | partial | 2026-11-03, devices-223, probe | dmail registers IMS on Iliad, IMS bearer on IPv6. Two incoming calls rang over it with the phone on 4G throughout; none answered, no call audio yet |
+| VoLTE | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06). Before: dmail registered IMS on Iliad |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |
 | Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |
 | Video decode | not started | | No Iris for Kaanapali |
-| Rotation | works | 2026-10-28, user | steinerd |
-| Light and proximity | partial | probe | steinerd reads them; Denial doesn't use them |
-| Compass and gyroscope | works | 2026-10-28, devices-141, user | steinerd; Sensors app |
-| Fingerprint | works | 2026-11-05, devices-231, user | Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
+| Rotation | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Light and proximity | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Compass and gyroscope | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Fingerprint | partial | 2026-11-06, devices-231, probe | Goodix GUM5228 found by fprintd on the image; the old enrollment stayed on the old root and enrolling again is untested there (the PIN step needs the Gatekeeper and secure-storage units, not in the image yet). Before: Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
 | Suspend | partial | 2026-10-29, devices-159 | s2idle, woken by the RTC; CX and DDR sleep, XO does not. Wi-Fi reassociates about 8 s after resume. The fingerprint driver refuses suspend while a verify holds the sensor (the test stopped it by hand); nothing suspends the phone on its own yet |
 | Cooling | works | 2026-11-01, devices-169, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | works | 2026-10-31, devices-168, user | Droidloom 3732e87; Android ready in 4 s, GLES on freedreno, Play Store; Firefox scrolls and moves its panel smoothly |
+| Android apps | works | 2026-11-06, devices-231, probe | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps |
 | Shoulder triggers | ? | | |
 | RGB light | ? | | |
 

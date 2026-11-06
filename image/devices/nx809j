@@ -1,0 +1,8 @@
+# Nubia RedMagic 11 Pro. Sourced by image/build.
+
+# The device's own packages, found in packages/ of the device's image cache.
+packages=()
+
+# The boot image in the vault's boot/, until the image builds its own.
+boot_img=boot-231.img
+ssh_host=nx809j

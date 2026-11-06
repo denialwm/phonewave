@@ -56,6 +56,30 @@ not part of any device's configuration.
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
   - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
     `boot/firstboot/` and the old denial-session.target.
+- **RedMagic (nx809j) onto the shared image.** Moved 2026-11-06: sda13,
+  `linux` until then, is named `denial` and holds the image; Android keeps
+  `userdata`. Before the move the old root was saved in the vault,
+  `nx809j/backups/nx809j-before-image-20261106/` (as the Ace 3's, owners
+  intact), and Android's storage in `droidloom-20261106/`, which is back on
+  the phone with the Ace 3's local Google apps package. The image's fresh
+  Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
+  What `devices/nx809j/rootfs/` and the old root held, and where it goes:
+  - Into the modem partition, as on the Ace 3 (`image/stock-firmware`): the
+    ADSP and modem firmware, which the device tree loads as joined `.mbn`
+    files and the tail has no room for. Without the ADSP there is no sound
+    card and no sensor core; without the modem no data, SMS or calls.
+  - Still to find a home, as on the Ace 3: audio (the UCM profile, the
+    WirePlumber rule, the topology and the amplifier tuning in the vault's
+    `firmware/tail/`), the modem's rmtfs and tqftpserv units and
+    `modem-setup`, `nx809j-sensors-hexagonrpcd` and `tools/sensor-files`,
+    the Gatekeeper and secure-storage units the fingerprint PIN step needs,
+    the haptics and ambient-display udev rules with `ambient-display.json`,
+    `outputs.conf` (scale 2), the lockup panic sysctl, the battery-stats
+    tags and the braun sensor files.
+  - Retired with the move: `boot/package.py`, `boot/initramfs/`,
+    `nx809j-denial.service`, `nx809j-usb` and its networkd profile. The phone
+    is at 10.77.71.2 over USB like every phone, so two phones on this
+    workstation at once collide.
 - **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05: the helper
   runs the worker once per request. The worker's resident mode
   (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
