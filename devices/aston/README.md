@@ -10,8 +10,7 @@ firmware live in vendor, inside super, so the tail carries them. `ssh aston`
 reaches the phone as root over USB at 10.77.71.2.
 
 The phone moved to the image on 2026-11-05. What the old root held and where
-each piece goes is in REMINDERS.md; rootfs/, packaging/ and the old tools stay
-until each piece has its new place.
+each piece went is in REMINDERS.md.
 
 After installing files on the phone, run `sync` before anything that can
 hang it: a forced reboot keeps the new names and loses their data.
@@ -107,34 +106,24 @@ services/audio/voicegen builds on the host from the stock ACDB as
 `firmware/usr/lib/firmware/qcom/sm8550/`. The UCM verb "Voice Call" puts
 Speaker and Mic on the policy PCM 13; its Mic device routes AMIC5 to
 decimator 0, as the stock handset path, and asks the kernel to start the
-graphs. callaudio (services/audio/callaudio, a user unit enabled from
-rootfs/) switches the card to that verb while dmail has a call. Speech plays
+graphs. callaudio (services/audio/callaudio, a user service every image
+turns on) switches the card to that verb while dmail has a call. Speech plays
 on both amplifiers; the earpiece alone needs per-amplifier switches in
 tfa987x. "Voice Call Volume" takes the stock HAL's six levels (5 loudest,
 the default); "TX_AIF1 Capture Switch" mutes the microphone.
 
-Packages: on top of the image, `pacman -S` installs `noto-fonts-emoji`, the
-colour emoji font the native apps draw emoji with, `noto-fonts-cjk` for
-Chinese, and `bluez bluez-utils`, with `systemctl enable bluetooth`.
-`/etc/locale.gen` enables `en_US.UTF-8` and `zh_CN.UTF-8`, then
-`locale-gen`: the languages Settings offers. rootfs/ carries
-`48-phone-settings.rules`, which lets Settings set the clock, its time zone
-and the language without a password.
+Screen recording, Bluetooth and Settings' clock, time zone and language
+rule come with the image, as on every phone.
 
-Screen recording: screen-record (services/screen/screen-record), installed
-in /usr/bin, gives the shade its Screen recording tile; it uses the image's
-`ffmpeg`. Videos go to `~/Videos/Screen recordings`.
-
-Battery stats: battery-stats (services/power/battery-stats), installed with
-its `make install`, books the battery per state, hour and build; enable
-`battery-statsd.service`. It reads the BQ28Z610, which sorts before the PMIC's
+Battery stats: battery-stats (services/power/battery-stats), in every image,
+books the battery per state, hour and build. It reads the BQ28Z610, which sorts before the PMIC's
 placeholder battery. No `/etc/battery-stats/tags`: no link names the running
 Denial set, so the kernel release alone names the build.
 
-Camera: braun (services/camera/braun), installed with its `make install`,
-finds the IMX890 main camera, the IMX355 ultrawide and the S5K3P9 front
-camera, and develops the Camera app's photos. rootfs/ carries
-`/etc/braun/imx890.toml` and `s5k3p9.toml`: the IMX890's role, its rotation
+Camera: braun (services/camera/braun), in every image, finds the IMX890
+main camera, the IMX355 ultrawide and the S5K3P9 front camera, and develops
+the Camera app's photos. The tail carries `braun/imx890.toml` and
+`s5k3p9.toml`: the IMX890's role, its rotation
 (270, where the device tree says 90) and focus travel, and for both the
 stock tuning's illuminant locus, colour matrices and lens shading.
 `imx355.toml` names the IMX355 the ultrawide, at the main camera's 0.6x
@@ -172,4 +161,4 @@ actual requests. The separate UFS inline crypto engine stays enabled.
 
 USB standby: [the shared USB notes](../usb-standby.md) describe the controller
 policy and the missing firmware cable events. The investigation's Aston udev
-rule was removed before devices63 validation and is not installed in rootfs/.
+rule was removed before devices63 validation.

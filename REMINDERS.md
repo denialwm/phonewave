@@ -33,10 +33,11 @@ not part of any device's configuration.
     Phonewave since 2026-11-06, not yet in a built boot image). The modem
     runs from the shared `modem-setup`, rmtfs and tqftpserv; the old EFS
     copy in the backup's /var/lib/aston-modem is no longer used.
-  - Into the kernel: the modules the nyx-mainline-battery, -thermal and -wifi
-    units load by hand (bq27xxx, adc5-gen3, iio_hwmon, icc-osm-l3, the WCN7850
-    chain) should load from the device tree; a tail unit only where they
-    cannot.
+  - The kernel loads the modules the old nyx-mainline-battery, -thermal and
+    -wifi units loaded by hand (bq27xxx, adc5-gen3, iio_hwmon, icc-osm-l3,
+    the WCN7850 chain) from the device tree: each has a node and a match
+    table. The units are gone; the battery, temperatures and Wi-Fi are to
+    check on the phone once it is reachable again.
   - Already in the image: denial.service, the settings polkit rule, the USB
     network, the real-time clamp sysctl, the haptics rule (hapticd's own
     rule takes any built-in force-feedback input), the Settings app,
@@ -46,16 +47,19 @@ not part of any device's configuration.
     tail carries `ambient-display.json`.
   - Shared since 2026-11-06: the astonsnd UCM profile (alsa-ucm-phonewave)
     and the image's WirePlumber rule.
-  - To find a home: call audio's `asound.conf` and the AGM plugins it loads
-    from /opt/nyx-audioreach (in `files/opt`); the libcamera patches in
-    `devices/aston/packaging` (by sensor, so one package for every phone).
-    The old enrollments in
+  - Retired: `asound.conf` and the AGM plugins it loaded from
+    /opt/nyx-audioreach (in `files/opt`), since calls run on the UCM
+    "Voice Call" verb and callaudio, which every image turns on; the
+    libcamera package and its sensor patches, since braun replaced libcamera
+    and the tail's `braun/` carries the stock colour tuning. The old
+    enrollments in
     /var/lib/aston-fingerprint are in the backup; the fingerprint stack
     itself is the fingerprint-phonewave recipe and the boot image's tail now.
   - Packages the old root had that the image lacks, such as noto-fonts-cjk,
     noto-fonts-emoji, firefox, chromium and fprintd: `pacman-explicit.txt`.
-  - Retired with the move: `devices/aston/tools/`, `boot/package_kernel.py`,
-    `boot/firstboot/` and the old denial-session.target.
+  - Retired with the move: `devices/aston/tools/`, `rootfs/`,
+    `boot/package_kernel.py`, `boot/firstboot/`, callaudio's
+    `build-aston.sh` and the old denial-session.target.
 - **RedMagic (nx809j) onto the shared image.** Moved 2026-11-06: sda13,
   `linux` until then, is named `denial` and holds the image; Android keeps
   `userdata`. Before the move the old root was saved in the vault,
@@ -88,6 +92,10 @@ not part of any device's configuration.
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once
   its own fingerprint helper asks Gatekeeper itself, Settings drops the sudo
   path and Denial the root session.
+- **Wi-Fi country.** The image sets none, so the WCN7850 and the RedMagic's
+  radio stay on the world profile (`iw reg get`: country 00). The Ace 3's
+  old Wi-Fi unit set Italy by hand. The country belongs to where the phone
+  is, not to the phone: from the modem's network code, or a Settings choice.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's
   USB connection is NetworkManager's "shared", but the workstation's

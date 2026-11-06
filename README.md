@@ -32,10 +32,10 @@ goes under `devices/`. A device folder holds only what is different on that
 device: hardware facts, firmware, boot images, the kernel package. A tool that
 works on every phone goes in `tools/`. There are no device build tools:
 Denial is just Denial, and the apps and Droidloom build the same way for every
-phone. Example: hapticd drives any Linux vibration motor, so it
-lives in `services/haptics/hapticd/`. The udev rule that hands the Ace 3's
-PM8550B actuator to hapticd names a chip, so it lives in
-`devices/aston/rootfs/usr/lib/udev/rules.d/`.
+phone. Example: dmail drives any Qualcomm modem, so it
+lives in `services/modem/dmail/`. The Ace 3's data endpoints belong to that
+phone, so they live in its boot image's tail,
+`devices/aston/boot/tail/dmail/device.toml`.
 
 Apps and their libraries are not part of Phonewave; they live in
 [denial-apps](https://github.com/denialwm/denial-apps).
