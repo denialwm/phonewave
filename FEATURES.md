@@ -191,7 +191,7 @@ last.
 | Cooling | ? | | GPU thermal service installed |
 | Denial | works | user | |
 | Native apps | works | 2026-10-28, devices-14, user | |
-| Android apps | works | user | Droidloom |
+| Android apps | works | 2026-11-06, devices-225, probe | Droidloom packages (0.1.0-30.1 candidate) with the Google apps package, its Android storage kept in place; before that a hand install |
 | Pen | ? | | |
 | Keyboard cover | ? | | |
 
