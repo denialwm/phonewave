@@ -16,7 +16,8 @@ Only the active slot's `boot` and `init_boot`, and `userdata` or `denial`. Never
 partition table, never an `_a` partition, never a slot command.
 
 All through fastboot: the bootloader takes `boot` and `init_boot`, and the
-root goes in from the init_boot's own fastboot.
+root goes in from the init_boot's own fastboot, which takes `boot` and
+`init_boot` too, on phones whose bootloader refuses to write them.
 
 ## Installing
 
@@ -31,7 +32,9 @@ left lit, says why the phone stopped and what to run:
     fastboot flash userdata userdata.img
     fastboot flash denial denial.img
 
-This fastboot writes only those two partitions, raw or sparse, and reboots;
+This fastboot writes only those two partitions and the `boot` and
+`init_boot` of the slot the bootloader started (`androidboot.slot_suffix`,
+never the other slot's), raw or sparse, and reboots;
 `getvar denial-install` answers `yes` only here, which is how the flash
 script knows the bootloader handed over. Every rescue serves it, whatever
 stopped the boot, beside SSH at `10.77.71.2`. Over an earlier install the

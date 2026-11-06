@@ -3,8 +3,9 @@
  * fastboot for the early userspace's rescue, on every phone: the way to
  * install the root. It serves the fastboot protocol on a USB FunctionFS
  * function beside the rescue's SSH, flashes only the root partitions,
- * denial and userdata, from raw or sparse images, and draws on the
- * bootloader's framebuffer how to use it. The font is the kernel's
+ * denial and userdata, and the boot and init_boot of the slot it booted
+ * from, from raw or sparse images, and draws on the bootloader's
+ * framebuffer how to use it. The font is the kernel's
  * Terminus 16x32, which image/init-boot takes from linux-perpetua.
  *
  * Usage: fastboot FFS_DIR PRODUCT SERIAL REASON
@@ -40,7 +41,10 @@ static const unsigned char font[256 * 64] = {
 #define CHUNK (1u << 20)
 
 static const char *const partitions[] = { "denial", "userdata" };
+static const char *const slotted[] = { "boot", "init_boot" };
 static const char *product, *serial, *reason;
+/* The slot the bootloader started, "_b", or empty when it names none. */
+static char slot[8];
 
 /* The screen: the framebuffer the bootloader left scanning out. */
 static struct {
@@ -149,17 +153,57 @@ static void screen(void)
 	status("Waiting for fastboot");
 }
 
-/* The root partitions, by name, as the rescue finds them. */
+/* The bootloader passes the slot as androidboot.slot_suffix, in bootconfig
+ * or on the command line. */
+static void find_slot(void)
+{
+	char line[4096];
+	FILE *f = fopen("/proc/bootconfig", "r");
+
+	while (f && fgets(line, sizeof line, f))
+		if (sscanf(line, "androidboot.slot_suffix = \"%7[_a-z]\"", slot) == 1)
+			break;
+	if (f)
+		fclose(f);
+	f = slot[0] ? NULL : fopen("/proc/cmdline", "r");
+	if (f && fgets(line, sizeof line, f)) {
+		char *s = strstr(line, "androidboot.slot_suffix=");
+		if (s)
+			sscanf(s + 24, "%7[_a-z]", slot);
+	}
+	if (f)
+		fclose(f);
+	if (slot[0] != '_' || !slot[1] || slot[2])
+		slot[0] = 0;
+}
+
+/* The partition a name writes: denial and userdata as they are, boot and
+ * init_boot on this slot, with or without its suffix. */
+static int resolve(const char *name, char *part, size_t len)
+{
+	char suffixed[64];
+
+	for (unsigned i = 0; i < sizeof partitions / sizeof *partitions; i++)
+		if (!strcmp(name, partitions[i]))
+			return snprintf(part, len, "%s", name), 0;
+	for (unsigned i = 0; slot[0] && i < sizeof slotted / sizeof *slotted; i++) {
+		snprintf(suffixed, sizeof suffixed, "%s%s", slotted[i], slot);
+		if (!strcmp(name, slotted[i]) || !strcmp(name, suffixed))
+			return snprintf(part, len, "%s", suffixed), 0;
+	}
+	return -1;
+}
+
+/* The partitions this fastboot writes, by name, as the rescue finds them. */
 static int partition(const char *name, char *dev, size_t len, uint64_t *size)
 {
-	char path[300], line[128];
+	char path[300], line[128], part[64];
 	unsigned long long sectors = 0;
 	int found = 0;
 
-	for (unsigned i = 0; i < sizeof partitions / sizeof *partitions; i++)
-		found |= !strcmp(name, partitions[i]);
-	if (!found)
+	if (resolve(name, part, sizeof part))
 		return -1;
+	name = part;
 	DIR *dir = opendir("/sys/class/block");
 	if (!dir)
 		return -1;
@@ -313,8 +357,14 @@ static int value(const char *name, char *s, size_t len)
 		snprintf(s, len, "0x%08x", MAX_DOWNLOAD);
 	else if (!strcmp(name, "denial-install"))
 		snprintf(s, len, "yes");
-	else if (!strcmp(name, "is-userspace") || !strncmp(name, "has-slot:", 9) ||
-		 !strncmp(name, "is-logical:", 11))
+	else if (!strcmp(name, "current-slot") && slot[0])
+		snprintf(s, len, "%s", slot + 1);
+	else if (!strncmp(name, "has-slot:", 9)) {
+		int has = 0;
+		for (unsigned i = 0; slot[0] && i < sizeof slotted / sizeof *slotted; i++)
+			has |= !strcmp(name + 9, slotted[i]);
+		snprintf(s, len, "%s", has ? "yes" : "no");
+	} else if (!strcmp(name, "is-userspace") || !strncmp(name, "is-logical:", 11))
 		snprintf(s, len, "no");
 	else if (!strncmp(name, "partition-size:", 15) &&
 		 !partition(name + 15, dev, sizeof dev, &size))
@@ -330,8 +380,9 @@ static int value(const char *name, char *s, size_t len)
 static void getvar(const char *name)
 {
 	static const char *const all[] = { "version", "product", "serialno",
-		"max-download-size", "denial-install", "is-userspace" };
+		"max-download-size", "denial-install", "is-userspace", "current-slot" };
 	static const char *const per_partition[] = { "partition-size:", "partition-type:" };
+	const char *names[] = { partitions[0], partitions[1], slotted[0], slotted[1] };
 	char s[64], var[64];
 
 	if (strcmp(name, "all")) {
@@ -344,9 +395,9 @@ static void getvar(const char *name)
 	for (unsigned i = 0; i < sizeof all / sizeof *all; i++)
 		if (!value(all[i], s, sizeof s))
 			reply("INFO%s:%s", all[i], s);
-	for (unsigned i = 0; i < sizeof partitions / sizeof *partitions; i++)
+	for (unsigned i = 0; i < sizeof names / sizeof *names; i++)
 		for (unsigned j = 0; j < sizeof per_partition / sizeof *per_partition; j++) {
-			snprintf(var, sizeof var, "%s%s", per_partition[j], partitions[i]);
+			snprintf(var, sizeof var, "%s%s", per_partition[j], names[i]);
 			if (!value(var, s, sizeof s))
 				reply("INFO%s:%s", var, s);
 		}
@@ -355,14 +406,15 @@ static void getvar(const char *name)
 
 static void flash(const char *name, const uint8_t *buf, uint32_t len)
 {
-	char dev[300];
+	char dev[300], part[64];
 	uint64_t size;
 	const char *error = NULL;
 
-	if (partition(name, dev, sizeof dev, &size)) {
-		reply("FAILonly denial and userdata, when present");
+	if (resolve(name, part, sizeof part) || partition(part, dev, sizeof dev, &size)) {
+		reply("FAILonly denial, userdata and this slot's boot, init_boot");
 		return;
 	}
+	name = part;
 	if (unmount(dev)) {
 		reply("FAIL%s is in use", name);
 		return;
@@ -533,6 +585,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	product = argv[2], serial = argv[3], reason = argv[4];
+	find_slot();
 	snprintf(path, sizeof path, "%s/ep0", argv[1]);
 	ep0 = open(path, O_RDWR | O_CLOEXEC);
 	if (ep0 < 0 || write(ep0, &descriptors, sizeof descriptors) != sizeof descriptors ||
