@@ -4,7 +4,9 @@
  * own, derived from the SoC serial number, for devices whose bootloader
  * passes none.
  *
- *   radio-addr wifi IFNAME   set IFNAME's MAC address, while it is down
+ *   radio-addr wifi IFNAME   set IFNAME's MAC address, while it is down, if
+ *                            the device tree describes its radio and gives
+ *                            it no address
  *   radio-addr bluetooth     set the public address of every Bluetooth
  *                            controller that is missing one, and keep doing
  *                            it for controllers that appear later
@@ -159,12 +161,49 @@ static void print_address(const char *name, const uint8_t address[6])
 	       address[2], address[3], address[4], address[5]);
 }
 
+/*
+ * A radio the device tree describes is built in. Its own address, where the
+ * bootloader passed one, is in its node; without one the firmware reports a
+ * default it shares with every other unit.
+ */
+static int wifi_needs_address(const char *ifname)
+{
+	static const char *const names[] = { "local-mac-address", "mac-address" };
+	char path[256];
+	size_t i;
+
+	snprintf(path, sizeof(path), "/sys/class/net/%s", ifname);
+	if (access(path, F_OK)) {
+		fprintf(stderr, "radio-addr: %s: %s\n", ifname, strerror(errno));
+		return -1;
+	}
+	snprintf(path, sizeof(path), "/sys/class/net/%s/device/of_node", ifname);
+	if (access(path, F_OK))
+		return 0;
+	for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+		snprintf(path, sizeof(path), "/sys/class/net/%s/device/of_node/%s", ifname, names[i]);
+		if (!access(path, F_OK))
+			return 0;
+	}
+	return 1;
+}
+
 static int set_wifi(const char *ifname)
 {
 	struct ifreq ifr = { 0 };
 	uint8_t address[6];
 	int fd;
 
+	if (strchr(ifname, '/')) {
+		fprintf(stderr, "radio-addr: %s: not an interface name\n", ifname);
+		return 1;
+	}
+	switch (wifi_needs_address(ifname)) {
+	case -1:
+		return 1;
+	case 0:
+		return 0;
+	}
 	if (wifi_address(address))
 		return 1;
 	if (strlen(ifname) >= sizeof(ifr.ifr_name)) {

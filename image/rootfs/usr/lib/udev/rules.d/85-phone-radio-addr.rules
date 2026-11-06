@@ -1,0 +1,4 @@
+# A built-in Wi-Fi radio the device tree gives no address gets the phone's
+# own before NetworkManager takes it (radio-addr decides). After
+# 80-net-setup-link.rules, so $name is the name the interface is given.
+ACTION=="add", SUBSYSTEM=="net", TEST=="phy80211", RUN+="/usr/bin/radio-addr wifi $name"

@@ -198,6 +198,18 @@ the welcome flow instead of the lock screen. No "configured" flag.
   with Denial and SSH up.
 - hapticd finds a built-in vibrator by its bus; PipeWire adds a silent output
   while no sound card exists.
+- radio-addr gives a built-in Wi-Fi radio and a Bluetooth controller the
+  phone's own addresses, from the SoC serial, where the device tree gives
+  none.
+- Always-on display: a phone whose panel can hold a picture while off says
+  how in its tail, `denial/ambient-display.json`, which phonewave-system
+  copies to `/etc/denial` at boot; the panel driver's `ambient` switch is the
+  video group's. Without the file Denial has no always-on display.
+- Denial may turn Wi-Fi power save off while a screen is lit
+  (`power_save_allowed`, the seat group's).
+- The msm driver keeps GPU buffers out of swap; a hung kernel reboots after
+  10 s; core dumps are logged, not stored; wheel uses sudo; the phone's user
+  is in the `dmail` group.
 - The home screen starts with the clock and the image's apps
   (`rootfs/etc/skel/.config/denia-home/layout.json`).
 - Denial may raise the Adreno's minimum clock while the user touches the

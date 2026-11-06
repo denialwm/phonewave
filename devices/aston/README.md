@@ -70,8 +70,8 @@ reconnect the cable to let the PMIC classify the charger again.
 
 Modem: dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `aston-modem-rmtfs` and
-`aston-modem-tqftpserv` units it starts and `aston-dmail.conf`, which puts
-logix in the `dmail` group. The device file is `boot/tail/dmail/device.toml`,
+`aston-modem-tqftpserv` units it starts; the phone's user is in the image's
+`dmail` group. The device file is `boot/tail/dmail/device.toml`,
 in the boot image's tail; a boot image without a tail leaves it to
 `/etc/dmail/device.toml`, a copy on the phone. The EFS copy never
 enters this repo: on the phone `/var/lib/aston-modem/efs` links to the copy
@@ -83,11 +83,8 @@ transient units, so `modem-setup` never starts a second rmtfs next to them.
 
 DNS: systemd-resolved, so that dmail can give it the carrier's servers for
 `rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
-resolv.conf holds Wi-Fi's servers only. rootfs/ links `/etc/resolv.conf` to
-resolved's stub, enables resolved from `/usr` and turns LLMNR and mDNS off
-(`50-aston-unicast-only.conf`). The image masks resolved in
-`/etc/systemd/system`: remove that link once, then reload systemd and
-NetworkManager.
+resolv.conf holds Wi-Fi's servers only. The image links `/etc/resolv.conf`
+to resolved's stub and turns LLMNR and mDNS off.
 
 Lock screen: wallpaper-depth (services/wallpaper/wallpaper-depth) is installed
 with float16 weights, cross-built as its README says; Denial runs it when
@@ -155,23 +152,19 @@ Always-on display: the AA551 slows a still frame down to 1 Hz in normal
 mode, so from devices77 the driver's always-on blank keeps the panel lit at
 that refresh floor instead of turning the display off: the lock screen's
 always-on picture stays exactly as Denial drew it, at the same backlight
-code, while the display hardware is off. `/etc/denial/ambient-display.json`
+code, while the display hardware is off. The tail's
+`denial/ambient-display.json`, which the image copies to `/etc/denial`,
 names the switch and that code (`brightness`); Denial sets the switch for
 each always-on blank, lights the output once a minute for the clock, and
-clears it on wake. `80-aston-ambient-display.rules` lets the video group
-write it.
+clears it on wake. The image lets the video group write it.
 
 Radio addresses: the ABL passes no Wi-Fi or Bluetooth address, so the
 WCN7850 reports its firmware's shared default MAC and its Bluetooth
 controller stays unconfigured. radio-addr (services/radio/radio-addr),
-installed with its `make install`, derives both from the SoC serial.
-rootfs/ carries `90-radio-addr-wifi.rules`, which sets wlan0's MAC before
-NetworkManager sees it, and the `bluetooth.target.wants` link that runs
-`radio-addr-bluetooth.service`.
+in every image, derives both from the SoC serial.
 
 Memory: zram-swap (services/memory/zram-swap) gives 7.3 GB of zstd swap, half
-of memory; rootfs/ enables it with a swap.target.wants link and keeps GPU
-buffers out of swap with `aston-msm-gpu-eviction.conf`, as on the Pad 4.
+of memory; the image keeps GPU buffers out of swap, as on the Pad 4.
 Since devices40 the kernel backs GPU buffers with huge pages
 (`msm.transparent_hugepage`, on by default); `dmesg` says "Using Transparent
 Hugepage".

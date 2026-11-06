@@ -25,7 +25,7 @@ connection and sudoers; survey/ what was read from the phone.
 Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
 through linux-perpetua-build unless the release exists, and writes the vault's
 boot/boot-NAME.img. The ADSP and modem firmware are not in the tail: they do
-not fit beside the rest, and come next from the phone's own modem partition
+not fit beside the rest, and come from the phone's own modem partition
 (`image/stock-firmware`), as on the Ace 3.
 
 ## Partitions
@@ -114,7 +114,8 @@ The RM692H5 cannot refresh slower than 60 Hz in normal mode, so its
 driver's always-on blank uses the panel's idle mode instead of display-off:
 the panel keeps showing its last frame from its own memory, at
 `ambient_brightness` (stock 0x0120 = 288), while the display hardware is
-off. `/etc/denial/ambient-display.json` names the switch, the normal-mode
+off. The tail's `denial/ambient-display.json`, which the image copies to
+`/etc/denial`, names the switch, the normal-mode
 code whose picture looks like idle mode's (`brightness`, 400) and how long
 the finished picture holds still before the switch (`settle_ms`, 1000; a
 switch at full rate draws a wave). Before DSI-1 goes dark the lock screen
@@ -123,15 +124,15 @@ darkens the rest of the wallpaper and lets both fade into black below the
 clock, while the backlight fades to that code. Denial sets the switch for
 each always-on blank, lights the output once a minute for the clock while
 the panel stays in idle mode, and clears it on wake, which leaves idle
-mode at the backlight's level. `80-nx809j-ambient-display.rules` lets the
-video group write it. Kernels from devices166.
+mode at the backlight's level. The image lets the video group write it.
+Kernels from devices166.
 
 ## Modem
 
 dmail (services/modem/dmail) owns it. rootfs/ carries
 `/usr/lib/dmail/modem-setup`, the `nx809j-modem-rmtfs` and
-`nx809j-modem-tqftpserv` units it starts and `nx809j-dmail.conf`, which puts
-logix in the `dmail` group. The device file is `boot/tail/dmail/device.toml`,
+`nx809j-modem-tqftpserv` units it starts; the phone's user is in the image's
+`dmail` group. The device file is `boot/tail/dmail/device.toml`,
 in the boot image's tail; a boot image without a tail leaves it to
 `/etc/dmail/device.toml`, a copy on the phone. The data
 endpoints are those of Kaanapali's IPA (AP to modem 2, modem to AP 24), the
@@ -185,9 +186,8 @@ rewrites the motor's eFlash.
 
 battery-stats (services/power/battery-stats), installed with its `make
 install`, books the battery per state, hour and build; enable
-`battery-statsd.service`. rootfs/ carries `/etc/battery-stats/tags`, which
-names the Denial set
-`/var/lib/nx809j-denial/current` points at.
+`battery-statsd.service`. The kernel release names the build: Denial is the
+image's package.
 
 ## Fingerprint
 

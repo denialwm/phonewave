@@ -39,14 +39,12 @@ not part of any device's configuration.
     cannot.
   - Already in the image: denial.service, the settings polkit rule, the USB
     network, the real-time clamp sysctl, the haptics rule (hapticd's own
-    rule takes any built-in force-feedback input), the Settings app.
-  - To decide for every phone: coredump storage off, resolved unicast only,
-    msm GPU eviction off, the udev rules that give Denial the GPU floor and
-    the ath12k power-save switch, radio-addr for Wi-Fi (the image's package
-    has a Bluetooth unit only), the dmail group for the phone's user.
-  - To find a home: Denial's `ambient-display.json` and the panel's ambient
-    rule (hardware facts Denial reads from /etc);
-    audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
+    rule takes any built-in force-feedback input), the Settings app,
+    coredump storage off, resolved unicast only, msm GPU eviction off, the
+    GPU floor and Wi-Fi power-save rules, radio-addr for Wi-Fi and
+    Bluetooth, the dmail group, the always-on display switch rule; the
+    tail carries `ambient-display.json`.
+  - To find a home: audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
     /opt/nyx-audioreach (in `files/opt`), the WirePlumber rule; camera, the
     braun sensor files and the libcamera patches in `devices/aston/packaging`
     (by sensor, so one package for every phone). The old enrollments in
@@ -64,18 +62,18 @@ not part of any device's configuration.
   the phone with the Ace 3's local Google apps package. The image's fresh
   Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
   What `devices/nx809j/rootfs/` and the old root held, and where it goes:
-  - Into the modem partition, as on the Ace 3 (`image/stock-firmware`): the
-    ADSP and modem firmware, which the device tree loads as joined `.mbn`
-    files and the tail has no room for. Without the ADSP there is no sound
-    card and no sensor core; without the modem no data, SMS or calls.
+  - The ADSP, CDSP and modem firmware come from modem_b since devices233
+    (`stock-firmware.conf`): the ADSP starts and the sound card registers.
+    The modem waits for rmtfs and tqftpserv.
   - Still to find a home, as on the Ace 3: audio (the UCM profile, the
     WirePlumber rule, the topology and the amplifier tuning in the vault's
     `firmware/tail/`), the modem's rmtfs and tqftpserv units and
     `modem-setup`, `nx809j-sensors-hexagonrpcd` and `tools/sensor-files`,
     the Gatekeeper and secure-storage units the fingerprint PIN step needs,
-    the haptics and ambient-display udev rules with `ambient-display.json`,
-    `outputs.conf` (scale 2), the lockup panic sysctl, the battery-stats
-    tags and the braun sensor files.
+    `outputs.conf` (scale 2) and the braun sensor files. Folded into the
+    image like the Ace 3's: the haptics, ambient-display and lockup panic
+    rules, sudo for wheel, the dmail group; the battery-stats tags named a
+    retired path.
   - Retired with the move: `boot/package.py`, `boot/initramfs/`,
     `nx809j-denial.service`, `nx809j-usb` and its networkd profile. The phone
     is at 10.77.71.2 over USB like every phone, so two phones on this

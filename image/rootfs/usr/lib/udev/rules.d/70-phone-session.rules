@@ -6,3 +6,12 @@ SUBSYSTEM=="input", GROUP="input", MODE="0660"
 SUBSYSTEM=="backlight", RUN+="/usr/bin/chgrp video /sys%p/brightness", RUN+="/usr/bin/chmod g+w /sys%p/brightness"
 # Denial raises the GPU's minimum frequency while the user touches the screen.
 SUBSYSTEM=="devfreq", DRIVERS=="adreno", RUN+="/usr/bin/chgrp video /sys%p/min_freq", RUN+="/usr/bin/chmod g+w /sys%p/min_freq"
+# Always-on display: Denial sets a panel driver's `ambient` switch while its
+# lock screen shows the always-on picture, on a phone whose boot image tail
+# names that switch (/etc/denial/ambient-display.json). A panel driver built
+# into the kernel sends no event: phonewave-ambient-display.conf.
+ACTION=="add", SUBSYSTEM=="module", TEST=="parameters/ambient", RUN+="/usr/bin/chgrp video /sys%p/parameters/ambient", RUN+="/usr/bin/chmod g+w /sys%p/parameters/ambient"
+# Denial keeps Wi-Fi power save off while a screen is lit, so a frame after a
+# quiet gap is not held until the chip's next wake, and allows it again when
+# every screen is dark.
+SUBSYSTEM=="pci", TEST=="power_save_allowed", RUN+="/usr/bin/chgrp seat /sys%p/power_save_allowed", RUN+="/usr/bin/chmod g+w /sys%p/power_save_allowed"

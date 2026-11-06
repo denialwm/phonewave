@@ -42,9 +42,9 @@ last.
 | Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
 | Battery | works | devices-130, probe | battmgr |
 | Wi-Fi | works | devices-128, user | WCN7860, ath12k |
-| Bluetooth | works | devices-130, probe | RX and TX checked with btmon |
-| Speakers | broken | 2026-11-06, devices-231, probe | No sound card: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
-| Microphones | broken | 2026-11-06, devices-231, probe | No sound card: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Bluetooth | works | devices-130, probe | RX and TX checked with btmon. On the image (2026-11-06, devices-233) radio-addr gives the controller its address; RX and TX not tried again |
+| Speakers | broken | 2026-11-06, devices-233, probe | The ADSP starts from modem_b and the Nubia-NX809J card registers; no sound until the UCM profile and WirePlumber rule are on the image |
+| Microphones | broken | 2026-11-06, devices-233, probe | The card registers; no UCM profile on the image yet |
 | Headphone jack | not started | | Reixo0's patches 0068 and on |
 | Mobile data | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06) |
 | SMS | broken | 2026-11-06, devices-231, probe | Modem offline: its firmware is not in the boot tail yet (moved to the image 2026-11-06) |
@@ -55,9 +55,9 @@ last.
 | NFC | ? | | No NFC device on perpetua |
 | Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |
 | Video decode | not started | | No Iris for Kaanapali |
-| Rotation | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
-| Light and proximity | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
-| Compass and gyroscope | broken | 2026-11-06, devices-231, probe | No sensor core: the ADSP firmware is not in the boot tail yet (moved to the image 2026-11-06) |
+| Rotation | broken | 2026-11-06, devices-233, probe | The ADSP starts from modem_b; hexagonrpcd and the sensor files are not on the image yet |
+| Light and proximity | broken | 2026-11-06, devices-233, probe | The ADSP starts from modem_b; hexagonrpcd and the sensor files are not on the image yet |
+| Compass and gyroscope | broken | 2026-11-06, devices-233, probe | The ADSP starts from modem_b; hexagonrpcd and the sensor files are not on the image yet |
 | Fingerprint | partial | 2026-11-06, devices-231, probe | Goodix GUM5228 found by fprintd on the image; the old enrollment stayed on the old root and enrolling again is untested there (the PIN step needs the Gatekeeper and secure-storage units, not in the image yet). Before: Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
 | Suspend | partial | 2026-10-29, devices-159 | s2idle, woken by the RTC; CX and DDR sleep, XO does not. Wi-Fi reassociates about 8 s after resume. The fingerprint driver refuses suspend while a verify holds the sensor (the test stopped it by hand); nothing suspends the phone on its own yet |
 | Cooling | works | 2026-11-01, devices-169, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |

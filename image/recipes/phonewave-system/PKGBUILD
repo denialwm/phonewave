@@ -19,4 +19,7 @@ package() {
   find "$pkgdir" -type f -exec chmod 644 {} +
   (cd "$_src" && git ls-files -s . | awk '$1 == "100755" { print $4 }') |
     while read -r file; do chmod 755 "$pkgdir/$file"; done
+  # sudo's own modes for its folder.
+  chmod 750 "$pkgdir/etc/sudoers.d"
+  chmod 440 "$pkgdir"/etc/sudoers.d/*
 }

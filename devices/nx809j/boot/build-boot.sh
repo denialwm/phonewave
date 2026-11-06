@@ -29,14 +29,16 @@ T=$(mktemp -d)
 trap 'rm -rf $T' EXIT
 mkdir $T/device
 cp -a $HERE/tail/. $T/device/
-# The GPU microcode and the board's zap shader, Bluetooth patch and NVM,
-# Wi-Fi firmware and board data, and the fingerprint sensor's signed app,
-# laid out as the tail's firmware/. The ADSP's firmware does not fit beside
-# them; it waits for the modem partition, as the Ace 3's does.
+# The GPU microcode, the board's zap shader and speaker tuning (Android's
+# vendor holds them, where no early mount reaches), the audio topology,
+# Bluetooth patch and NVM, Wi-Fi firmware and board data, and the fingerprint
+# sensor's signed app, laid out as the tail's firmware/. The ADSP, CDSP, modem
+# and IPA firmware come from the phone's own modem partition
+# (tail/stock-firmware.conf).
 (cd $V/firmware/tail && sha256sum -c --quiet SHA256SUMS)
 mkdir $T/device/firmware
-(cd $V/firmware/tail && find qcom/gen80200_* qcom/kaanapali/nubia/nx809j/gen80200_zap.mbn ath12k qca goodix \
-	-type f -print0 | cpio -0 -pdm --quiet $T/device/firmware)
+(cd $V/firmware/tail && find qcom/gen80200_* qcom/kaanapali/Nubia-NX809J-tplg.bin qcom/kaanapali/nubia/nx809j-vendor \
+	ath12k qca goodix -type f -print0 | cpio -0 -pdm --quiet $T/device/firmware)
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
 cd $V/boot

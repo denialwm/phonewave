@@ -28,11 +28,11 @@ addresses, and a device gets the same ones on every boot and every install.
 
 | Hook | Runs | Does |
 |---|---|---|
-| udev rule, from the device's rootfs | `radio-addr wifi IFNAME` when the interface appears | sets the MAC while the link is still down; NetworkManager waits for udev, so it only sees this address |
+| udev rule, Phonewave's `85-phone-radio-addr.rules` | `radio-addr wifi IFNAME` when a Wi-Fi interface appears | sets the MAC while the link is still down, when the device tree describes the radio and gives it no `local-mac-address` or `mac-address`; NetworkManager waits for udev, so it only sees this address |
 | `radio-addr-bluetooth.service`, wanted by `bluetooth.target` | `radio-addr bluetooth` | listens on the Bluetooth management socket and sets the public address of every controller that is missing one: at boot, and again when a controller is registered anew |
 
-The Wi-Fi rule names the device's Wi-Fi driver, so it belongs to the device.
-bluetoothd ignores unconfigured controllers and takes each one up once its
+A radio the device tree does not describe, such as a USB adapter, keeps its
+own address. bluetoothd ignores unconfigured controllers and takes each one up once its
 address is set.
 
 ## Install
@@ -42,7 +42,7 @@ make check
 sudo make install
 ```
 
-The tests need `sha256sum`; `make check` also runs `shellcheck`. Enable it on
-devices that need it. Phonewave device trees do this under
-`devices/<codename>/rootfs/`: the Wi-Fi udev rule and a
-`bluetooth.target.wants/radio-addr-bluetooth.service` link.
+The tests need `sha256sum`; `make check` also runs `shellcheck`. Phonewave's
+image installs it on every phone with the Wi-Fi rule and turns on
+`radio-addr-bluetooth.service`, which leaves a controller with an address
+alone.

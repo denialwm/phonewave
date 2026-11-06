@@ -15,3 +15,4 @@ enable zram-swap.service
 enable battery-statsd.service
 enable hapticd.service
 enable phonewave-droidloom.service
+enable radio-addr-bluetooth.service

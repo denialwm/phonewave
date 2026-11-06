@@ -4,5 +4,5 @@
 packages=()
 
 # The boot image in the vault's boot/, until the image builds its own.
-boot_img=boot-231.img
+boot_img=boot-233-ambient.img
 ssh_host=nx809j
