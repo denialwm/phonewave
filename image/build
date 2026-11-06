@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Build the images that install a phone.
-# Usage: image/build DEVICE [--droidloom] [--dev-access]
+# Usage: image/build DEVICE [--droidloom] [--dev-access [--setup]]
 #
 #   --droidloom   include Droidloom
 #   --dev-access  root's SSH key and the user logix, from the vault. Only for
 #                 images that never leave this workstation.
+#   --setup       with --dev-access, no logix: the phone's setup makes the
+#                 account, as on every image without --dev-access.
 #
 # Writes $PHONEWAVE_CACHE (default /mnt/development/phonewave-cache)/DEVICE/image/: userdata.img, the device's boot
 # images, flash.sh. Runs without root: a user namespace owns the new root,
@@ -19,13 +21,14 @@ denial_key=AE4108FA5E91E26BE0EE331E0F5B3AD16E023091
 
 inside=
 [ "${1:-}" = --inside ] && { inside=1; shift; }
-device=${1:?usage: image/build DEVICE [--droidloom] [--dev-access]}
+device=${1:?usage: image/build DEVICE [--droidloom] [--dev-access [--setup]]}
 shift
-droidloom= dev_access=
+droidloom= dev_access= setup=
 for arg; do
   case $arg in
     --droidloom) droidloom=1 ;;
     --dev-access) dev_access=1 ;;
+    --setup) setup=1 ;;
     *) echo "unknown option $arg" >&2; exit 2 ;;
   esac
 done
@@ -128,6 +131,7 @@ EOF
   local flags=()
   [ -n "$droidloom" ] && flags+=(--droidloom)
   [ -n "$dev_access" ] && flags+=(--dev-access)
+  [ -n "$setup" ] && flags+=(--setup)
   PHONEWAVE_CACHE=$cache PHONEWAVE_VAULT=$vault \
     unshare --map-auto --map-root-user --mount --pid --fork --mount-proc \
     "$0" --inside "$device" "${flags[@]}"
@@ -254,14 +258,29 @@ inside() {
   if [ -n "$dev_access" ]; then
     install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
     cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
+  fi
+  if [ -n "$dev_access" ] && [ -z "$setup" ]; then
     chroot "$root" useradd -m -u 1000 -U -G wheel,audio,input,render,video,dmail,gatekeeper logix
-    # What the first-user helper will write for the account it creates.
+    # What first-user writes for the account it makes.
     install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<'EOF'
 [Service]
 User=logix
 Group=logix
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+EOF
+  else
+    # No person's account yet: Denial starts as denial-setup (phonewave-system's
+    # sysusers.d) and shows its setup, which makes one with first-user.
+    local setup_uid
+    setup_uid=$(chroot "$root" id -u denial-setup)
+    install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<EOF
+[Service]
+User=denial-setup
+Group=denial-setup
+Environment=XDG_RUNTIME_DIR=/run/user/$setup_uid
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$setup_uid/bus
+Environment=DENIAL_FIRST_USER_HELPER=/usr/lib/phonewave-system/first-user
 EOF
   fi
 

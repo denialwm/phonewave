@@ -14,6 +14,8 @@ helper=/usr/lib/droidloom/droidloom-package-helper
 user=$(sed -n 's/^User=//p' /etc/systemd/system/denial.service.d/user.conf 2>/dev/null | tail -n 1)
 [ -n "$user" ] || exit 0
 uid=$(id -u "$user")
+# Before the phone has a person's account, Denial runs as denial-setup.
+[ "$uid" -ge 1000 ] || exit 0
 # At boot the GPU driver may still be probing.
 for _ in $(seq 30); do
   ls /sys/class/drm | grep -q "^renderD" && break

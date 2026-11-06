@@ -1,0 +1,91 @@
+#!/bin/bash
+# Makes the phone's first person account, from Denial's setup, which runs as
+# denial-setup and starts this through pkexec:
+#
+#   first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password
+#
+# LANGUAGE is en or zh; PHONE_NAME and TIME_ZONE may be empty, which keeps
+# the phone's. The password is the first line of standard input, never an
+# argument others could read. Status 3: the phone already has an account;
+# 2: what setup gave was refused; 1: the account was not made.
+#
+# The account, password included, is made in one step: if any part fails,
+# nothing of it stays and setup can try again. It refuses once a person's
+# account exists. Then denial.service runs as the new account, and Denial
+# starts again as that person, on its lock screen.
+set -euo pipefail
+
+fail() { echo "$1" >&2; exit "${2:-1}"; }
+
+[ "$(id -u)" = 0 ] || fail "first-user runs as root"
+[ $# = 5 ] || fail "usage: first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password" 2
+user=$1 full_name=$2 phone_name=$3 language=$4 zone=$5
+
+# A person's account: what useradd hands out without --system.
+uid_min=$(awk '$1 == "UID_MIN" { print $2 }' /etc/login.defs)
+uid_max=$(awk '$1 == "UID_MAX" { print $2 }' /etc/login.defs)
+if getent passwd | awk -F: -v min="${uid_min:-1000}" -v max="${uid_max:-60000}" \
+    '$3 >= min && $3 <= max { found = 1 } END { exit !found }'; then
+  fail "the phone already has an account" 3
+fi
+
+[[ $user =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || fail "$user is not a username" 2
+! getent passwd "$user" >/dev/null && ! getent group "$user" >/dev/null ||
+  fail "$user is taken" 2
+[[ -n $full_name && $full_name != *[:$'\n\t']* ]] || fail "the name is empty or has a colon" 2
+[[ $phone_name != *[$'\n\t']* ]] || fail "the phone's name has a line break" 2
+case $language in
+  en) lang=C.UTF-8 ;;
+  zh) lang=zh_CN.UTF-8 ;;
+  *) fail "$language is not a language setup offers" 2 ;;
+esac
+[[ -z $zone || ( $zone != *..* && -f /usr/share/zoneinfo/$zone ) ]] ||
+  fail "$zone is not a time zone" 2
+
+IFS= read -r password || true
+[ -n "$password" ] || fail "the password is empty" 2
+
+# The groups every phone's user is in, where the phone has them.
+groups=
+for group in wheel audio input render video dmail gatekeeper; do
+  getent group "$group" >/dev/null && groups+=${groups:+,}$group
+done
+
+useradd -m -U -c "$full_name" -G "$groups" "$user"
+if ! printf '%s:%s\n' "$user" "$password" | chpasswd; then
+  userdel -r "$user" 2>/dev/null || true
+  fail "the password was not taken"
+fi
+uid=$(id -u "$user")
+
+# The rest is the phone's, not the account's: a failure ends with status 4,
+# and the account stays.
+status=0
+if [ -n "$phone_name" ]; then
+  hostnamectl hostname "$phone_name" || status=1
+fi
+if [ -n "$zone" ]; then
+  timedatectl set-timezone "$zone" || status=1
+fi
+if [ "$lang" != C.UTF-8 ] && ! locale -a | grep -qix "${lang/UTF-8/utf8}"; then
+  sed -i "s/^#\s*\($lang UTF-8\)/\1/" /etc/locale.gen
+  locale-gen >/dev/null || status=1
+fi
+printf 'LANG=%s\n' "$lang" > /etc/locale.conf.new
+mv /etc/locale.conf.new /etc/locale.conf
+
+install -Dm644 /dev/stdin /etc/systemd/system/denial.service.d/user.conf <<EOF
+[Service]
+User=$user
+Group=$user
+Environment=XDG_RUNTIME_DIR=/run/user/$uid
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus
+EOF
+systemctl daemon-reload
+
+# This runs inside the setup's own session, which the restart ends: hand
+# both steps to systemd, after setup has had its answer. Droidloom, where
+# installed, is set up for the new account once its session runs.
+systemd-run --quiet --no-block --on-active=2 --unit=phonewave-first-user \
+  /bin/sh -c 'systemctl restart denial.service; systemctl start phonewave-droidloom.service'
+exit $((status ? 4 : 0))

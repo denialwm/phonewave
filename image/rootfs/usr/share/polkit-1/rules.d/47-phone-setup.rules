@@ -1,0 +1,15 @@
+// Before the phone has a person's account, Denial runs as denial-setup at
+// the phone: its setup joins Wi-Fi and makes the account. first-user
+// refuses once an account exists.
+polkit.addRule(function (action, subject) {
+    if (subject.user != "denial-setup" || !subject.local || !subject.active) {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (action.id == "org.freedesktop.policykit.exec" &&
+            action.lookup("program") == "/usr/lib/phonewave-system/first-user") {
+        return polkit.Result.YES;
+    }
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0) {
+        return polkit.Result.YES;
+    }
+});
