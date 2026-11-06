@@ -125,16 +125,24 @@ not part of any device's configuration.
   `settings`: Date and time, Country or region), into wireless-regdb's
   `/etc/conf.d/wireless-regdom`; a time zone picked while none is set brings
   its country. A phone where nobody picked one stays on the world profile
-  (`iw reg get`: country 00), where the Pad 4's WCN7860 finds a network on
-  5180 MHz only through a passive scan and NetworkManager does not connect
-  to it at boot. ath11k and ath12k chips keep their own rules and take the
-  user's country only with ATH_REG_DYNAMIC_USER_REG_HINTS, on in the
-  mobile kernel fragment since 2026-11-06 (devices-236 on the Pad 4, which
-  then reported IT). Whether the Pad 4 then connects at boot is untested:
-  its saved 5 GHz network (seen as 3A:07:16:79:4C:00) was in no scan that
-  day. Other phones get the option with their next kernel build.
-  Still open: phones with a modem could take the country from the network
-  code.
+  (`iw reg get`: country 00). ath11k and ath12k chips keep their own rules
+  and take the user's country only with ATH_REG_DYNAMIC_USER_REG_HINTS, on
+  in the mobile kernel fragment since 2026-11-06 (devices-236 on the Pad 4,
+  which then reported IT). Other phones get the option with their next
+  kernel build. Still open: phones with a modem could take the country from
+  the network code.
+- **Pad 4 Wi-Fi on one MAC.** With DBS the WCN7860 firmware splits each
+  scan between its two MACs and gives the 2.4 GHz one 5180–5320 MHz, where
+  on the Pad 4 it hears nothing (seen 2026-11-06 with ath12k MGMT debug: no
+  frames on those channels; 5500 MHz and up came in). Networks there were
+  in no scan, so the Pad 4 never joined its 5180 MHz network. Since
+  devices-243 the Pad 4's Wi-Fi node has `qcom,no-dbs` and the chip runs on
+  one MAC; it joins at boot. Clearing only the concurrent scan bits kept the
+  split. Why that MAC hears nothing is unknown: stock Android leaves DBS on
+  with the same firmware, through its own board file (`bdwlan.elf`) where
+  ours is a board.bin matching no stock file, though the stock `bdwlan.elf`
+  alone changed nothing. Pudding and the RedMagic have the same chip; whether
+  their scans miss those channels is unchecked.
 - **Pad 4 home screen: native app icons do nothing.** Seen 2026-11-06 on
   Denial 0.6.2: tapping or holding Calls, Camera, Messages, Sensors or
   Settings on the home grid does nothing, while Droidloom icons work and the

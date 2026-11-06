@@ -4,5 +4,5 @@
 packages=()
 
 # The boot image in the vault's boot/, until the image builds its own.
-boot_img=boot-236.img
+boot_img=boot-243.img
 ssh_host=iceland-usb
