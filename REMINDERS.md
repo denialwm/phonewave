@@ -84,6 +84,35 @@ not part of any device's configuration.
     `outputs.conf`, `tools/sensor-files`. The phone
     is at 10.77.71.2 over USB like every phone, so two phones on this
     workstation at once collide.
+- **Pad 4 (iceland) onto the shared image.** Moved 2026-11-06, on
+  `userdata` as before. The old root was too big to copy off (Android's
+  storage is 108 GB), so the image was unpacked beside it on the same
+  filesystem and the rescue swapped the two: the old root is on the tablet in
+  `/old-root-20261106/`, with `var/tmp/old-root-explicit-packages.txt` in
+  the new root listing its packages; home and Android's storage were moved
+  back in place. What `devices/iceland/` and the old root held, and where it
+  goes:
+  - Into the boot image's tail: the GPU, touch, Wi-Fi, Bluetooth and Peri
+    firmware and the audio topology (vault `iceland/firmware/tail/`); the
+    ADSP firmware from modem_b (`stock-firmware.conf`), the same images the
+    old root carried as `adsp-runtime.mbn`; rtc-offset turned on.
+  - Into the kernel, devices-235: `rdinit=/init`, the Bluetooth driver
+    options of `pad4-peri-probe.conf`, the ADSP firmware path and the
+    90 °C GPU trips of `pad4-gpu-thermal`. The ADSP now starts when its
+    driver probes, not after Denial as `pad4-audio-init` did; the reason
+    for that order was not recorded.
+  - Loaded by the kernel without help: the modules `pad4-hardware-init`,
+    `pad4-display-init` and `pad4-wifi-init` loaded by hand.
+  - Already in the image: zram, msm GPU eviction off, the USB network
+    (10.77.71.2 instead of 192.168.77.2), Denial as the `denial` package
+    instead of `/opt/denial` releases, the portal and polkit agent units.
+  - Not carried over: `pad4-vm-tuning` (shmem huge pages `within_size`,
+    defrag `never`), `pad4-supervooc` (its module option is gone; the kernel
+    regulates SuperVOOC), the `IT` regulatory domain (see Wi-Fi country),
+    `pad4-fonts.conf` and `pad4-flash`.
+  - Retired with the move: `rootfs/`, `tools/` (deploy, audit, health,
+    rescue, Denial release and recording tools), `boot/package_pad4_devices.py`
+    and the USB rescue it packed into init_boot.
 - **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05: the helper
   runs the worker once per request. The worker's resident mode
   (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
@@ -94,7 +123,10 @@ not part of any device's configuration.
   path and Denial the root session.
 - **Wi-Fi country.** The image sets none, so the WCN7850 and the RedMagic's
   radio stay on the world profile (`iw reg get`: country 00). The Ace 3's
-  old Wi-Fi unit set Italy by hand. The country belongs to where the phone
+  old Wi-Fi unit set Italy by hand, and so did the Pad 4's, with a passive
+  scan of 5180 to 5320 MHz: on the world profile the WCN7860 finds a network
+  there only through a passive scan, and NetworkManager does not connect to
+  it at boot. The country belongs to where the phone
   is, not to the phone: from the modem's network code, or a Settings choice.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's

@@ -1,52 +1,82 @@
 # OnePlus Pad 4 (iceland)
 
-The tablet runs Arch Linux on the shared devices kernel from slot B. rootfs/ holds
-the files installed for this device, at their install path and byte for byte as
-on the tablet. Its two binaries are not tracked: pad4-audio-init is built from
-tools/pad4-audio-init.rs and pad4-usb-setup by boot/package_pad4_devices.py.
-boot/ packages a kernel release; tools/ runs on the host.
+The tablet runs Arch Linux on linux-perpetua from slot B, from the image every
+phone shares (`image/`), on `userdata`: the tablet has no Android data to
+keep. boot_b holds the kernel and after it the tail: modules, the GPU, touch,
+Wi-Fi and Bluetooth firmware, the audio topology and boot/tail/. init_boot_b
+holds the init_boot every phone shares (`image/init-boot`). `ssh iceland-usb`
+reaches the tablet as root over USB at 10.77.71.2, `ssh iceland` as logix
+over Wi-Fi.
 
-Two SSH aliases reach the tablet: `ssh iceland` over Wi-Fi as logix, whose sudo -n
-needs no password, and `ssh iceland-usb` as root over the USB gadget network.
+The tablet moved to the image on 2026-11-06. What the old root held and
+where each piece went is in REMINDERS.md.
 
 Private inputs live in the vault,
-`${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/iceland`: boot/devicesN holds each packaged release with its images, audits and rollback
-copies; stock/ the OPD2514 stock images and OTA; backups/ partition copies;
-firmware/ the unpackaged firmware at its install path; private-rootfs/ the SSH
-keys and sudoers; denial/ the Denial composition template, ABI probe and runtime.
+`${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/iceland`:
+boot/ the built images, the devices225 release whose boot image they take
+their header from, and every release the old root booted; firmware/tail/ the
+firmware the tail carries, laid out as its firmware/; stock/ the OPD2514
+stock images and OTA; backups/ partition copies; private-rootfs/ root's
+authorized_keys, which init_boot also carries, and sudoers.
 
-Packaging a kernel release: build linux-perpetua through linux-perpetua-build,
-which leaves releases/devices-N-iceland and the vmlinux in
-/mnt/exty/linux-perpetua/build/iceland. Then run `boot/package_pad4_devices.py N
-PREV`, where PREV is the release the tablet runs. It works offline, takes its base
-images from the vault's boot/devicesPREV and writes boot/devicesN. The new
-init_boot boots either kernel, so it is installed and proven before boot changes.
+Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
+through linux-perpetua-build unless the release exists, and writes the
+vault's boot/boot-NAME.img. The ADSP firmware is not in the tail: it comes
+from the tablet's own modem partition (`image/stock-firmware`).
 
-Installing it: `tools/deploy.py N STEP` runs one step at a time and keeps every log
-and audit in the vault. The order is health NAME, audit preflash, fetch, stage,
-flash init_boot, reboot transition, wait RELEASE BOOT_ID, audit and health,
-flash boot, reboot new-kernel, wait, audit and health again. Writes go through
-the tablet's own pad4-flash, which checks the image and reads it back.
+## Partitions
 
-Only boot_b and init_boot_b are ever written. Never set_active, erase, format, GPT
-edits or EDL. Tablet #1 was bricked that way.
+Only `boot_b` and `init_boot_b` are written, one at a time. Never
+set_active, erase, format, GPT edits or EDL: tablet #1 was lost that way. The
+tail turns no slot marking on, so nothing writes the partition table.
 
-Deploying Denial: the release name ID, for example pad4-dev-20261024, becomes
-/opt/denial/ID on the tablet. On the workstation every step reuses one folder,
-~/.cache/phonewave/iceland/denial/release, and one Rust cache beside it.
-tools/denial/build-recipe.py build --denial SOURCE empties that folder and
-builds a candidate from a Denial checkout or worktree, build-composed-shell.py
-ID composes the shell from the vault template, and package.py ID PREVIOUS packs
-payload.tar.zst, where PREVIOUS is the /opt/denial installation the tablet
-runs. Copy the archive, archive.sha256, stage.py and activate.py over the
-tablet's ~/.cache/pad4-deploy, then run `sudo -n python3 stage.py ID` and `sudo
--n python3 activate.py ID` there. Activation restarts the graphical session and
-Droidloom with it. The Denial runtime libraries in /opt are copied from the
-vault. The Settings launcher entry runs
-/usr/local/bin/pad4-denial-settings, which starts the Settings of the running
-release, so activation never needs to touch it.
-The portal units, etc/systemd/user/denial-portal.service and its D-Bus service
-file, name the release whose denial-portal and permission dialog they run:
-repoint and reinstall both when either changes. The same goes for
-etc/systemd/user/denial-polkit-agent.service.d/pad4.conf and the release whose
-denial-polkit-agent and authentication dialog it runs.
+Write an image with `dd` from the running system: first check that
+`androidboot.slot_suffix` in `/proc/bootconfig` is `_b`, and write by
+PARTUUID, boot_b `18963643-3a34-5d30-252d-3ce92701780e`, init_boot_b
+`b71f7665-41b5-608b-2da4-25618656aad0`. Read the partition back and compare
+hashes. The rescue's fastboot writes this slot's `boot` and `init_boot` too.
+The rollback for both is vault `boot/devices225/artifacts/`, the old root's
+pair.
+
+## Installing
+
+`image/build iceland --droidloom --dev-access` builds the image; its
+`userdata.img` goes on `userdata`. With boot-NAME.img on boot_b and the
+shared init_boot on init_boot_b, a tablet whose `userdata` holds no image
+stops in the rescue (SSH at 10.77.71.2, fastboot), and from there:
+
+```sh
+fastboot flash userdata userdata.img
+fastboot reboot
+```
+
+## Audio
+
+The ADSP runs the factory firmware from modem_b, split .mdt images, which
+the kernel loads by itself once the early userspace binds them under
+`qcom/kaanapali/oneplus/iceland`. The tail carries the topology,
+`qcom/kaanapali/OnePlus-Pad4-tplg.bin`.
+
+## Bluetooth
+
+The WCN7860's Peri takes its factory RAM patch and NVM, `qca/pad4/` in the
+tail, through options of the kernel's own driver that the device tree's
+command line sets.
+
+## Clock
+
+The PMIC RTC counts from a base Linux cannot set. The tail turns on
+rtc-offset (services/clock/rtc-offset), which keeps the offset in
+`/var/lib/rtc-offset`.
+
+## Cooling
+
+The tablet cools the SoC through its back alone: its device tree throttles
+the GPU from 90 °C instead of the SoC's 105.
+
+## Denial and Droidloom
+
+The image's `denial` package and `denial.service`, as on every phone;
+`pacman -Syu` takes a new release. Droidloom is the shared package pair with
+the Google apps package; its Android storage is
+`/var/lib/droidloom/users/1000/host-storage-20261022`.

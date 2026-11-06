@@ -155,7 +155,7 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | devices-14 | |
+| Boot | works | 2026-11-06, devices-235, probe | The shared image on `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
 | Display | works | user | |
 | Brightness | works | 2026-10-28, devices-14, user | |
 | Wake from screen off | works | user | Power key |
@@ -169,9 +169,9 @@ last.
 | Video out (USB-C) | works | 2026-10-15, user | DisplayPort |
 | Charging | works | 2026-11-03, devices-225, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; USB-PD chargers raised to 9 V at 1.5 A (8.89 V × 1.49 A, 13.2 W in, battery +2.6 A at 14 %; still +0.1 A under full CPU load) |
 | Battery | works | 2026-10-28, devices-14, user | |
-| Wi-Fi | works | user | ath12k |
+| Wi-Fi | partial | 2026-11-06, devices-235, probe | ath12k. With no country set, the 5 GHz network on 5180 MHz shows only in a passive scan, so NetworkManager does not find it at boot (REMINDERS) |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
-| Speakers | works | 2026-10-28, devices-14, user | |
+| Speakers | works | 2026-10-28, devices-14, user | ADSP from modem_b since devices-235: sound card up, probe |
 | Microphones | works | 2026-09-30, probe | |
 | Headphone jack | ? | | |
 | Mobile data | none | | Wi-Fi model |
@@ -188,10 +188,10 @@ last.
 | Compass and gyroscope | not started | | |
 | Fingerprint | none | | |
 | Suspend | broken | 2026-10-31, devices-14, probe | Each boot ends at `PM: suspend entry (deep)` and the tablet boots again |
-| Cooling | ? | | GPU thermal service installed |
-| Denial | works | user | |
+| Cooling | untested | | The device tree throttles the GPU from 90 °C since devices-235 |
+| Denial | works | 2026-11-06, devices-235, probe | The image's `denial` package (0.6.2) |
 | Native apps | works | 2026-10-28, devices-14, user | |
-| Android apps | works | 2026-11-06, devices-225, probe | Droidloom packages (0.1.0-30.1 candidate) with the Google apps package, its Android storage kept in place; before that a hand install |
+| Android apps | works | 2026-11-06, devices-235, probe | Droidloom packages (0.1.0-30.1 candidate) with the Google apps package, its Android storage kept through the move to the image |
 | Pen | ? | | |
 | Keyboard cover | ? | | |
 

@@ -1,4 +1,0 @@
-[portal]
-DBusName=org.freedesktop.impl.portal.desktop.denial
-Interfaces=org.freedesktop.impl.portal.Settings;org.freedesktop.impl.portal.Access;
-UseIn=Denial;

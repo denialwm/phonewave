@@ -1,0 +1,8 @@
+# OnePlus Pad 4. Sourced by image/build.
+
+# The device's own packages, found in packages/ of the device's image cache.
+packages=()
+
+# The boot image in the vault's boot/, until the image builds its own.
+boot_img=boot-235-rtc.img
+ssh_host=iceland-usb
