@@ -158,16 +158,17 @@ not part of any device's configuration.
   packaged shell: phones need a way to compose plugins.
 - **First-start setup: what is left.** Built 2026-11-06: Denial `dev`
   010c10e (setup in the shell), Phonewave `first-user`, the `denial-setup`
-  account and its polkit rule. Tried on the Pad 4 with a hand-built 0.6.2
-  shell as `denial-setup`: the shell came up healthy in setup mode, nobody
-  looked at it yet. `first-user` made an account only in a throwaway mount
-  namespace there. Still open:
-  - a real first boot: an image built with `--dev-access --setup` on a free
-    phone;
+  account and its polkit rule. First real run 2026-11-07 on the Moto, an
+  image built with `--dev-access --setup` and Denial from `tools/build`
+  (0.2.1.r341.g010c10ef): the user went through setup ("it worked, quite
+  nice for a first try"); the account, the device's name, time zone and the
+  Wi-Fi joined in setup were all there after. Still open:
   - the published `denial` package has no setup until a release carries
     010c10e: an image without `--dev-access` built before then starts Denial
     as `denial-setup` with no way to make an account;
   - setup offers no PIN or fingerprint yet; Settings sets both after;
+  - handing Droidloom to the new account is untried: the Moto image had no
+    Droidloom;
   - the Pad 4 keeps `denial-setup`, its home and the test shell in
     `/var/lib/denial-setup`; nothing runs as it.
 - **Internet over USB on this workstation.** The phone resolves names over
