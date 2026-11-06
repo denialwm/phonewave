@@ -104,9 +104,10 @@ not part of any device's configuration.
 - **Google apps on a phone's Droidloom.** The Ace 3's restored Android data
   was set up with Google apps, which the public Droidloom packages leave out,
   so it runs a local `droidloom-gapps` package built from the same LiteGapps
-  archive against the installed images (`droidloom-gapps build`, then
-  `package --base-package-version`). That package names one Droidloom release
-  exactly: every Droidloom update needs it rebuilt for the new release first.
+  archive (the add-on in `droidloom/.work/gapps-arm64`). That package names one
+  Droidloom release exactly. `tools/build droidloom` packs it for each test
+  build; a published release needs it packed for that release first
+  (`droidloom-gapps package --base-package-version`).
 - **Droidloom release name on package installs.** A restore on the packaged
   release 30 said the phone runs release "unknown": the backup's release check
   cannot read a package install's release.
