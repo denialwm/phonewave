@@ -66,9 +66,10 @@ nothing else, and there pacman keeps the user's edits. The build itself
 writes only `fstab`, the partition layout, which every install owns.
 
 The services every phone runs are listed in
-`rootfs/usr/lib/systemd/system-preset/50-phonewave.preset`. When a package
-first installs one, phonewave-system's pacman hook enables it, and starts it
-on a running phone: the image's install turns them on, and so does the
+`rootfs/usr/lib/systemd/system-preset/50-phonewave.preset`, and those of each
+user's session, such as callaudio, in `user-preset/50-phonewave.preset`. When
+a package first installs one, phonewave-system's pacman hook enables it, and
+starts a system service on a running phone: the image's install turns them on, and so does the
 update that brings a new one. Updates leave units alone after that, so what
 the user turns off stays off. A device turns on the services its hardware
 has from its boot image's tail.

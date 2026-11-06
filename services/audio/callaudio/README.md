@@ -30,10 +30,11 @@ sudo make install
 systemctl --user enable --now callaudio
 ```
 
-`build-aston.sh` cross-builds for the Ace 3 against the workspace sysroot.
-callaudio runs in the user's session, beside PipeWire; the user needs access
-to dmail (group `dmail`) and to the sound card (group `audio`). On a device
-with no card with a `Voice Call` verb it exits at once.
+The phones get it from the `callaudio` recipe (`image/recipes/callaudio`),
+which every image installs and turns on. callaudio runs in the user's
+session, beside PipeWire; the user needs access to dmail (group `dmail`) and
+to the sound card (group `audio`). On a device with no card with a
+`Voice Call` verb it exits at once.
 
 ## API
 

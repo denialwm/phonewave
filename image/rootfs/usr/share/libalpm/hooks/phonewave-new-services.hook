@@ -3,6 +3,7 @@
 Type = Path
 Operation = Install
 Target = usr/lib/systemd/system/*
+Target = usr/lib/systemd/user/*
 
 [Action]
 Description = Turning on new phone services...
