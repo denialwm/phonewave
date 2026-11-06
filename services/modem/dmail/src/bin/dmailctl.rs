@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_io::Timer;
 use async_signal::{Signal, Signals};
 
+use dmail::config::{self, DataConfig, Device};
 use dmail::data::{self, Endpoint, Status};
 use dmail::netlink::{self, Netlink};
 use dmail::qmi::{self, service};
@@ -509,53 +510,50 @@ async fn send(number: &str, text: &str) -> Result {
     Ok(())
 }
 
-// Aston's data path, until the device file exists.
-const ENDPOINT: Endpoint = Endpoint {
-    kind: data::ENDPOINT_EMBEDDED,
-    iface: 1,
-};
-const IPA_RX: u32 = 2;
-const IPA_TX: u32 = 24;
-const DL_DATAGRAMS: u32 = 16;
-const DL_DATAGRAM_SIZE: u32 = 8192;
-const IPA_NETDEV: &str = "rmnet_ipa0";
 const LINK: &str = "rmnet_data0";
 const MUX_ID: u8 = 1;
-const MTU_MAX: u32 = 1492;
 const METRIC: u32 = 10000;
 
 /// Brings a data session up on `apn` and holds it until a signal or the
-/// network ends it. The link goes away with the session.
+/// network ends it, on the data path the phone's device file names. The
+/// link goes away with the session.
 async fn data_up(signals: &mut Signals, apn: &str) -> Result {
+    let path = config::device_file().ok_or("this phone has no dmail device file")?;
+    let device = Device::load(&path)?;
+    let cfg = &device.data;
+    let endpoint = device.endpoint()?;
     let nas = client(service::NAS).await?;
     let serving = network::serving(&nas).await?;
     if !serving.packet_attached() {
         return Err("packet service not attached".into());
     }
     let dpm = client(service::DPM).await?;
-    data::open_port(&dpm, ENDPOINT, IPA_RX, IPA_TX).await?;
+    data::open_port(&dpm, endpoint, cfg.dpm.rx, cfg.dpm.tx).await?;
     let wda = client(service::WDA).await?;
-    data::set_format(&wda, ENDPOINT, DL_DATAGRAMS, DL_DATAGRAM_SIZE).await?;
+    data::set_format(&wda, endpoint, cfg.dl_datagrams, cfg.dl_datagram_size).await?;
 
     let net = Netlink::new()?;
     // The link is dmail's alone: whatever is left of it is stale.
     if netlink::index(LINK).is_ok() {
         net.delete_link(LINK)?;
     }
-    let flags = netlink::RMNET_INGRESS_DEAGGREGATION
-        | netlink::RMNET_INGRESS_MAP_CKSUMV5
-        | netlink::RMNET_EGRESS_MAP_CKSUMV5;
-    net.add_rmnet(IPA_NETDEV, LINK, MUX_ID.into(), flags)?;
-    let held = hold_session(signals, &net, apn).await;
+    net.add_rmnet(&cfg.ipa_netdev, LINK, MUX_ID.into(), netlink::RMNET_FLAGS)?;
+    let held = hold_session(signals, &net, cfg, endpoint, apn).await;
     net.delete_link(LINK)?;
     println!("{LINK} removed");
     held
 }
 
-async fn hold_session(signals: &mut Signals, net: &Netlink, apn: &str) -> Result {
-    net.set_up(IPA_NETDEV, None)?;
+async fn hold_session(
+    signals: &mut Signals,
+    net: &Netlink,
+    cfg: &DataConfig,
+    endpoint: Endpoint,
+    apn: &str,
+) -> Result {
+    net.set_up(&cfg.ipa_netdev, None)?;
     let wds = client(service::WDS).await?;
-    data::bind_mux(&wds, ENDPOINT, MUX_ID).await?;
+    data::bind_mux(&wds, endpoint, MUX_ID).await?;
     data::prefer_ipv4(&wds).await?;
     let handle = match data::start(&wds, apn).await? {
         (Ok(handle), _) => handle,
@@ -563,7 +561,7 @@ async fn hold_session(signals: &mut Signals, net: &Netlink, apn: &str) -> Result
     };
     let held = async {
         let s = data::settings(&wds).await?;
-        net.set_up(LINK, Some(s.mtu.unwrap_or(MTU_MAX).min(MTU_MAX)))?;
+        net.set_up(LINK, Some(s.mtu.unwrap_or(cfg.mtu_max).min(cfg.mtu_max)))?;
         net.add_address(LINK, s.address, s.prefix)?;
         net.add_default_route(LINK, METRIC)?;
         println!(

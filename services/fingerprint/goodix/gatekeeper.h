@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
-#ifndef NX809J_GATEKEEPER_H
-#define NX809J_GATEKEEPER_H
+#ifndef GOODIX_GATEKEEPER_H
+#define GOODIX_GATEKEEPER_H
 
 #include "keymaster-shared-secret.h"
 

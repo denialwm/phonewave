@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
-#ifndef NX809J_SECURE_STORAGE_H
-#define NX809J_SECURE_STORAGE_H
+#ifndef GOODIX_SECURE_STORAGE_H
+#define GOODIX_SECURE_STORAGE_H
 #include <stddef.h>
 #include <stdint.h>
 /* All descriptors are preopened directories. Default mode reads stock base
