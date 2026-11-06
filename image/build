@@ -274,6 +274,11 @@ EOF
     # sysusers.d) and shows its setup, which makes one with first-user.
     local setup_uid
     setup_uid=$(chroot "$root" id -u denial-setup)
+    # Setup looks like the phone it sets up: the home every account starts
+    # with.
+    chroot "$root" sh -c 'install -d -m 700 /var/lib/denial-setup &&
+      cp -a /etc/skel/. /var/lib/denial-setup/ &&
+      chown -R denial-setup:denial-setup /var/lib/denial-setup'
     install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<EOF
 [Service]
 User=denial-setup
