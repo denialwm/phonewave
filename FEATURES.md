@@ -155,7 +155,7 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | 2026-11-06, devices-235, probe | The shared image on `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
+| Boot | works | 2026-11-06, devices-236, probe | The shared image on `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
 | Display | works | user | |
 | Brightness | works | 2026-10-28, devices-14, user | |
 | Wake from screen off | works | user | Power key |
@@ -169,7 +169,7 @@ last.
 | Video out (USB-C) | works | 2026-10-15, user | DisplayPort |
 | Charging | works | 2026-11-03, devices-225, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; USB-PD chargers raised to 9 V at 1.5 A (8.89 V × 1.49 A, 13.2 W in, battery +2.6 A at 14 %; still +0.1 A under full CPU load) |
 | Battery | works | 2026-10-28, devices-14, user | |
-| Wi-Fi | partial | 2026-11-06, devices-235, user, probe | ath12k. Settings set the country to IT (user): the file and the kernel's rules took it, the WCN7860 manages its own rules and stays on US (`Failed to set the requested Country regulatory setting`, `Timeout while waiting for regulatory update`). The saved 5 GHz network then showed in no scan, active or passive, and Wi-Fi stayed disconnected (REMINDERS) |
+| Wi-Fi | partial | 2026-11-06, devices-236, user, probe | ath12k. The country set in Settings reaches the WCN7860 since devices-236 (`iw reg get`: phy#0 IT). The saved 5 GHz network was in no scan that day, so no connection was tested (REMINDERS) |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
 | Speakers | works | 2026-10-28, devices-14, user | ADSP from modem_b since devices-235: sound card up, probe |
 | Microphones | works | 2026-09-30, probe | |

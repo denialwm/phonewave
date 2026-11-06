@@ -127,12 +127,12 @@ not part of any device's configuration.
   its country. A phone where nobody picked one stays on the world profile
   (`iw reg get`: country 00), where the Pad 4's WCN7860 finds a network on
   5180 MHz only through a passive scan and NetworkManager does not connect
-  to it at boot. On the Pad 4, Italy picked in Settings (2026-11-06) reached
-  the file and `iw reg get` global, but the WCN7860 is self-managed and kept
-  US: ath12k logged `Failed to set the requested Country regulatory setting`
-  and `Timeout while waiting for regulatory update`, and the saved 5 GHz
-  network showed in no scan afterwards. Why is unknown: whether ath12k
-  passes the country to this firmware, and whether that network was on.
+  to it at boot. ath11k and ath12k chips keep their own rules and take the
+  user's country only with ATH_REG_DYNAMIC_USER_REG_HINTS, on in the
+  mobile kernel fragment since 2026-11-06 (devices-236 on the Pad 4, which
+  then reported IT). Whether the Pad 4 then connects at boot is untested:
+  its saved 5 GHz network (seen as 3A:07:16:79:4C:00) was in no scan that
+  day. Other phones get the option with their next kernel build.
   Still open: phones with a modem could take the country from the network
   code.
 - **Pad 4 home screen: native app icons do nothing.** Seen 2026-11-06 on
