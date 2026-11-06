@@ -1,0 +1,57 @@
+# linux-msm's hexagonrpc for the phones, with Phonewave's patches, unit and
+# stock-sensors (services/sensors/hexagonrpcd). Build: image/pack hexagonrpcd
+pkgname=hexagonrpcd
+pkgdesc="FastRPC server that hands the ADSP's sensor drivers their configuration"
+_commit=da7a3742ab8d5273a281b70ee11f16fb2cb6a690
+_src=$startdir/../../../services/sensors/hexagonrpcd
+# The upstream version, then the number of Phonewave commits under _src.
+pkgver=0.5.0.r$(git -C "$_src" rev-list --count HEAD -- .)
+pkgrel=1
+arch=(aarch64)
+url="https://github.com/linux-msm/hexagonrpc"
+license=(GPL-3.0-or-later)
+options=(!strip !debug !lto)
+depends=(glibc python device-mapper util-linux)
+source=("hexagonrpc-$_commit.tar.gz::https://github.com/linux-msm/hexagonrpc/archive/$_commit.tar.gz")
+sha256sums=('651ab53dcf92a2766ba6ec42cac2ccdbd67382da5211b14c5fa33b618153c435')
+. "$startdir/../../cross.sh"
+
+prepare() {
+  local p
+  for p in "$_src"/*.patch; do
+    patch -d hexagonrpc-$_commit -Np1 -s < "$p"
+  done
+  cat > cross.ini <<EOT
+[binaries]
+c = 'aarch64-linux-gnu-gcc'
+ar = 'aarch64-linux-gnu-ar'
+strip = 'aarch64-linux-gnu-strip'
+
+[built-in options]
+c_args = ['--sysroot=$sysroot', '-isystem', '$sysroot/usr/include']
+c_link_args = ['--sysroot=$sysroot', '-B$sysroot/usr/lib', '-Wl,-rpath-link,$sysroot/usr/lib']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOT
+}
+
+build() {
+  unset PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR CFLAGS LDFLAGS
+  rm -rf build
+  meson setup build hexagonrpc-$_commit --cross-file cross.ini \
+    --prefix=/usr --libexecdir=lib --buildtype=release
+  meson compile -C build -j "$(($(nproc) - 2))" hexagonrpcd
+}
+
+package() {
+  install -Dm755 build/hexagonrpcd/hexagonrpcd -t "$pkgdir/usr/bin"
+  mkdir -p "$pkgdir/usr/lib"
+  install -m755 build/libhexagonrpc/libhexagonrpc.so.0.5 "$pkgdir/usr/lib/"
+  install -Dm755 "$_src/stock-sensors" -t "$pkgdir/usr/lib/hexagonrpcd"
+  install -Dm644 "$_src"/{hexagonrpcd,hexagonrpcd-stock-sensors}.service -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 hexagonrpc-$_commit/COPYING "$pkgdir/usr/share/licenses/hexagonrpcd/COPYING"
+}

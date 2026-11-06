@@ -1,0 +1,13 @@
+# The phones' ALSA UCM profiles (services/audio/ucm). Build: image/pack alsa-ucm-phonewave
+pkgname=alsa-ucm-phonewave
+pkgdesc="ALSA UCM profiles of the Phonewave phones' sound cards"
+license=(MIT)
+_src=$startdir/../../../services/audio/ucm
+. "$startdir/../recipe.sh"
+arch=(any)
+depends=(alsa-ucm-conf)
+
+package() {
+  mkdir -p "$pkgdir/usr/share/alsa"
+  cp -r --no-preserve=mode,ownership "$_src/ucm2" "$pkgdir/usr/share/alsa/"
+}

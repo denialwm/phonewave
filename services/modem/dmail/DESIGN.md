@@ -33,14 +33,14 @@ for registration changes, signal crossing a threshold, data status, SMS and
 calls. The one exception is the short wait while a modem that just
 started is not ready yet (Boot).
 
-The MVP runs as root under systemd sandboxing: the device's `modem-setup`
+The MVP runs as root under systemd sandboxing: `modem-setup`
 needs it, the rmnet link needs CAP_NET_ADMIN, and it opens QRTR sockets.
 
 ## Boot
 
 1. If `/usr/lib/dmail/modem-setup` exists, dmail runs it and waits. It comes
-   from `devices/<codename>/rootfs/` and does whatever the phone needs before
-   its modem answers. Exit 0 means the services will appear. A failure, or no
+   with dmail (`packaging/modem-setup`) and does what a modem needs before
+   it answers. Exit 0 means the services will appear. A failure, or no
    exit within 60 s, sets State to `failed`; its output goes to the journal.
    No script: dmail goes straight on. Aston has one, roadstr has none.
 2. dmail waits for the QRTR services it uses: DMS, UIM, NAS, WDS, WMS, DPM,
@@ -90,11 +90,10 @@ changes nothing. Daemons it needs, such as rmtfs and tqftpserv, run as their
 own units that it starts. Started from the script itself they would live in
 dmail's cgroup and die with dmail, taking the modem down.
 
-On aston the script checks that the private EFS copy belongs to this handset
-(`efs.handset` beside it holds the SoC serial of the phone it came from) and
-matches its checksums, starts rmtfs read-only on it and tqftpserv, waits until
-rmtfs serves, turns remoteproc recovery and coredumps off, and starts the
-modem, or recovers it after a crash.
+The script turns remoteproc recovery and coredumps off, stopping a crashed
+modem first. Where the device tree gives the modem rmtfs memory it starts
+rmtfs, read-only on the phone's own EFS partitions, and tqftpserv, and waits
+until rmtfs serves. Then it starts the modem.
 
 Modem crash: QRTR reports the services gone, also while the modem is still
 coming up. dmail runs `modem-setup` again, if there is one, and rebuilds its

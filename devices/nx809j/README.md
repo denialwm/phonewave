@@ -84,11 +84,9 @@ into Droidloom's `data_dir` with the cell stopped.
 ## Audio
 
 The speakers are two AW88461 amplifiers on PRIMARY_MI2S, set up from the
-stock tuning (`qcom/kaanapali/nubia/nx809j/aw88461_acf.bin`). Install
-`wireplumber`, `pipewire-pulse` and `pipewire-alsa`, then the UCM profile
-(`usr/share/alsa/ucm2/conf.d/kaanapali/Nubia-NX809J.conf` and
-`usr/share/alsa/ucm2/Qualcomm/kaanapali/Nubia-NX809J/`) and
-`etc/wireplumber/wireplumber.conf.d/51-nx809j-audio.conf`. The profile routes
+stock tuning (`qcom/kaanapali/nubia/nx809j/aw88461_acf.bin`). The UCM
+profile is `kaanapali/Nubia-NX809J` in services/audio/ucm, and the image's
+WirePlumber rule gives PipeWire software volume. The profile routes
 MultiMedia1 to the speakers, keeps the ADSP stream gain at unity and sets
 both amplifiers' `Playback Volume` to 959: 1023 is the stock tuning's level,
 and each step of 64 is 6 dB. Stock protects the speakers in Android's audio
@@ -104,9 +102,8 @@ linux-perpetua 9ba37ef1db70 (devices-223).
 ## Denial
 
 The image's `denial` package and `denial.service`, as on every phone;
-`pacman -Syu` takes a new release. Its output configuration used to start
-from `/usr/share/nx809j/outputs.conf` (scale 2), which the image does not
-carry yet.
+`pacman -Syu` takes a new release. Denial scales the panel by its pixel
+density, 2 here.
 
 ## Always-on display
 
@@ -129,22 +126,12 @@ Kernels from devices166.
 
 ## Modem
 
-dmail (services/modem/dmail) owns it. rootfs/ carries
-`/usr/lib/dmail/modem-setup`, the `nx809j-modem-rmtfs` and
-`nx809j-modem-tqftpserv` units it starts; the phone's user is in the image's
-`dmail` group. The device file is `boot/tail/dmail/device.toml`,
-in the boot image's tail; a boot image without a tail leaves it to
-`/etc/dmail/device.toml`, a copy on the phone. The data
-endpoints are those of Kaanapali's IPA (AP to modem 2, modem to AP 24), the
-same as the Ace 3. The modem firmware lives in
-`/usr/lib/firmware/qcom/kaanapali/nubia/nx809j/`; `rmtfs`, `tqftpserv` and
-`qrtr-lookup` in `/usr/local/bin`.
-
-The EFS copy never enters this repo: on the phone `/var/lib/nx809j-modem/efs`
-links to the copy directory, and `efs.handset` beside it holds the SoC serial,
-written on the phone from `/sys/devices/soc0/serial_number` and never printed.
-Install dmail with its `make install` layout, then run `systemd-sysusers`,
-reload systemd and D-Bus and enable `dmail.service`.
+dmail (services/modem/dmail) owns it, as on every phone: its `modem-setup`
+starts rmtfs on the phone's own EFS partitions, read-only, and tqftpserv
+(services/modem/linux-msm). The tail turns dmail on and carries its device
+file, `boot/tail/dmail/device.toml`. The data endpoints are those of
+Kaanapali's IPA (AP to modem 2, modem to AP 24), the same as the Ace 3. The
+modem firmware comes from modem_b (`boot/tail/stock-firmware.conf`).
 
 VoLTE: the `[ims]` section of the device file names the phone as the
 stock Android on both slots does (REDMAGICOS11.5.8MR1_EA: Android 16, SDK 36,
@@ -158,17 +145,9 @@ rotation rate, compass heading, light and proximity from the ADSP's sensor
 core: lsm6dsv accelerometer and gyroscope, stk3a7x light and proximity,
 ak0991x magnetometer, through the core's AKM rotation vector for the
 compass. The ADSP reads its sensor
-configuration from the host when it starts, so
-`nx809j-sensors-hexagonrpcd.service` runs `hexagonrpcd -s` from boot on
-`/dev/fastrpc-adsp-secure`. hexagonrpcd (linux-msm/hexagonrpc `da7a374`,
-GPL-3.0) is cross-built with meson, prefix `/usr/local`, rpath
-`/usr/local/lib`, and installed with `libhexagonrpc` in `/usr/local`.
-
-The files it serves are the phone's own and never enter this repo:
-`tools/sensor-files`, run on the phone as root, copies them from the stock
-`vendor_b` and persist, both read-only, into
-`/usr/share/qcom/kaanapali/Nubia/NX809J`. Restart the phone afterwards. Then
-install steinerd with its `make install` layout and enable `steinerd.service`;
+configuration from the host when it starts, so the tail turns on
+`hexagonrpcd.service` (services/sensors/hexagonrpcd), which serves it from
+the stock `vendor_b` and persist, copied at each start, read-only.
 `steinerctl list accel proximity ambient_light` shows the three sensors.
 
 ## Camera

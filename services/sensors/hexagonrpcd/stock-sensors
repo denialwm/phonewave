@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Lay out the ADSP's sensor configuration from the phone's stock partitions.
+
+    stock-sensors DIR
+
+Runs as root before hexagonrpcd, which serves DIR to the ADSP. Reads the
+booted slot's vendor and odm inside super and persist, all read-only, and
+copies what the ADSP's sensor drivers read into DIR:
+
+    sensors/config        vendor's etc/sensors/config
+    sensors/sns_reg.conf  vendor's etc/sensors/sns_reg_config
+    sensors/registry      persist's sensors/registry/registry
+    odm/sensors/config    odm's etc/sensors/config, where the phone has one
+    dsp                   empty
+
+A copy, not the partitions: the ADSP may write its registry, and those
+writes stay in DIR until the next start.
+"""
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+
+SUPER = "/dev/disk/by-partlabel/super"
+PERSIST = "/dev/disk/by-partlabel/persist"
+
+
+def booted_slot():
+    """The slot suffix the bootloader started, or empty."""
+    for path in ("/proc/bootconfig", "/proc/cmdline"):
+        try:
+            text = open(path).read()
+        except OSError:
+            continue
+        m = re.search(r'androidboot\.slot_suffix\s*=?\s*"?(_[ab])', text)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def linear_table(device, partition, slot):
+    """The device-mapper table of one logical partition in super, or None."""
+    with open(device, "rb") as f:
+        f.seek(4096)
+        geometry = f.read(4096)
+        if struct.unpack_from("<I", geometry, 0)[0] != 0x616C4467:
+            sys.exit("stock-sensors: super has no LP geometry")
+        metadata_size, = struct.unpack_from("<I", geometry, 40)
+        f.seek(4096 + 2 * 4096 + (1 if slot == "_b" else 0) * metadata_size)
+        meta = f.read(metadata_size)
+    if struct.unpack_from("<I", meta, 0)[0] != 0x414C5030:
+        sys.exit("stock-sensors: super has no LP metadata")
+    header_size, = struct.unpack_from("<I", meta, 8)
+    tables = meta[header_size:]
+    parts = struct.unpack_from("<III", meta, 80)
+    extents = struct.unpack_from("<III", meta, 92)
+    for i in range(parts[1]):
+        name, _attrs, first, count, _group = struct.unpack_from(
+            "<36sIIII", tables, parts[0] + i * parts[2])
+        if name.rstrip(b"\0").decode() != partition:
+            continue
+        lines, start = [], 0
+        for e in range(first, first + count):
+            sectors, kind, data, source = struct.unpack_from(
+                "<QIQI", tables, extents[0] + e * extents[2])
+            if kind != 0 or source != 0:
+                sys.exit(f"stock-sensors: {partition}: extent type {kind} on device {source}")
+            lines.append(f"{start} {sectors} linear {device} {data}")
+            start += sectors
+        return "".join(line + "\n" for line in lines) if lines else None
+    return None
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("usage: stock-sensors DIR")
+    out = sys.argv[1]
+    slot = booted_slot()
+    device = os.path.realpath(SUPER)
+    tables = {name: linear_table(device, name + slot, slot) for name in ("vendor", "odm")}
+    if tables["vendor"] is None:
+        sys.exit(f"stock-sensors: no vendor{slot} in super")
+    with tempfile.TemporaryDirectory() as work:
+        mounted, mapped = [], []
+        try:
+            for name, table in tables.items():
+                if table is None:
+                    continue
+                dm = f"stock-sensors-{name}"
+                subprocess.run(["dmsetup", "remove", dm], stderr=subprocess.DEVNULL, check=False)
+                subprocess.run(["dmsetup", "create", "--readonly", dm], input=table, text=True, check=True)
+                mapped.append(dm)
+                os.mkdir(os.path.join(work, name))
+                subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{dm}", os.path.join(work, name)], check=True)
+                mounted.append(os.path.join(work, name))
+            os.mkdir(os.path.join(work, "persist"))
+            # noload: never replay persist's journal.
+            subprocess.run(["mount", "-o", "ro,noload", PERSIST, os.path.join(work, "persist")], check=True)
+            mounted.append(os.path.join(work, "persist"))
+
+            os.makedirs(out, mode=0o700, exist_ok=True)
+            for entry in os.listdir(out):
+                path = os.path.join(out, entry)
+                shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+            sensors = os.path.join(out, "sensors")
+            vendor = os.path.join(work, "vendor")
+            shutil.copytree(os.path.join(vendor, "etc/sensors/config"), os.path.join(sensors, "config"))
+            shutil.copyfile(os.path.join(vendor, "etc/sensors/sns_reg_config"),
+                            os.path.join(sensors, "sns_reg.conf"))
+            shutil.copytree(os.path.join(work, "persist/sensors/registry/registry"),
+                            os.path.join(sensors, "registry"))
+            odm = os.path.join(work, "odm/etc/sensors/config")
+            if os.path.isdir(odm):
+                shutil.copytree(odm, os.path.join(out, "odm/sensors/config"))
+            os.mkdir(os.path.join(out, "dsp"))
+        finally:
+            for path in reversed(mounted):
+                subprocess.run(["umount", path], check=False)
+            for dm in mapped:
+                subprocess.run(["dmsetup", "remove", dm], check=False)
+    print(f"stock-sensors: vendor{slot}"
+          + (f", odm{slot}" if tables["odm"] else "") + " and persist")
+
+
+if __name__ == "__main__":
+    main()

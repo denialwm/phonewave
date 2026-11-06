@@ -189,8 +189,8 @@ amplifier its calibration through its `CAL_DATA` control, and unmutes them
 only when both read it back. The kernel log then says "Calibration applied"
 for each. The amplifiers stay at stock's 0 dB; PipeWire (`pipewire`,
 `pipewire-pulse`, `wireplumber`, `pipewire-audio`, `rtkit`) sets the volume
-in software, as `51-pudding-audio.conf` asks, through the UCM files in
-`rootfs/usr/share/alsa/ucm2/`.
+in software, as `51-pudding-audio.conf` asks, through the UCM profile
+`kaanapali/Xiaomi-17` in services/audio/ucm.
 
 The ADSP's AudioReach topology is `audio/Xiaomi-17.m4`, built with the
 macros of infiniti-mainline's audioreach-topology:

@@ -1,0 +1,16 @@
+[Unit]
+Description=Modem file server (tqftpserv)
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/tqftpserv
+StateDirectory=tqftpserv
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+# No ProtectKernelModules: it hides /usr/lib/modules, where the boot image's
+# tail puts the modem's firmware.
+PrivateTmp=yes

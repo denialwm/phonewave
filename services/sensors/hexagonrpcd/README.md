@@ -11,21 +11,18 @@ needs it running from boot on every phone whose sensors live on the ADSP.
 | --- | --- |
 | `0001-rpcd-Serve-the-sensor-configuration-from-odm-too.patch` | Xiaomi's ADSP firmware reads its sensor JSON files from `/odm/etc/sensors/config`. hexagonrpcd serves that from `odm/sensors/config/` under its `-R` directory, and an empty directory where that is missing, so phones without it see no change. |
 
-## Build and install
+## On the phones
 
-Needs git, meson, ninja and the `aarch64-linux-gnu` cross compiler; the cross
-file links against the workspace sysroot.
-
-```sh
-git clone https://github.com/linux-msm/hexagonrpc ~/.cache/phonewave/src/hexagonrpc
-./build-aarch64.sh ~/.cache/phonewave/src/hexagonrpc ~/.cache/phonewave/<codename>/hexagonrpc
-```
-
-The script exports upstream commit `da7a374` from the clone, applies the
-patches and installs into `stage/` under the build directory, for prefix
-`/usr/local`. Copy `stage/usr/local/bin/hexagonrpcd` and
-`stage/usr/local/lib/libhexagonrpc.so*` to the same places on the phone.
-The device's `rootfs/` carries the unit that runs it.
+`image/recipes/hexagonrpcd` builds upstream `da7a374` with the patches. A
+phone whose sensors live on the ADSP turns on `hexagonrpcd.service` from its
+boot image's tail. Before each start, `hexagonrpcd-stock-sensors.service`
+runs `stock-sensors`, which copies what the ADSP reads from the phone's own
+partitions, read-only, into `/run/hexagonrpcd`, the folder hexagonrpcd
+serves: the booted slot's vendor (`etc/sensors/config`,
+`etc/sensors/sns_reg_config`) and odm (`etc/sensors/config`, where the phone
+has one) inside super, and persist (`sensors/registry/registry`). The files
+are the phone's own and never enter this repo. The ADSP reads them only when
+it starts.
 
 ## License
 

@@ -16,6 +16,7 @@ install:
 	install -Dm755 $(BIN)/dmail $(DESTDIR)$(PREFIX)/bin/dmail
 	install -Dm755 $(BIN)/dmailctl $(DESTDIR)$(PREFIX)/bin/dmailctl
 	install -Dm644 packaging/dmail.service $(DESTDIR)$(PREFIX)/lib/systemd/system/dmail.service
+	install -Dm755 packaging/modem-setup $(DESTDIR)$(PREFIX)/lib/dmail/modem-setup
 	sed -i 's|/usr/bin/dmail|$(PREFIX)/bin/dmail|g' $(DESTDIR)$(PREFIX)/lib/systemd/system/dmail.service
 	install -Dm644 packaging/org.dmail.conf $(DESTDIR)$(PREFIX)/share/dbus-1/system.d/org.dmail.conf
 	install -Dm644 packaging/dmail.sysusers $(DESTDIR)$(PREFIX)/lib/sysusers.d/dmail.conf

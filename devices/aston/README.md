@@ -68,18 +68,10 @@ before enabling the direct path and leaves USB data ports on the PMIC path.
 After manually unbinding or reloading the PHY driver with the charger attached,
 reconnect the cable to let the PMIC classify the charger again.
 
-Modem: dmail (services/modem/dmail) owns it. rootfs/ carries
-`/usr/lib/dmail/modem-setup`, the `aston-modem-rmtfs` and
-`aston-modem-tqftpserv` units it starts; the phone's user is in the image's
-`dmail` group. The device file is `boot/tail/dmail/device.toml`,
-in the boot image's tail; a boot image without a tail leaves it to
-`/etc/dmail/device.toml`, a copy on the phone. The EFS copy never
-enters this repo: on the phone `/var/lib/aston-modem/efs` links to the copy
-directory, and `efs.handset` beside it holds the SoC serial, written on the
-phone from `/sys/devices/soc0/serial_number` and never printed. Install dmail
-with its `make install` layout, then run `systemd-sysusers`, reload systemd
-and D-Bus and enable `dmail.service`. The unit names match the cellular kit's
-transient units, so `modem-setup` never starts a second rmtfs next to them.
+Modem: dmail (services/modem/dmail) owns it, as on every phone: its
+`modem-setup` starts rmtfs on the phone's own EFS partitions, read-only, and
+tqftpserv (services/modem/linux-msm). The tail turns dmail on and carries its
+device file, `boot/tail/dmail/device.toml`.
 
 DNS: systemd-resolved, so that dmail can give it the carrier's servers for
 `rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
@@ -92,10 +84,10 @@ the wallpaper picker closes. Removing it turns the cut off.
 
 Speakers: since devices41 two TFA9873 amplifiers (top 0x34, bottom 0x35 on
 I2C6) play Secondary MI2S, left and right; the kernel's tfa987x driver sets
-them up without speaker protection. rootfs/ carries the UCM profile
-(`conf.d/sm8550/astonsnd.conf`, HiFi verb, Speaker device on MultiMedia1)
-and `51-aston-audio.conf`, which gives PipeWire software volume because the
-DSP volume control's dB metadata is invalid, as on the Pad 4.
+them up without speaker protection. The UCM profile is `sm8550/astonsnd` in
+services/audio/ucm (HiFi verb, Speaker device on MultiMedia1); the image's
+WirePlumber rule gives PipeWire software volume because the DSP volume
+control's dB metadata is invalid, as on the Pad 4.
 
 Microphones: the WCD9380 takes AMIC1 on ADC1 (TX SMIC SWR_MIC0) and AMIC5
 on ADC4, input INP5 (SWR_MIC1), the handset pair of the stock

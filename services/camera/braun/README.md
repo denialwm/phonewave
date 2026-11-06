@@ -26,7 +26,7 @@ What it does not say comes from two kinds of file:
 | File | Holds | Comes with |
 |---|---|---|
 | `/usr/share/braun/sensors/<driver>.toml` | A sensor model's black and white level, how its gain codes map to gain, the most gain auto exposure uses | braun (`sensors/`) |
-| `/etc/braun/<id>.toml` | One phone's camera: its role, how wide it sees, a rotation where the device tree is wrong, the focus travel, the illuminant locus, colour matrices and lens shading | the device (`devices/<codename>/rootfs/etc/braun/`) |
+| `braun/<id>.toml` in the boot image's tail | One phone's camera: its role, how wide it sees, a rotation where the device tree is wrong, the focus travel, the illuminant locus, colour matrices and lens shading | the device (`devices/<codename>/boot/tail/braun/`); `/etc/braun/<id>.toml` overrides it |
 
 A camera's id is its driver's name, with the sensor's address after a `-`
 when a phone has two of the same sensor. A camera without a calibration

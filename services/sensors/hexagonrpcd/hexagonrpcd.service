@@ -1,0 +1,22 @@
+[Unit]
+Description=Sensor configuration for the ADSP (hexagonrpcd)
+Requires=hexagonrpcd-stock-sensors.service
+After=hexagonrpcd-stock-sensors.service
+
+[Service]
+Type=exec
+# The ADSP's sensor drivers read their configuration from here when the ADSP
+# starts, copied each time from the phone's stock partitions.
+ExecStart=/usr/bin/hexagonrpcd -f /dev/fastrpc-adsp-secure -d adsp -s -R /run/hexagonrpcd
+Restart=always
+RestartSec=1
+PrivateDevices=yes
+DevicePolicy=closed
+DeviceAllow=/dev/fastrpc-adsp-secure rw
+BindPaths=/dev/fastrpc-adsp-secure
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+PrivateTmp=yes

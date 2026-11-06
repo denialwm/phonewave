@@ -13,13 +13,12 @@ directly, for bring-up.
 
 ## Install
 
-`make install` (PREFIX=/usr) installs `dmail`, `dmailctl`, the unit, the bus
-policy, and a sysusers file for the `dmail` group. The unit starts it at
+`make install` (PREFIX=/usr) installs `dmail`, `dmailctl`, the unit,
+`modem-setup`, the bus policy, and a sysusers file for the `dmail` group. The unit starts it at
 boot; the bus does not start it. The phone's boot image carries the device
 file in its tail, from `devices/<codename>/boot/tail/dmail/device.toml`, and
 `/etc/dmail/device.toml` overrides it. Without a device file dmail stays off
-the bus and waits: apps see no modem. The phone adds its `modem-setup` if it
-needs one, and puts its user in `dmail`, from `devices/<codename>/rootfs/`.
+the bus and waits: apps see no modem. The phone's user is in `dmail`.
 Processes started before the user joined the group have no access until they
 restart: the Denial session, and the user manager (it lingers on aston).
 
@@ -29,9 +28,10 @@ Decided on 2026-10-21.
 
 - One service for `aston` and `roadstr`. What differs per phone goes in
   `devices/<codename>/`.
-- What a phone needs before its modem answers goes in an optional
-  `modem-setup` script in `devices/<codename>/`. dmail runs it if present and
-  stops if it fails. Aston has one, roadstr doesn't.
+- What a modem needs before it answers is `modem-setup`, the same on every
+  phone (`packaging/modem-setup`). dmail runs it if present and stops if it
+  fails. It starts rmtfs and tqftpserv (`../linux-msm`) where the device tree
+  gives the modem rmtfs memory.
 - Its own D-Bus API, `org.dmail.Modem1`. Not a copy of ModemManager's.
 - It replaces ModemManager. The unit conflicts with `ModemManager.service`.
 - denial-apps (Dialer, Messages) talk to dmail only. Denial's shell keeps its
@@ -66,8 +66,7 @@ configures it.
 | Carrier profile for the SIM | PDC |
 | VoLTE setup, IMS data requests, IMS registration | IMS Settings, IMSDCM, IMSA |
 
-Getting the modem to answer is the phone's `modem-setup` script, when it needs
-one.
+Getting the modem to answer is `modem-setup`.
 
 ## Devices
 

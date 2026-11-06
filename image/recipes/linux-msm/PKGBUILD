@@ -1,0 +1,73 @@
+# linux-msm's qrtr, rmtfs and tqftpserv for the phones, with Phonewave's
+# units (services/modem/linux-msm). Build: image/pack linux-msm
+#
+# Each is a handful of C files, compiled here straight with the cross
+# compiler: rmtfs and tqftpserv against the qrtr this recipe builds.
+pkgbase=linux-msm
+pkgname=(qrtr rmtfs tqftpserv)
+_qrtr=29e36ae164389580a0f8ea7a7fdb728140ae978d
+_rmtfs=b30a3eb38f9af283f18dbd3c7755653efc52c094
+_tqftpserv=eb4b9a04ff92d2753ededf32cc3b6ed287f6e29b
+# The date of the newest of the three commits.
+pkgver=2026.10.27
+pkgrel=1
+arch=(aarch64)
+url="https://github.com/linux-msm"
+license=(BSD-3-Clause)
+options=(!strip !debug !lto)
+source=("qrtr-$_qrtr.tar.gz::https://github.com/linux-msm/qrtr/archive/$_qrtr.tar.gz"
+        "rmtfs-$_rmtfs.tar.gz::https://github.com/linux-msm/rmtfs/archive/$_rmtfs.tar.gz"
+        "tqftpserv-$_tqftpserv.tar.gz::https://github.com/linux-msm/tqftpserv/archive/$_tqftpserv.tar.gz")
+sha256sums=('66f846c447a0a0302e7dd9b5450c38945081100b04697bb9eb39994c45ddae4e'
+            '058da51cac48b247c0e7494c02e4330916accbc92da29757b547a2faf78c4b27'
+            'a8739ad1c8c8d159ed8f83fc3b20020d222557343a634e0308fc535f80dcaaf7')
+_units=$startdir/../../../services/modem/linux-msm
+. "$startdir/../../cross.sh"
+
+build() {
+  local cc=(aarch64-linux-gnu-gcc -O2 -g -Wall --sysroot="$sysroot" -isystem "$sysroot/usr/include" -B"$sysroot/usr/lib" -Wl,-rpath-link,"$sysroot/usr/lib")
+  local q=$srcdir/qrtr-$_qrtr r=$srcdir/rmtfs-$_rmtfs t=$srcdir/tqftpserv-$_tqftpserv
+  cd "$q"
+  "${cc[@]}" -shared -fPIC -Iinclude -Wl,-soname,libqrtr.so.1 lib/logging.c lib/qmi.c lib/qrtr.c -o libqrtr.so.1.2
+  ln -sf libqrtr.so.1.2 libqrtr.so.1
+  ln -sf libqrtr.so.1 libqrtr.so
+  "${cc[@]}" -Iinclude src/addr.c src/cfg.c -L. -lqrtr -o qrtr-cfg
+  "${cc[@]}" -Iinclude src/lookup.c -L. -lqrtr -o qrtr-lookup
+  cd "$r"
+  "${cc[@]}" -I"$q/include" qmi_rmtfs.c rmtfs.c rproc.c sharedmem.c storage.c util.c \
+    -L"$q" -lqrtr -ludev -lpthread -o rmtfs
+  cd "$t"
+  "${cc[@]}" -I"$q/include" -DHAVE_XZ -DHAVE_ZSTD translate.c tqftpserv.c xz-decompress.c zstd-decompress.c \
+    -L"$q" -lqrtr -llzma -lzstd -o tqftpserv
+}
+
+package_qrtr() {
+  pkgdesc='Qualcomm IPC Router library and tools'
+  depends=(glibc)
+  provides=(libqrtr.so)
+  cd "$srcdir/qrtr-$_qrtr"
+  install -Dm755 libqrtr.so.1.2 -t "$pkgdir/usr/lib"
+  ln -s libqrtr.so.1.2 "$pkgdir/usr/lib/libqrtr.so.1"
+  ln -s libqrtr.so.1 "$pkgdir/usr/lib/libqrtr.so"
+  install -Dm644 include/libqrtr.h -t "$pkgdir/usr/include"
+  install -Dm755 qrtr-cfg qrtr-lookup -t "$pkgdir/usr/bin"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/qrtr"
+}
+
+package_rmtfs() {
+  pkgdesc="Qualcomm modem file system service, from the phone's own partitions"
+  depends=(glibc qrtr systemd-libs)
+  cd "$srcdir/rmtfs-$_rmtfs"
+  install -Dm755 rmtfs -t "$pkgdir/usr/bin"
+  install -Dm644 "$_units/rmtfs.service" -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/rmtfs"
+}
+
+package_tqftpserv() {
+  pkgdesc='Qualcomm modem file server over QRTR'
+  depends=(glibc qrtr xz zstd)
+  cd "$srcdir/tqftpserv-$_tqftpserv"
+  install -Dm755 tqftpserv -t "$pkgdir/usr/bin"
+  install -Dm644 "$_units/tqftpserv.service" -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/tqftpserv"
+}

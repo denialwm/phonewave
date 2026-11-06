@@ -29,10 +29,10 @@ not part of any device's configuration.
     the voice profile (vault `aston/firmware/tail/`); the stock firmware
     on modem_b (`stock-firmware.conf`, Qualcomm build
     Kailua.LA.1.0.r1-02022-STD.PROD-1; the OnePlus release name is still to
-    find); `dmail/device.toml`, with dmail's `modem-setup`; the rmtfs and
-    tqftpserv units once both are packages (the binaries are in the backup's
-    /usr/local/bin; the modem's EFS copy is in the backup's
-    /var/lib/aston-modem).
+    find); `dmail/device.toml`; the braun calibrations (`braun/`, in
+    Phonewave since 2026-11-06, not yet in a built boot image). The modem
+    runs from the shared `modem-setup`, rmtfs and tqftpserv; the old EFS
+    copy in the backup's /var/lib/aston-modem is no longer used.
   - Into the kernel: the modules the nyx-mainline-battery, -thermal and -wifi
     units load by hand (bq27xxx, adc5-gen3, iio_hwmon, icc-osm-l3, the WCN7850
     chain) should load from the device tree; a tail unit only where they
@@ -44,10 +44,12 @@ not part of any device's configuration.
     GPU floor and Wi-Fi power-save rules, radio-addr for Wi-Fi and
     Bluetooth, the dmail group, the always-on display switch rule; the
     tail carries `ambient-display.json`.
-  - To find a home: audio, the astonsnd UCM, `asound.conf` and the AGM plugins it loads from
-    /opt/nyx-audioreach (in `files/opt`), the WirePlumber rule; camera, the
-    braun sensor files and the libcamera patches in `devices/aston/packaging`
-    (by sensor, so one package for every phone). The old enrollments in
+  - Shared since 2026-11-06: the astonsnd UCM profile (alsa-ucm-phonewave)
+    and the image's WirePlumber rule.
+  - To find a home: call audio's `asound.conf` and the AGM plugins it loads
+    from /opt/nyx-audioreach (in `files/opt`); the libcamera patches in
+    `devices/aston/packaging` (by sensor, so one package for every phone).
+    The old enrollments in
     /var/lib/aston-fingerprint are in the backup; the fingerprint stack
     itself is the fingerprint-phonewave recipe and the boot image's tail now.
   - Packages the old root had that the image lacks, such as noto-fonts-cjk,
@@ -62,20 +64,20 @@ not part of any device's configuration.
   the phone with the Ace 3's local Google apps package. The image's fresh
   Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
   What `devices/nx809j/rootfs/` and the old root held, and where it goes:
-  - The ADSP, CDSP and modem firmware come from modem_b since devices233
-    (`stock-firmware.conf`): the ADSP starts and the sound card registers.
-    The modem waits for rmtfs and tqftpserv.
-  - Still to find a home, as on the Ace 3: audio (the UCM profile, the
-    WirePlumber rule, the topology and the amplifier tuning in the vault's
-    `firmware/tail/`), the modem's rmtfs and tqftpserv units and
-    `modem-setup`, `nx809j-sensors-hexagonrpcd` and `tools/sensor-files`,
-    the Gatekeeper and secure-storage units the fingerprint PIN step needs,
-    `outputs.conf` (scale 2) and the braun sensor files. Folded into the
-    image like the Ace 3's: the haptics, ambient-display and lockup panic
-    rules, sudo for wheel, the dmail group; the battery-stats tags named a
-    retired path.
+  - Shared since 2026-11-06, boot image 233-shared: the ADSP, CDSP and
+    modem firmware from modem_b; the modem through the shared `modem-setup`,
+    rmtfs on its own EFS partitions and tqftpserv (it waits for the SIM
+    PIN); the sensors through hexagonrpcd from the stock partitions; the UCM
+    profile; the braun calibrations in the tail; Denial's scale from the
+    panel's density; the haptics, ambient-display and lockup panic rules,
+    sudo for wheel, the dmail group.
+  - Still to find a home: the Gatekeeper and secure-storage units the
+    fingerprint PIN step needs. Their programs are written for this board
+    alone (they check `nubia,nx809j`, keep their state under nx809j paths)
+    and the socket belongs to the user `logix`; they are not packaged.
   - Retired with the move: `boot/package.py`, `boot/initramfs/`,
-    `nx809j-denial.service`, `nx809j-usb` and its networkd profile. The phone
+    `nx809j-denial.service`, `nx809j-usb` and its networkd profile,
+    `outputs.conf`, `tools/sensor-files`. The phone
     is at 10.77.71.2 over USB like every phone, so two phones on this
     workstation at once collide.
 - **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05: the helper

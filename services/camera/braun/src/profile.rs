@@ -7,8 +7,9 @@
 //! A calibration file holds what one phone's module adds: its role among
 //! the phone's cameras, how wide it sees, the focus travel worth sweeping, the colour of its
 //! light under known illuminants, its colour matrices and its lens shading.
-//! It comes with the device, one file per camera, in `/etc/braun`. Without
-//! one the camera still works, untuned.
+//! It comes with the device, one file per camera, in the boot image's tail
+//! (`braun/` in the running kernel's modules folder); one in `/etc/braun`
+//! overrides it. Without one the camera still works, untuned.
 
 use std::path::Path;
 
@@ -97,9 +98,18 @@ pub fn sensor(model: &str) -> Result<Option<SensorProfile>, String> {
     load(&Path::new(SENSORS).join(model).with_extension("toml"))
 }
 
-/// The device's calibration of camera `id`, if it has one.
+/// The device's calibration of camera `id`, if it has one: /etc's, which
+/// overrides, else the one the boot image's tail carries.
 pub fn calibration(id: &str) -> Result<Option<Calibration>, String> {
-    load(&Path::new(CALIBRATION).join(id).with_extension("toml"))
+    let file = Path::new(id).with_extension("toml");
+    let etc = Path::new(CALIBRATION).join(&file);
+    if etc.exists() {
+        return load(&etc);
+    }
+    let Ok(release) = std::fs::read_to_string("/proc/sys/kernel/osrelease") else {
+        return Ok(None);
+    };
+    load(&Path::new("/usr/lib/modules").join(release.trim()).join("braun").join(file))
 }
 
 impl Calibration {
@@ -179,7 +189,7 @@ mod tests {
         let devices = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../devices");
         let mut seen = 0;
         for device in std::fs::read_dir(devices).unwrap() {
-            let Ok(entries) = std::fs::read_dir(device.unwrap().path().join("rootfs/etc/braun"))
+            let Ok(entries) = std::fs::read_dir(device.unwrap().path().join("boot/tail/braun"))
             else {
                 continue;
             };

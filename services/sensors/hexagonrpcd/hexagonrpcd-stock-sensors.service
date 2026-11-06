@@ -1,0 +1,6 @@
+[Unit]
+Description=Copy the ADSP's sensor configuration from the stock partitions
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/hexagonrpcd/stock-sensors /run/hexagonrpcd

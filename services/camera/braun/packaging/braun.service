@@ -16,7 +16,8 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 ProtectControlGroups=yes
-ProtectKernelModules=yes
+# No ProtectKernelModules: it hides /usr/lib/modules, where the boot image's
+# tail keeps the phone's camera calibrations.
 ProtectKernelLogs=yes
 RestrictAddressFamilies=AF_UNIX
 RestrictSUIDSGID=yes

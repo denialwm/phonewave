@@ -5,9 +5,14 @@ hapticd
 zram-swap
 rtc-offset
 radio-addr
+alsa-ucm-phonewave
 callaudio
+qrtr
+rmtfs
+tqftpserv
 dmail
 battery-stats
+hexagonrpcd
 steinerd
 braun
 screen-record
