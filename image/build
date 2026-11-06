@@ -222,8 +222,11 @@ inside() {
     { echo "the phone's pacman left fields it does not know" >&2; exit 1; }
 
   # The partition layout, the one system file not in a package: fstab
-  # belongs to the filesystem package, and every install sets its own.
-  cp "$here/fstab" "$root/etc/fstab"
+  # belongs to the filesystem package, and every install sets its own. The
+  # root is this image's filesystem, whichever partition holds it.
+  local uuid
+  uuid=$(cat /proc/sys/kernel/random/uuid)
+  sed "s/@ROOT_UUID@/$uuid/" "$here/fstab" > "$root/etc/fstab"
   # Empty: the boot image carries the kernel's modules and the early
   # userspace mounts them here.
   install -d "$root/usr/lib/modules"
@@ -273,7 +276,7 @@ EOF
   size=$(du -s -B1M "$root" | cut -f1)
   size=$((size + size / 4 + 256))
   rm -f "$out/userdata.raw" "$out/userdata.img"
-  mkfs.ext4 -q -F -i 8192 -d "$root" "$out/userdata.raw" "${size}M"
+  mkfs.ext4 -q -F -i 8192 -U "$uuid" -d "$root" "$out/userdata.raw" "${size}M"
   img2simg "$out/userdata.raw" "$out/userdata.img"
   rm "$out/userdata.raw"
 }
