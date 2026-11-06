@@ -9,8 +9,7 @@ holds the init_boot every phone shares (`image/init-boot`). `ssh nx809j`
 reaches the phone as root over USB at 10.77.71.2.
 
 The phone moved to the image on 2026-11-06. What the old root held and where
-each piece goes is in REMINDERS.md; rootfs/ and the old packaging stay until
-each piece has its new place.
+each piece went is in REMINDERS.md.
 
 Private inputs live in the vault,
 `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/nx809j`:
