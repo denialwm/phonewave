@@ -73,9 +73,8 @@ not part of any device's configuration.
     sudo for wheel, the dmail group.
   - Shared since 2026-11-06, boot image 233-fingerprint: the Goodix
     Gatekeeper and secure-storage units, in fingerprint-phonewave, turned on
-    from the tail; the `gatekeeper` group. Canonical secure storage is off
-    on the image until the owner writes its drop-ins again
-    (services/fingerprint).
+    from the tail; the `gatekeeper` group. Canonical secure storage is on
+    again, from its /etc drop-ins (services/fingerprint).
   - Retired with the move: `boot/package.py`, `boot/initramfs/`,
     `nx809j-denial.service`, `nx809j-usb` and its networkd profile,
     `outputs.conf`, `tools/sensor-files`. The phone

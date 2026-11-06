@@ -207,9 +207,9 @@ The native PIN provider and secure storage are the package's
 `goodix-gatekeeper.socket` and `goodix-secure-storage.service`
 (services/fingerprint). The sensor worker delegates the shared listener so
 Gatekeeper can verify an enrollment challenge while the sensor is active.
-The user authorized canonical mode for this phone on its old root, with the
-rollback limitation in Partitions; on the shared image it is off until its
-drop-ins are written again.
+The user authorized canonical mode for this phone, with the rollback
+limitation in Partitions; its drop-ins are in the phone's /etc since
+2026-11-06, after persist was saved to the vault again.
 
 The phone's fingerprint runtime uses native executables from the package.
 The Python scripts in the development checkout assemble the signed app and

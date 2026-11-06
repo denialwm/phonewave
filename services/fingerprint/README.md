@@ -69,7 +69,7 @@ Two drop-ins turn it on:
 
     /etc/systemd/system/run-goodix-persist.mount.d/80-canonical.conf
       [Mount]
-      Options=rw,noload,nosuid,nodev,noexec
+      Options=rw,nosuid,nodev,noexec
 
     /etc/systemd/system/goodix-secure-storage.service.d/80-canonical.conf
       [Service]
