@@ -50,5 +50,11 @@ package_denial-app-sensors() {
 
 package_denial-app-settings() {
   pkgdesc='Phone settings for Denial'
+  # The Wi-Fi country: wireless-regdb's file, iw to apply it, pkexec to run
+  # the helper.
+  depends+=(polkit iw wireless-regdb)
   _package_app settings Settings
+  install -Dm755 "$_src/target/$TARGET/release/wifi-country" "$pkgdir/usr/lib/denial-apps/wifi-country"
+  install -Dm644 "$_src/apps/settings/packaging/org.denialwm.settings.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/org.denialwm.settings.policy"
 }

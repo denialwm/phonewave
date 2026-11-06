@@ -1,5 +1,5 @@
-// Settings sets the clock, its time zone, the language and the phone's name
-// without a password: for the phone's owner, at the phone.
+// Settings sets the clock, its time zone, the language, the phone's name and
+// the Wi-Fi country without a password: for the phone's owner, at the phone.
 polkit.addRule(function (action, subject) {
     var allowed = [
         "org.freedesktop.timedate1.set-time",
@@ -8,6 +8,7 @@ polkit.addRule(function (action, subject) {
         "org.freedesktop.locale1.set-locale",
         // SetPrettyHostname asks for this one.
         "org.freedesktop.hostname1.set-static-hostname",
+        "org.denialwm.settings.wifi-country",
     ];
     if (allowed.indexOf(action.id) >= 0 && subject.local && subject.active &&
             subject.isInGroup("wheel")) {

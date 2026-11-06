@@ -121,13 +121,14 @@ not part of any device's configuration.
   Denial's root session (`sudo deniald --fingerprint-settings`) does. Once
   its own fingerprint helper asks Gatekeeper itself, Settings drops the sudo
   path and Denial the root session.
-- **Wi-Fi country.** The image sets none, so the WCN7850 and the RedMagic's
-  radio stay on the world profile (`iw reg get`: country 00). The Ace 3's
-  old Wi-Fi unit set Italy by hand, and so did the Pad 4's, with a passive
-  scan of 5180 to 5320 MHz: on the world profile the WCN7860 finds a network
-  there only through a passive scan, and NetworkManager does not connect to
-  it at boot. The country belongs to where the phone
-  is, not to the phone: from the modem's network code, or a Settings choice.
+- **Wi-Fi country.** Settings sets it since 2026-11-06 (denial-apps
+  `settings`: Date and time, Country or region), into wireless-regdb's
+  `/etc/conf.d/wireless-regdom`; a time zone picked while none is set brings
+  its country. A phone where nobody picked one stays on the world profile
+  (`iw reg get`: country 00), where the Pad 4's WCN7860 finds a network on
+  5180 MHz only through a passive scan and NetworkManager does not connect
+  to it at boot. Still open: phones with a modem could take the country
+  from the network code.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's
   USB connection is NetworkManager's "shared", but the workstation's
