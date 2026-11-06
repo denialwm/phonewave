@@ -127,8 +127,27 @@ not part of any device's configuration.
   its country. A phone where nobody picked one stays on the world profile
   (`iw reg get`: country 00), where the Pad 4's WCN7860 finds a network on
   5180 MHz only through a passive scan and NetworkManager does not connect
-  to it at boot. Still open: phones with a modem could take the country
-  from the network code.
+  to it at boot. On the Pad 4, Italy picked in Settings (2026-11-06) reached
+  the file and `iw reg get` global, but the WCN7860 is self-managed and kept
+  US: ath12k logged `Failed to set the requested Country regulatory setting`
+  and `Timeout while waiting for regulatory update`, and the saved 5 GHz
+  network showed in no scan afterwards. Why is unknown: whether ath12k
+  passes the country to this firmware, and whether that network was on.
+  Still open: phones with a modem could take the country from the network
+  code.
+- **Pad 4 home screen: native app icons do nothing.** Seen 2026-11-06 on
+  Denial 0.6.2: tapping or holding Calls, Camera, Messages, Sensors or
+  Settings on the home grid does nothing, while Droidloom icons work and the
+  same apps open from the desktop launcher. No launch request reached
+  deniald. The home layout came from the old root (`~/.config/denia-home/
+  layout.json`), the native apps last at slots 59–63. Cause unknown.
+- **Pad 4 taskbar is a hand-built shell.** Denial 0.6.2's packaged shell
+  has no taskbar and phones get no plugin manager, so the tablet runs the
+  0.6.2 shell with `denial_taskbar` in place of the top bar, compiled here
+  against the same ARM64 engine and activated with `denialctl ui activate`
+  (`~/.local/share/denial/plugin-candidates/iceland-taskbar-0.6.2/bundle`).
+  The next Denial release rejects it (source mismatch) and falls back to the
+  packaged shell: phones need a way to compose plugins.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's
   USB connection is NetworkManager's "shared", but the workstation's
