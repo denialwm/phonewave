@@ -171,6 +171,17 @@ not part of any device's configuration.
     Droidloom;
   - the Pad 4 keeps `denial-setup`, its home and the test shell in
     `/var/lib/denial-setup`; nothing runs as it.
+- **The rescue's screen on command-mode panels.** Seen 2026-11-07 on the
+  RedMagic: the rescue drew its install screen into the bootloader's
+  framebuffer, but the RM692H5 is a command-mode panel that shows only what
+  the display controller sends, and the kernel turned the DSI clocks off as
+  unused at 0.67 s; the panel went white. Installing works without the
+  screen (flash.sh asks fastboot). The rescue should draw through the
+  display driver (KMS) where the phone has one, on every phone.
+- **USB gadget after a reconnect on the RedMagic.** Seen 2026-11-07: after
+  the cable came back, binding the gadget again failed, `cdc_ethernet bind
+  returned -19` and `failed to start phone: -19`; the computer saw no
+  device until the phone rebooted, which bound it at once.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's
   USB connection is NetworkManager's "shared", but the workstation's
