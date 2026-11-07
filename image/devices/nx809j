@@ -5,4 +5,7 @@ packages=()
 
 # The boot image in the vault's boot/, until the image builds its own.
 boot_img=boot-233-fingerprint.img
+# The stock bootloader's fastboot writes nothing: flash.sh starts at the
+# init_boot's rescue.
+bootloader_flash=no
 ssh_host=nx809j

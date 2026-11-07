@@ -141,8 +141,9 @@ EOF
   cp "$vault/$device/boot/$boot_img" "$out/boot.img"
   "$here/init-boot" "$out/init_boot.img" ${dev_access:+--dev-access}
   {
-    printf '#!/bin/sh\n# Flash this image on %s. The phone must be in its bootloader'"'"'s fastboot.\n' "$device"
-    cat <<'EOF'
+    if [ "${bootloader_flash:-yes}" = yes ]; then
+      printf '#!/bin/sh\n# Flash this image on %s. The phone must be in its bootloader'"'"'s fastboot.\n' "$device"
+      cat <<'EOF'
 # The bootloader takes boot and init_boot. The root goes in from the
 # init_boot's own fastboot, which comes up while no denial or userdata
 # partition holds a system.
@@ -151,6 +152,19 @@ cd "$(dirname "$0")"
 fastboot flash boot_b boot.img
 fastboot flash init_boot_b init_boot.img
 fastboot reboot
+EOF
+    else
+      printf '#!/bin/sh\n# Install this image on %s.\n' "$device"
+      cat <<'EOF'
+# This phone's bootloader writes no partition: write boot.img to boot_b and
+# init_boot.img to init_boot_b from the phone itself, then boot slot B. The
+# root goes in from the init_boot's own fastboot, which comes up while no
+# denial or userdata partition holds a system.
+set -eu
+cd "$(dirname "$0")"
+EOF
+    fi
+    cat <<'EOF'
 echo "waiting for Denial OS's install screen"
 until fastboot getvar denial-install 2>&1 | grep -q '^denial-install: yes'; do sleep 2; done
 fastboot flash userdata userdata.img
