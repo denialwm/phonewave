@@ -75,6 +75,22 @@ def linear_table(device, partition, slot):
     return None
 
 
+def mounted_at(device):
+    """Where the whole filesystem on device is already mounted, or None.
+
+    The kernel refuses a second, read-only mount of an ext4 filesystem that is
+    mounted read-write, such as persist under the fingerprint secure storage.
+    """
+    rdev = os.stat(device).st_rdev
+    wanted = f"{os.major(rdev)}:{os.minor(rdev)}"
+    with open("/proc/self/mountinfo") as f:
+        for line in f:
+            fields = line.split()
+            if fields[2] == wanted and fields[3] == "/":
+                return fields[4].replace("\\040", " ")
+    return None
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit("usage: stock-sensors DIR")
@@ -97,10 +113,13 @@ def main():
                 os.mkdir(os.path.join(work, name))
                 subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{dm}", os.path.join(work, name)], check=True)
                 mounted.append(os.path.join(work, name))
-            os.mkdir(os.path.join(work, "persist"))
-            # noload: never replay persist's journal.
-            subprocess.run(["mount", "-o", "ro,noload", PERSIST, os.path.join(work, "persist")], check=True)
-            mounted.append(os.path.join(work, "persist"))
+            persist = mounted_at(PERSIST)
+            if persist is None:
+                persist = os.path.join(work, "persist")
+                os.mkdir(persist)
+                # noload: never replay persist's journal.
+                subprocess.run(["mount", "-o", "ro,noload", PERSIST, persist], check=True)
+                mounted.append(persist)
 
             os.makedirs(out, mode=0o700, exist_ok=True)
             for entry in os.listdir(out):
@@ -111,7 +130,7 @@ def main():
             shutil.copytree(os.path.join(vendor, "etc/sensors/config"), os.path.join(sensors, "config"))
             shutil.copyfile(os.path.join(vendor, "etc/sensors/sns_reg_config"),
                             os.path.join(sensors, "sns_reg.conf"))
-            shutil.copytree(os.path.join(work, "persist/sensors/registry/registry"),
+            shutil.copytree(os.path.join(persist, "sensors/registry/registry"),
                             os.path.join(sensors, "registry"))
             odm = os.path.join(work, "odm/etc/sensors/config")
             if os.path.isdir(odm):

@@ -20,7 +20,8 @@ runs `stock-sensors`, which copies what the ADSP reads from the phone's own
 partitions, read-only, into `/run/hexagonrpcd`, the folder hexagonrpcd
 serves: the booted slot's vendor (`etc/sensors/config`,
 `etc/sensors/sns_reg_config`) and odm (`etc/sensors/config`, where the phone
-has one) inside super, and persist (`sensors/registry/registry`). The files
+has one) inside super, and persist (`sensors/registry/registry`), read where
+it is already mounted, as under the fingerprint secure storage. The files
 are the phone's own and never enter this repo. The ADSP reads them only when
 it starts.
 

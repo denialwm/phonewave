@@ -1,5 +1,7 @@
 [Unit]
 Description=Copy the ADSP's sensor configuration from the stock partitions
+# Phones whose fingerprint storage mounts persist read-write: read it there.
+After=run-goodix-persist.mount
 
 [Service]
 Type=oneshot
