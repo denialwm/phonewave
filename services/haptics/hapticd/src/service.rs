@@ -83,8 +83,12 @@ impl Service {
         if !admin && self.config.allow_uids.contains(&uid) {
             return Ok((sender.to_string(), alive));
         }
-        if !admin && !self.session && active_local_user(connection, uid).await.unwrap_or(false) {
-            return Ok((sender.to_string(), alive));
+        if !admin && !self.session {
+            match active_local_user(connection, uid).await {
+                Ok(true) => return Ok((sender.to_string(), alive)),
+                Ok(false) => {}
+                Err(error) => eprintln!("hapticd: sessions of UID {uid}: {error}"),
+            }
         }
         Err(fdo::Error::AccessDenied(
             "requires an active local session, configured UID, or root".into(),
