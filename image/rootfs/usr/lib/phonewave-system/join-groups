@@ -1,0 +1,17 @@
+#!/bin/sh
+# pacman hook: puts the phone's user, the one denial.service runs as, in the
+# groups every phone's user is in (user-groups) that the phone has and the
+# user is not in yet, such as a group a package installed after the account
+# was made. Takes effect from the user's next session.
+set -eu
+user=$(sed -n 's/^User=//p' /etc/systemd/system/denial.service.d/user.conf 2>/dev/null | tail -n 1)
+[ -n "$user" ] || exit 0
+# Before the phone has a person's account, Denial runs as denial-setup.
+[ "$(id -u "$user" 2>/dev/null || echo 0)" -ge 1000 ] || exit 0
+member=" $(id -nG "$user") "
+for group in $(grep -v '^#' /usr/lib/phonewave-system/user-groups); do
+  getent group "$group" >/dev/null || continue
+  case $member in *" $group "*) continue ;; esac
+  gpasswd -a "$user" "$group" >/dev/null
+  echo "phonewave: $user joined $group"
+done

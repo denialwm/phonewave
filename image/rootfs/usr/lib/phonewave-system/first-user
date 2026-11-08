@@ -47,7 +47,7 @@ IFS= read -r password || true
 
 # The groups every phone's user is in, where the phone has them.
 groups=
-for group in wheel audio input render video dmail gatekeeper; do
+for group in $(grep -v '^#' /usr/lib/phonewave-system/user-groups); do
   getent group "$group" >/dev/null && groups+=${groups:+,}$group
 done
 

@@ -1,6 +1,7 @@
 # Packages image/pack builds, for every image. Devices turn on the services
 # their hardware has from their boot image's tail.
 phonewave-system
+phonewave-image
 hapticd
 zram-swap
 rtc-offset

@@ -1,0 +1,10 @@
+# The groups every phone's user is in, where the phone has them: first-user
+# puts a new account in them, and join-groups the phone's account in those a
+# package brings later. One per line.
+wheel
+audio
+input
+render
+video
+dmail
+gatekeeper

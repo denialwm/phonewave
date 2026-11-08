@@ -1,0 +1,13 @@
+# Puts the phone's user in the groups every phone's user is in when a package
+# brings one. After systemd's sysusers hook, which makes the groups.
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/sysusers.d/*
+Target = usr/lib/phonewave-system/user-groups
+
+[Action]
+Description = Adding the phone's user to new groups...
+When = PostTransaction
+Exec = /usr/lib/phonewave-system/join-groups

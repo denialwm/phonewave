@@ -8,6 +8,9 @@ _src=$startdir/../../rootfs
 # 2: the modes below; 1 copied a strict checkout's 600 and 700.
 pkgrel=2
 arch=(any)
+# Every phone has this package: through it pacman -Syu brings what the image
+# installs, including what it added after the phone was made.
+depends=(phonewave-image)
 # What the user may edit under /etc stays theirs across updates.
 backup=($(cd "$_src" && find etc -type f | sort))
 

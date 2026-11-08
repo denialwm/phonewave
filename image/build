@@ -274,7 +274,8 @@ inside() {
     cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
   fi
   if [ -n "$dev_access" ] && [ -z "$setup" ]; then
-    chroot "$root" useradd -m -u 1000 -U -G wheel,audio,input,render,video,dmail,gatekeeper logix
+    chroot "$root" useradd -m -u 1000 -U \
+      -G "$(grep -v '^#' "$root/usr/lib/phonewave-system/user-groups" | paste -sd,)" logix
     # What first-user writes for the account it makes.
     install -Dm644 /dev/stdin "$root/etc/systemd/system/denial.service.d/user.conf" <<'EOF'
 [Service]

@@ -1,0 +1,16 @@
+# What every image installs, as this package's dependencies: a phone made from
+# an older image gets what the image added since with pacman -Syu. The lists
+# are image/packages; phonewave-system, which every phone has, depends on this
+# one. Build: image/pack phonewave-image
+pkgname=phonewave-image
+pkgdesc='Phonewave: the packages every phone image has'
+license=(MIT)
+_src=$startdir/../../packages
+. "$startdir/../recipe.sh"
+arch=(any)
+depends=($(grep -hv '^\s*\(#\|$\)' "$_src/base" "$_src/phonewave" |
+  grep -vx -e "$pkgname" -e phonewave-system))
+
+package() {
+  :
+}
