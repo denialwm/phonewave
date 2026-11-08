@@ -112,13 +112,30 @@ async fn run(card: native::Card) -> zbus::Result<()> {
     Ok(())
 }
 
+/// The first card with the verb; waits for one while there is none, since
+/// the session can start before the audio DSP has brought the card up.
+fn card() -> std::io::Result<native::Card> {
+    let watch = native::CardWatch::new()?;
+    let mut waiting = false;
+    loop {
+        match native::find_card(VERB) {
+            Ok(card) => return Ok(card),
+            Err(e) if !waiting => {
+                eprintln!("waiting for a sound card with a \"{VERB}\" UCM verb: {e}");
+                waiting = true;
+            }
+            Err(_) => {}
+        }
+        watch.wait()?;
+    }
+}
+
 fn main() -> ExitCode {
-    let card = match native::find_card(VERB) {
+    let card = match card() {
         Ok(card) => card,
         Err(e) => {
-            // Nothing to do on this device.
-            eprintln!("no sound card has a \"{VERB}\" UCM verb: {e}");
-            return ExitCode::SUCCESS;
+            eprintln!("callaudio: {e}");
+            return ExitCode::FAILURE;
         }
     };
     eprintln!(

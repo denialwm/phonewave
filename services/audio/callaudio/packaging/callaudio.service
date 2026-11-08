@@ -7,6 +7,8 @@ Wants=wireplumber.service
 Type=dbus
 BusName=org.callaudio
 ExecStart=/usr/bin/callaudio
+# Ready once a card with the verb is up, which can take the audio DSP's boot.
+TimeoutStartSec=infinity
 Restart=on-failure
 RestartSec=2
 

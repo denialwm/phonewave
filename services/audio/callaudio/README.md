@@ -33,8 +33,9 @@ systemctl --user enable --now callaudio
 The phones get it from the `callaudio` recipe (`image/recipes/callaudio`),
 which every image installs and turns on. callaudio runs in the user's
 session, beside PipeWire; the user needs access to dmail (group `dmail`) and
-to the sound card (group `audio`). On a device with no card with a
-`Voice Call` verb it exits at once.
+to the sound card (group `audio`). Until a card with a `Voice Call` verb is
+up, callaudio waits for one and takes no bus name: the session can start
+before the audio DSP has brought the card up.
 
 ## API
 

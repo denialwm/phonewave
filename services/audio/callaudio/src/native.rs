@@ -2,6 +2,7 @@
 
 use std::ffi::{CStr, CString, c_char, c_int, c_long};
 use std::io;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 unsafe extern "C" {
     fn callaudio_ucm_find(
@@ -20,6 +21,8 @@ unsafe extern "C" {
         max: *mut c_long,
     ) -> c_int;
     fn callaudio_ctl_set(card: c_int, id: *const c_char, value: c_long) -> c_int;
+    fn callaudio_cards_watch() -> c_int;
+    fn callaudio_cards_wait(fd: c_int) -> c_int;
     fn callaudio_pw_profile(
         card: c_int,
         want: *const c_char,
@@ -53,6 +56,22 @@ pub struct Card {
     pub index: i32,
     pub volume: String,
     pub mute: String,
+}
+
+/// Watches the sound card nodes, to wait for a card that is not up yet.
+pub struct CardWatch(OwnedFd);
+
+impl CardWatch {
+    pub fn new() -> io::Result<Self> {
+        let fd = unsafe { callaudio_cards_watch() };
+        check(fd)?;
+        Ok(CardWatch(unsafe { OwnedFd::from_raw_fd(fd) }))
+    }
+
+    /// Returns once the sound card nodes changed.
+    pub fn wait(&self) -> io::Result<()> {
+        check(unsafe { callaudio_cards_wait(self.0.as_raw_fd()) })
+    }
 }
 
 pub fn find_card(verb: &str) -> io::Result<Card> {

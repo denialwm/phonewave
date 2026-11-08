@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/inotify.h>
+#include <unistd.h>
 
 #include <alsa/asoundlib.h>
 #include <alsa/use-case.h>
@@ -92,6 +94,46 @@ int callaudio_ucm_find(const char *verb, int *card, char *volume, size_t volume_
 		return 0;
 	}
 	return -ENOENT;
+}
+
+/*
+ * Sound cards come up after the session starts: the audio DSP boots first.
+ * The watch sees /dev/snd appear and its nodes appear or change owner, as
+ * udev hands them to the audio group. Set it up before looking for a card,
+ * so none comes between the look and the wait.
+ */
+static void cards_watch_snd(int fd)
+{
+	/* No /dev/snd yet: the watch on /dev wakes the wait when it comes. */
+	inotify_add_watch(fd, "/dev/snd", IN_CREATE | IN_ATTRIB | IN_ONLYDIR);
+}
+
+int callaudio_cards_watch(void)
+{
+	int fd = inotify_init1(IN_CLOEXEC);
+
+	if (fd < 0)
+		return -errno;
+	if (inotify_add_watch(fd, "/dev", IN_CREATE | IN_ONLYDIR) < 0) {
+		int ret = -errno;
+
+		close(fd);
+		return ret;
+	}
+	cards_watch_snd(fd);
+	return fd;
+}
+
+/* Blocks until something under /dev/snd, or /dev/snd itself, changes. */
+int callaudio_cards_wait(int fd)
+{
+	char events[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+
+	while (read(fd, events, sizeof(events)) < 0)
+		if (errno != EINTR)
+			return -errno;
+	cards_watch_snd(fd);
+	return 0;
 }
 
 /* Opens card's control `id` ("name='...'"), a boolean or integer one. */
