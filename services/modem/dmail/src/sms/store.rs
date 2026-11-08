@@ -1,6 +1,6 @@
 //! The message store: every received PDU as it came, and the messages apps
 //! see, multipart ones joined; the archive, the block list and the delivery
-//! reports of sent parts.
+//! reports of sent parts. The call log is kept here too.
 
 use std::path::Path;
 
@@ -19,7 +19,7 @@ const MIN_DIGITS: usize = 7;
 
 /// The schema, one step per version. `PRAGMA user_version` counts the steps a
 /// store has taken. New steps go at the end; shipped ones never change.
-const MIGRATIONS: [&str; 2] = [
+const MIGRATIONS: [&str; 3] = [
     // 1: messages and received PDUs. Stores from before versions were counted
     // have these tables already.
     "CREATE TABLE IF NOT EXISTS messages (
@@ -70,6 +70,16 @@ const MIGRATIONS: [&str; 2] = [
              VALUES ('delete', old.id, old.text);
          DELETE FROM reports WHERE message = old.id;
      END;",
+    // 3: the call log.
+    "CREATE TABLE calls (
+         id INTEGER PRIMARY KEY,
+         number TEXT NOT NULL,
+         incoming INTEGER NOT NULL,
+         outcome TEXT NOT NULL,
+         started INTEGER NOT NULL,
+         connected INTEGER NOT NULL,
+         ended INTEGER NOT NULL
+     );",
 ];
 
 pub struct Store {
@@ -85,6 +95,10 @@ pub type Entry = (u64, bool, String, i64, String);
 pub type Found = (String, u64, bool, String, i64, String);
 /// One row of `ListBlockedMessages`: id, sender, text, time.
 pub type Blocked = (u64, String, String, i64);
+/// One row of `ListCallLog`: id, number (empty when withheld), direction (`in`
+/// or `out`), outcome, and the Unix times it started, connected (0 if it
+/// never did) and ended.
+pub type LoggedCall = (u64, String, String, String, i64, i64, i64);
 
 impl Store {
     pub fn open(path: &Path) -> rusqlite::Result<Self> {
@@ -478,6 +492,56 @@ impl Store {
             })?
             .collect()
     }
+
+    /// Adds a call that ended to the log; returns its id. Outcomes:
+    /// answered, missed, declined (turned down here), unanswered (out).
+    pub fn log_call(
+        &self,
+        number: &str,
+        incoming: bool,
+        outcome: &str,
+        times: (i64, i64, i64),
+    ) -> rusqlite::Result<u64> {
+        let (started, connected, ended) = times;
+        self.db.execute(
+            "INSERT INTO calls (number, incoming, outcome, started, connected, ended)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![number, incoming, outcome, started, connected, ended],
+        )?;
+        Ok(self.db.last_insert_rowid() as u64)
+    }
+
+    /// Up to `limit` logged calls with ids below `before` (0 for the newest),
+    /// newest first.
+    pub fn call_log(&self, before: u64, limit: u32) -> rusqlite::Result<Vec<LoggedCall>> {
+        let before = if before == 0 { i64::MAX } else { before as i64 };
+        self.db
+            .prepare(
+                "SELECT id, number, incoming, outcome, started, connected, ended FROM calls
+                 WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
+            )?
+            .query_map(params![before, limit], |r| {
+                let direction = if r.get(2)? { "in" } else { "out" };
+                Ok((
+                    r.get::<_, i64>(0)? as u64,
+                    r.get(1)?,
+                    direction.into(),
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                ))
+            })?
+            .collect()
+    }
+
+    /// Whether there was such a logged call.
+    pub fn delete_logged_call(&self, id: u64) -> rusqlite::Result<bool> {
+        Ok(self
+            .db
+            .execute("DELETE FROM calls WHERE id = ?1", [id as i64])?
+            == 1)
+    }
 }
 
 /// The digits of a phone number, without its plus; None for a sender name.
@@ -848,5 +912,26 @@ mod tests {
         assert_eq!(s.fail_unsent().unwrap(), [id]);
         assert_eq!(s.messages("+3901", i64::MAX, 1).unwrap()[0].4, "failed");
         assert!(s.delete(id).unwrap());
+    }
+
+    #[test]
+    fn logs_calls_newest_first() {
+        let s = Store::in_memory().unwrap();
+        let out = s
+            .log_call("+3901", false, "answered", (10, 14, 70))
+            .unwrap();
+        let missed = s.log_call("", true, "missed", (100, 0, 130)).unwrap();
+        let log = s.call_log(0, 10).unwrap();
+        assert_eq!(log.len(), 2);
+        assert_eq!(
+            log[0],
+            (missed, "".into(), "in".into(), "missed".into(), 100, 0, 130)
+        );
+        assert_eq!(log[1].0, out);
+        assert_eq!(log[1].2, "out");
+        assert_eq!(s.call_log(missed, 10).unwrap().len(), 1);
+        assert!(s.delete_logged_call(out).unwrap());
+        assert!(!s.delete_logged_call(out).unwrap());
+        assert_eq!(s.call_log(0, 10).unwrap().len(), 1);
     }
 }

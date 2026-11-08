@@ -226,8 +226,8 @@ read it through D-Bus. Schema steps are counted in `PRAGMA user_version` and
 only ever added: each runs once, at start, in a transaction of its own. Step
 1 is the first schema, which stores from before the count already have; step
 2 adds blocked messages, the archive, the block list, delivery reports and
-search, and indexes the text already stored. An older dmail on a newer store
-still runs and ignores what it does not know. Before a phone's store takes a
+search, and indexes the text already stored; step 3 adds the call log. An
+older dmail on a newer store still runs and ignores what it does not know. Before a phone's store takes a
 step for the first time, a copy goes beside it as `messages.db.before-<date>`.
 
 Conversations: one per peer. Phone numbers match on their last 9 digits, as
@@ -284,6 +284,15 @@ in `Voice1.Calls`; a call that ends or leaves the list goes out as
 the modem's call id. DTMF plays each digit as a continuous tone for 120 ms.
 Data-centric (Boot, step 4), the modem places calls over 2G/3G: on aston a
 call from 4G moved to UMTS and rang after 4 s, with AMR-WB at 16 kHz.
+
+dmail keeps the call log, in the message store, as Android's telephony keeps
+its own: apps come and go, calls come in whether one runs or not. Each call
+that ends goes in with its number, direction, outcome and the times it
+started (first listed), connected and ended, and `CallLogged` announces it.
+Outcomes: `answered`; `missed`, an incoming call that was never answered;
+`declined`, one turned down here with Hangup while it rang; `unanswered`, an
+outgoing call that never connected. `ListCallLog` pages by id, newest first,
+and `DeleteLoggedCall` takes one off.
 
 Call audio is not dmail's: the modem hands speech to the ADSP, which plays
 and records it once the host has started its voice graph. Until then calls
@@ -403,6 +412,15 @@ Changes go out as PropertiesChanged.
 | | `Hangup(y id)` | ends a call or turns down an incoming one |
 | | `SendDtmf(y id, s digits)` | returns once the digits have sounded |
 | | signal `CallEnded(y id, s number, s direction, x connected)` | `connected` 0: never answered |
+| | `ListCallLog(t before, u limit)` | `a(tsssxxx)`, rows below; ids below `before` (0 for the newest), newest first |
+| | `DeleteLoggedCall(t id)` | `CallLogDeleted` follows |
+| | signal `CallLogged(t id)` | a call that ended went into the log |
+| | signal `CallLogDeleted(t id)` | |
+
+A call log row is `(t id, s number, s direction, s outcome, x started, x
+connected, x ended)`: the number is empty when withheld, direction `in` or
+`out`, outcome `answered`, `missed`, `declined` or `unanswered`, the times in
+Unix seconds, connected 0 if it never did.
 
 Call states: `dialing`, `alerting` (the other phone rings), `incoming`,
 `waiting` (incoming during another call), `active`, `held`, `ending`.
@@ -472,9 +490,10 @@ removed on 2026-10-25.
   login. It sleeps on D-Bus, wakes on `MessageReceived`, and posts the
   notification through `org.freedesktop.Notifications`. Tapping it opens
   Messages. dmail itself never notifies.
-- Calls (denial-apps `apps/calls`) replaces its mocked calls with
-  `org.dmail.Voice1`. Like Messages, a background service rings on an
-  incoming call and posts missed calls from `CallEnded`.
+- Calls (denial-apps `apps/calls`) places and follows calls with
+  `org.dmail.Voice1` and shows its call log. Like Messages, a background
+  service, calls-manager (`services/modem/calls-manager`), rings on an
+  incoming call and posts it as a notification.
 
 ## Open
 

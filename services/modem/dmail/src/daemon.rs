@@ -502,19 +502,50 @@ fn sim_state(usim: &sim::App) -> Option<Sim> {
     }
 }
 
-fn bus_call((call, connected): &(voice::Call, i64)) -> bus::Call {
-    let direction = if call.incoming { "in" } else { "out" };
+/// A call the modem lists, as dmail follows it.
+#[derive(Clone)]
+struct Tracked {
+    call: voice::Call,
+    /// Unix times it first showed and connected (0 until then).
+    started: i64,
+    connected: i64,
+    /// Turned down here, with Hangup while it rang.
+    declined: bool,
+}
+
+fn bus_call(t: &Tracked) -> bus::Call {
+    let direction = if t.call.incoming { "in" } else { "out" };
     (
-        call.id,
-        call.number.clone(),
+        t.call.id,
+        t.call.number.clone(),
         direction.into(),
-        call.state.as_str().into(),
-        *connected,
+        t.call.state.as_str().into(),
+        t.connected,
     )
 }
 
 fn call_error(e: qmi::Error) -> Error {
     Error::Failed(format!("the modem refused: {e}"))
+}
+
+/// Puts a call that ended in the log, and announces it.
+fn log_call(d: &Daemon<'_>, t: &Tracked) {
+    let outcome = match (t.call.incoming, t.connected != 0, t.declined) {
+        (_, true, _) => "answered",
+        (true, false, true) => "declined",
+        (true, false, false) => "missed",
+        (false, false, _) => "unanswered",
+    };
+    let times = (t.started, t.connected, now());
+    let logged = d
+        .store
+        .lock()
+        .unwrap()
+        .log_call(&t.call.number, t.call.incoming, outcome, times);
+    match logged {
+        Ok(id) => d.bus.call_logged(id),
+        Err(e) => log(format!("logging call {}: {e}", t.call.id)),
+    }
 }
 
 async fn fail_send(bus: &Bus, store: &Mutex<Store>, id: u64) {
@@ -713,8 +744,8 @@ struct Life {
     /// them (None until it was told).
     dns: Vec<std::net::Ipv4Addr>,
     dns_default: Option<bool>,
-    /// The modem's calls, each with when it connected (0 until then).
-    calls: Vec<(voice::Call, i64)>,
+    /// The modem's calls.
+    calls: Vec<Tracked>,
     ims: Registration,
     _tasks: Vec<Task<()>>,
 }
@@ -980,41 +1011,48 @@ impl Life {
         }
     }
 
-    /// Takes the modem's list of calls: publishes Voice1.Calls, and CallEnded
-    /// for each call that ended or left the list.
+    /// Takes the modem's list of calls: publishes Voice1.Calls, and logs
+    /// each call that ended or left the list, with CallEnded.
     async fn update_calls(&mut self, d: &Daemon<'_>, listed: Vec<voice::Call>) {
         let mut kept = Vec::new();
         let mut ended = Vec::new();
         for mut call in listed {
-            let was = self.calls.iter().find(|(c, _)| c.id == call.id);
+            let was = self.calls.iter().find(|t| t.call.id == call.id);
             if call.number.is_empty() {
-                call.number = was.map(|(c, _)| c.number.clone()).unwrap_or_default();
+                call.number = was.map(|t| t.call.number.clone()).unwrap_or_default();
             }
-            let mut connected = was.map_or(0, |&(_, t)| t);
+            let mut connected = was.map_or(0, |t| t.connected);
             if connected == 0 && call.state == voice::State::Active {
                 connected = now();
             }
-            if was.map(|(c, _)| c.state) != Some(call.state) {
+            if was.map(|t| t.call.state) != Some(call.state) {
                 log(format!("call {}: {}", call.id, call.state.as_str()));
             }
-            match call.state {
-                voice::State::Ended if was.is_some() => ended.push((call, connected)),
+            let tracked = Tracked {
+                started: was.map_or_else(now, |t| t.started),
+                connected,
+                declined: was.is_some_and(|t| t.declined),
+                call,
+            };
+            match tracked.call.state {
+                voice::State::Ended if was.is_some() => ended.push(tracked),
                 voice::State::Ended => {}
-                _ => kept.push((call, connected)),
+                _ => kept.push(tracked),
             }
         }
-        for (call, connected) in &self.calls {
-            let gone = |list: &[(voice::Call, i64)]| list.iter().all(|(c, _)| c.id != call.id);
+        for t in &self.calls {
+            let gone = |list: &[Tracked]| list.iter().all(|k| k.call.id != t.call.id);
             if gone(&kept) && gone(&ended) {
-                log(format!("call {}: ended", call.id));
-                ended.push((call.clone(), *connected));
+                log(format!("call {}: ended", t.call.id));
+                ended.push(t.clone());
             }
         }
         self.calls = kept;
         let calls = self.calls.iter().map(bus_call).collect();
         d.bus.publish_calls(calls);
-        for call in &ended {
-            d.bus.call_ended(&bus_call(call));
+        for t in &ended {
+            d.bus.call_ended(&bus_call(t));
+            log_call(d, t);
         }
     }
 
@@ -1335,7 +1373,25 @@ impl Life {
                 let _ = reply.try_send(done.map_err(call_error));
             }
             Command::Hangup(id, reply) => {
+                // Marked first: the call's end can come in before the reply.
+                let ringing = |t: &&mut Tracked| {
+                    t.call.id == id
+                        && matches!(t.call.state, voice::State::Incoming | voice::State::Waiting)
+                };
+                let declined = match self.calls.iter_mut().find(ringing) {
+                    Some(t) => {
+                        t.declined = true;
+                        true
+                    }
+                    None => false,
+                };
                 let done = voice::end(&self.m.voice, id).await;
+                if declined
+                    && done.is_err()
+                    && let Some(t) = self.calls.iter_mut().find(|t| t.call.id == id)
+                {
+                    t.declined = false;
+                }
                 let _ = reply.try_send(done.map_err(call_error));
             }
             Command::SendDtmf(id, digits, reply) => {

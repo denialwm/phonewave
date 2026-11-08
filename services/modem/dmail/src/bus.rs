@@ -13,7 +13,7 @@ use zbus::{Connection, interface};
 
 use crate::config::{SIM_SLOTS, Settings};
 use crate::sms::pdu;
-use crate::sms::store::{Blocked, Conversation, Entry, Found, Store};
+use crate::sms::store::{Blocked, Conversation, Entry, Found, LoggedCall, Store};
 
 pub const NAME: &str = "org.dmail";
 pub const PATH: &str = "/org/dmail";
@@ -557,6 +557,7 @@ pub type Call = (u8, String, String, String, i64);
 pub struct Voice {
     calls: Vec<Call>,
     commands: Sender<Command>,
+    store: Arc<Mutex<Store>>,
 }
 
 #[interface(name = "org.dmail.Voice1")]
@@ -595,6 +596,44 @@ impl Voice {
         ask(&self.commands, |reply| Command::SendDtmf(id, digits, reply)).await
     }
 
+    /// Up to `limit` calls of the log with ids below `before` (0 for the
+    /// newest), newest first: id, number (empty when withheld), direction
+    /// (`in` or `out`), outcome (answered, missed, declined, unanswered), and
+    /// the Unix times it started, connected (0 if it never did) and ended.
+    fn list_call_log(&self, before: u64, limit: u32) -> Result<Vec<LoggedCall>, Error> {
+        self.store
+            .lock()
+            .unwrap()
+            .call_log(before, limit)
+            .map_err(store_error)
+    }
+
+    /// Takes a call off the log; CallLogDeleted follows.
+    async fn delete_logged_call(
+        &self,
+        id: u64,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> Result<(), Error> {
+        let deleted = self
+            .store
+            .lock()
+            .unwrap()
+            .delete_logged_call(id)
+            .map_err(store_error)?;
+        if !deleted {
+            return Err(Error::InvalidArgs(format!("no logged call {id}")));
+        }
+        Self::call_log_deleted(&emitter, id).await?;
+        Ok(())
+    }
+
+    /// A call that ended went into the log under `id`.
+    #[zbus(signal)]
+    pub async fn call_logged(emitter: &SignalEmitter<'_>, id: u64) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    async fn call_log_deleted(emitter: &SignalEmitter<'_>, id: u64) -> zbus::Result<()>;
+
     /// A call left the list. `connected` is 0 for a call never answered: an
     /// incoming one was missed or turned down.
     #[zbus(signal)]
@@ -622,6 +661,7 @@ enum Out {
     MessageReceived(u64, String),
     MessageChanged(u64, String),
     CallEnded(Call),
+    CallLogged(u64),
 }
 
 /// The core's handle on the interfaces: serves them and publishes changes.
@@ -674,7 +714,7 @@ impl Bus {
             .serve_at(
                 PATH,
                 Messages {
-                    store,
+                    store: store.clone(),
                     commands: commands.clone(),
                     delivery_reports: settings.delivery_reports,
                 },
@@ -684,6 +724,7 @@ impl Bus {
                 Voice {
                     calls: Vec::new(),
                     commands,
+                    store,
                 },
             )?
             .name(NAME)?
@@ -752,6 +793,10 @@ impl Bus {
 
     pub fn call_ended(&self, c: &Call) {
         self.send(Out::CallEnded(c.clone()));
+    }
+
+    pub fn call_logged(&self, id: u64) {
+        self.send(Out::CallLogged(id));
     }
 }
 
@@ -869,6 +914,10 @@ async fn apply(conn: &Connection, out: Out) -> zbus::Result<()> {
         Out::CallEnded(c) => {
             let e = SignalEmitter::new(conn, PATH)?;
             Voice::call_ended(&e, c.0, &c.1, &c.2, c.4).await?;
+        }
+        Out::CallLogged(id) => {
+            let e = SignalEmitter::new(conn, PATH)?;
+            Voice::call_logged(&e, id).await?;
         }
     }
     Ok(())
