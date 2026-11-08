@@ -98,6 +98,16 @@ and AMIC5 have none. The profile records one at a time through ADC1 or ADC3
 into MultiMedia3, at stock's gains (ADC 12, decimators 84). Capture needs
 linux-perpetua 9ba37ef1db70 (devices-223).
 
+Calls: the ADSP carries call speech between the modem and the hardware once
+the kernel's q6apm voice session has started its two graphs, from the voice
+profile `qcom/kaanapali/Nubia-NX809J-voice.bin`. boot/build-boot.sh makes it
+with services/audio/voicegen from the stock ACDB, as `audio/voice.toml`
+says: both speakers on PRIMARY_MI2S, the speaker mic (AMIC1) on
+TX_CODEC_DMA_TX_3, as stock pairs them. The UCM verb "Voice Call" puts
+Speaker and Mic on the policy PCM 13, and callaudio switches the card to it
+while dmail has a call. "Voice Call Volume" takes the ACDB's ten levels
+(9 loudest, the default); "TX_AIF1 Capture Switch" mutes the microphone.
+
 ## Denial
 
 The image's `denial` package and `denial.service`, as on every phone;

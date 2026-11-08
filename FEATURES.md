@@ -49,7 +49,7 @@ last.
 | Mobile data | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
 | SMS | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
 | Calls | works | 2026-11-08, devices-304, user | Incoming over VoLTE: rings, wakes the screen and shows Calls over the lock screen; answered from it |
-| Call audio | not started | | |
+| Call audio | works | 2026-11-08, devices-310, user | Both ways, on the speakers and the speaker microphone |
 | VoLTE | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that. Before the image: dmail registered IMS on Iliad |
 | GNSS | ? | | |
 | NFC | ? | | No NFC device on perpetua |

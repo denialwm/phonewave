@@ -39,6 +39,10 @@ cp -a $HERE/tail/. $T/device/
 mkdir $T/device/firmware
 (cd $V/firmware/tail && find qcom/gen80200_* qcom/kaanapali/Nubia-NX809J-tplg.bin qcom/kaanapali/nubia/nx809j-vendor \
 	ath12k qca goodix -type f -print0 | cpio -0 -pdm --quiet $T/device/firmware)
+# The voice call profile, made from the stock ACDB as audio/voice.toml says;
+# the card reads it when it probes, beside the topology.
+python3 ${HERE:h:h:h}/services/audio/voicegen/voiceprofile.py $HERE/../audio/voice.toml \
+	$T/device/firmware/qcom/kaanapali/Nubia-NX809J-voice.bin
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
 cd $V/boot

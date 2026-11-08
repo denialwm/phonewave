@@ -1,0 +1,53 @@
+# The RedMagic 11 Pro's voice call profile, qcom/kaanapali/Nubia-NX809J-voice.bin:
+# what services/audio/voicegen asks of the stock ACDB, and the host-side
+# settings it adds. The kernel's q6apm voice session runs the result.
+
+# In the vault: the stock vendor_b partition's calibration (canoe_mtp_wsa884x)
+acdb = "nx809j/reference/stock-audio-b/vendor/etc/acdbdata/canoe_mtp_wsa884x/MTP_canoe_wsa884x_acdb_cal.acdb"
+firmware = "qcom/kaanapali/Nubia-NX809J-voice.bin"
+vsid = 0x11C05000  # VOICEMMODE1
+
+[rx]
+port = "PRIMARY_MI2S_RX"
+keys = [
+  [0xA1000000, 0xA1000010],  # STREAMRX: VOICE_CALL_RX
+  [0xA2000000, 0xA2000001],  # DEVICERX: SPEAKER
+  [0xAC000000, 0xAC000005],  # DEVICEPP_RX: VOICE_DEFAULT
+  [0xAF000000, 0xAF000001],  # STREAMPP_RX: DEFAULT
+  [0xB3000000, 0xB3000001],  # VSID: DEFAULT
+]
+# Speaker protection for the AW88461s (0x10013d01, 0x10013d02) is a pair of
+# dynamic modules the stock ADSP loads from the vendor partition. Linux serves
+# no such files, and the amplifiers run without DSP protection, as for media:
+# the voice path goes around them.
+drop = [0x4026, 0x4a71]
+join = [0x4023, 1, 0x418e, 2]  # output instance and port, input instance and port
+# Media format converters set to what the endpoint plays.
+converters = [0x448d, 0x41cb]
+# Primary MI2S, both AW88461 amplifiers: 48 kHz, 32 bit, two channels, the
+# width the call calibration gives 0x4acb, the last converter before them.
+# LPAIF, primary interface, data line SD1, word select from the DSP.
+endpoint = 0x43b1
+format = [48000, 32, 2]
+i2s = [0, 0, 2, 1]
+
+[tx]
+port = "TX_CODEC_DMA_TX_3"
+keys = [
+  [0xB1000000, 0xB1000007],  # STREAMTX: VOICE_CALL_TX
+  [0xA3000000, 0xA3000001],  # DEVICETX: SPEAKER_MIC, as stock pairs with the speakers
+  [0xAD000000, 0xAD00000F],  # DEVICEPP_TX: VOICE_FLUENCE_SMECNS, stock's single mic choice
+  [0xB3000000, 0xB3000001],  # VSID: DEFAULT
+]
+# The echo canceller and noise suppressor (0x070010a3) is a dynamic module
+# the stock ADSP loads from the vendor partition, as are the other variants'
+# (Endfire, RVE); GRAPH_OPEN fails with it. The microphone goes straight to
+# its main output.
+drop = [0x468a]
+join = [0x469c, 1, 0x48a3, 2]
+# TX_CODEC_DMA_TX_3, the WCD939x microphones (AMIC1 for the speaker mic):
+# LPAIF_RXTX, TX3. Rate and width as the backend link; channels as the ACDB
+# gives the endpoint.
+endpoint = 0x43ad
+format = [48000, 16]
+codec_dma = [1, 4]
