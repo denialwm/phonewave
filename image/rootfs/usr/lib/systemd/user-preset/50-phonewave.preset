@@ -1,3 +1,4 @@
 # The user services every phone runs, in each user's session. Turned on like
 # 50-phonewave.preset's system services, for every user.
 enable callaudio.service
+enable calls-manager.service

@@ -1,0 +1,15 @@
+# Phonewave's calls-manager (services/modem/calls-manager) for the phones. Build: image/pack calls-manager
+pkgname=calls-manager
+pkgdesc='Rings and posts the modem calls for the calls app the user set'
+license=(MIT)
+_src=$startdir/../../../services/modem/calls-manager
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs dbus dmail hapticd)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

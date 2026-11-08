@@ -48,7 +48,7 @@ last.
 | Headphone jack | not started | | Reixo0's patches 0068 and on |
 | Mobile data | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
 | SMS | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
-| Calls | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that. Before the image: incoming calls rang over VoLTE, no call audio |
+| Calls | works | 2026-11-08, devices-304, user | Incoming over VoLTE: rings, wakes the screen and shows Calls over the lock screen; answered from it |
 | Call audio | not started | | |
 | VoLTE | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that. Before the image: dmail registered IMS on Iliad |
 | GNSS | ? | | |

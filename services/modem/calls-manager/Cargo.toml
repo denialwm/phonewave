@@ -1,0 +1,18 @@
+[package]
+name = "calls-manager"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Rings, posts and opens the calls app for the modem's calls"
+license = "MIT"
+
+[dependencies]
+async-io = "2.6"
+futures-lite = "2.6"
+libc = "0.2"
+serde_json = "1"
+zbus = "5.18"
+
+[profile.release]
+lto = "thin"
+strip = true

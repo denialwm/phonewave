@@ -1,0 +1,12 @@
+[Unit]
+Description=Calls manager: rings and posts the modem's calls for the calls app
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/calls-manager
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
