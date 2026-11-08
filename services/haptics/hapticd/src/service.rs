@@ -83,39 +83,42 @@ impl Service {
         if !admin && self.config.allow_uids.contains(&uid) {
             return Ok((sender.to_string(), alive));
         }
-        if !admin && !self.session {
-            let pid = bus
-                .get_connection_unix_process_id(sender.clone().into())
-                .await?;
-            let manager = zbus::Proxy::new(
-                connection,
-                "org.freedesktop.login1",
-                "/org/freedesktop/login1",
-                "org.freedesktop.login1.Manager",
-            )
-            .await?;
-            if let Ok(path) = manager
-                .call::<_, _, OwnedObjectPath>("GetSessionByPID", &(pid,))
-                .await
-            {
-                let session = zbus::Proxy::new(
-                    connection,
-                    "org.freedesktop.login1",
-                    path,
-                    "org.freedesktop.login1.Session",
-                )
-                .await?;
-                let active: bool = session.get_property("Active").await?;
-                let remote: bool = session.get_property("Remote").await?;
-                if active && !remote {
-                    return Ok((sender.to_string(), alive));
-                }
-            }
+        if !admin && !self.session && active_local_user(connection, uid).await.unwrap_or(false) {
+            return Ok((sender.to_string(), alive));
         }
         Err(fdo::Error::AccessDenied(
             "requires an active local session, configured UID, or root".into(),
         ))
     }
+}
+
+/// Whether `uid` has an active session on a seat, not a remote one. That is
+/// the user uaccess gives the devices to, whichever of their processes calls:
+/// a service of their systemd user manager is in no session of its own.
+async fn active_local_user(connection: &Connection, uid: u32) -> zbus::Result<bool> {
+    const LOGIN: &str = "org.freedesktop.login1";
+    let manager = zbus::Proxy::new(
+        connection,
+        LOGIN,
+        "/org/freedesktop/login1",
+        "org.freedesktop.login1.Manager",
+    )
+    .await?;
+    let sessions: Vec<(String, u32, String, String, OwnedObjectPath)> =
+        manager.call("ListSessions", &()).await?;
+    for (_, owner, _, seat, path) in sessions {
+        if owner != uid || seat.is_empty() {
+            continue;
+        }
+        let session =
+            zbus::Proxy::new(connection, LOGIN, path, "org.freedesktop.login1.Session").await?;
+        let active: bool = session.get_property("Active").await?;
+        let remote: bool = session.get_property("Remote").await?;
+        if active && !remote {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 #[zbus::interface(name = "org.hapticd.Haptics1")]

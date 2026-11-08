@@ -86,8 +86,8 @@ async fn allowed(connection: &zbus::Connection, header: &Header<'_>) -> fdo::Res
     {
         return Ok(());
     }
-    if let Some(pid) = credentials.process_id()
-        && active_local(connection, pid).await.unwrap_or(false)
+    if let Some(uid) = credentials.unix_user_id()
+        && active_local_user(connection, uid).await.unwrap_or(false)
     {
         return Ok(());
     }
@@ -106,8 +106,10 @@ fn video_group() -> Option<u32> {
     })
 }
 
-/// The process is in logind's active session on a seat, not a remote one.
-async fn active_local(connection: &zbus::Connection, pid: u32) -> zbus::Result<bool> {
+/// Whether `uid` has an active session on a seat, not a remote one. That is
+/// the user uaccess gives the camera nodes to, whichever of their processes
+/// calls: a service of their systemd user manager is in no session of its own.
+async fn active_local_user(connection: &zbus::Connection, uid: u32) -> zbus::Result<bool> {
     const LOGIN: &str = "org.freedesktop.login1";
     let manager = zbus::Proxy::new(
         connection,
@@ -116,12 +118,21 @@ async fn active_local(connection: &zbus::Connection, pid: u32) -> zbus::Result<b
         "org.freedesktop.login1.Manager",
     )
     .await?;
-    let path: OwnedObjectPath = manager.call("GetSessionByPID", &(pid,)).await?;
-    let session =
-        zbus::Proxy::new(connection, LOGIN, path, "org.freedesktop.login1.Session").await?;
-    let active: bool = session.get_property("Active").await?;
-    let remote: bool = session.get_property("Remote").await?;
-    Ok(active && !remote)
+    let sessions: Vec<(String, u32, String, String, OwnedObjectPath)> =
+        manager.call("ListSessions", &()).await?;
+    for (_, owner, _, seat, path) in sessions {
+        if owner != uid || seat.is_empty() {
+            continue;
+        }
+        let session =
+            zbus::Proxy::new(connection, LOGIN, path, "org.freedesktop.login1.Session").await?;
+        let active: bool = session.get_property("Active").await?;
+        let remote: bool = session.get_property("Remote").await?;
+        if active && !remote {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Serves the interface on the system bus for as long as the connection is

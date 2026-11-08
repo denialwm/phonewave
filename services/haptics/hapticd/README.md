@@ -16,8 +16,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now hapticd
 ```
 
-The system service permits root, active local login sessions, and optional
-`allow_uids` from its configuration. It uses logind to identify active sessions.
+The system service permits root, the users of active local login sessions (any
+of their processes, their systemd user services too), and optional `allow_uids`
+from its configuration. It uses logind to identify active sessions.
 For systems without logind, configure the permitted UIDs explicitly.
 `--session --config PATH` runs an isolated development instance for the same UID.
 
