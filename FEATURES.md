@@ -107,7 +107,7 @@ last.
 | Cooling | ? | | |
 | Denial | works | user | |
 | Native apps | works | user | Calls (calls mocked), Camera, Messages, Settings |
-| Android apps | works | user | Droidloom |
+| Android apps | works | 2026-11-08, Droidloom 0.1.0-30.3, user | Droidloom; vibration through hapticd and the three cameras through braun |
 
 ## roadstr: Motorola Edge 70 (Eliza)
 
