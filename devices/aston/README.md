@@ -100,16 +100,16 @@ stock recorder gain (oprec-mic, ADC 14 = +21 dB), Mic2 the handset gain
 
 Calls: the ADSP carries call speech between the modem and the hardware once
 the kernel's q6apm voice session (devices51 on) has started its two graphs.
-They come from `/lib/firmware/qcom/sm8550/aston-voice.bin`, which
-services/audio/voicegen builds on the host from the stock ACDB as
-`audio/voice.toml` describes; the vault keeps it, with its provenance, under
-`firmware/usr/lib/firmware/qcom/sm8550/`. The UCM verb "Voice Call" puts
-Speaker and Mic on the policy PCM 13; its Mic device routes AMIC5 to
-decimator 0, as the stock handset path, and asks the kernel to start the
-graphs. callaudio (services/audio/callaudio, a user service every image
+They come from `qcom/sm8550/astonsnd-voice.bin`, the card's voice profile,
+which services/audio/voicegen builds on the host from the stock ACDB as
+`audio/voice.toml` describes; it goes in the boot image's firmware with the
+topology, since the kernel reads it when the card probes. The UCM verb
+"Voice Call" puts Speaker and Mic on the policy PCM 13; its Mic device
+routes AMIC5 to decimator 0, as the stock handset path, and asks the kernel
+to start the graphs. callaudio (services/audio/callaudio, a user service every image
 turns on) switches the card to that verb while dmail has a call. Speech plays
 on both amplifiers; the earpiece alone needs per-amplifier switches in
-tfa987x. "Voice Call Volume" takes the stock HAL's six levels (5 loudest,
+tfa987x. "Voice Call Volume" takes the ACDB's ten levels (9 loudest,
 the default); "TX_AIF1 Capture Switch" mutes the microphone.
 
 Screen recording, Bluetooth and Settings' clock, time zone and language

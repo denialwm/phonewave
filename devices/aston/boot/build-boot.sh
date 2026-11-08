@@ -31,10 +31,14 @@ mkdir $T/device
 cp -a $HERE/tail/. $T/device/
 # The board's GPU microcode and zap shader (the zap lives in vendor, inside
 # super, where no early mount reaches), Bluetooth patch, Wi-Fi firmware and
-# board data, and the voice call profile, laid out as the tail's firmware/.
+# board data, laid out as the tail's firmware/.
 (cd $V/firmware/tail && sha256sum -c --quiet SHA256SUMS)
 mkdir $T/device/firmware
 (cd $V/firmware/tail && find . -type f ! -name SHA256SUMS -print0 | cpio -0 -pdm --quiet $T/device/firmware)
+# The voice call profile, made from the stock ACDB as audio/voice.toml says;
+# the card reads it when it probes, beside the topology.
+python3 ${HERE:h:h:h}/services/audio/voicegen/voiceprofile.py $HERE/../audio/voice.toml \
+	$T/device/firmware/qcom/sm8550/astonsnd-voice.bin
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
 cd $V/boot
