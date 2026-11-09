@@ -272,6 +272,14 @@ inside() {
   if [ -n "$dev_access" ]; then
     install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
     cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
+    # The owner's wallpaper, kept out of every package (vault image/wallpaper/
+    # README.md), and the lock screen's depth mask made for it, which Denial
+    # makes only when the wallpaper picker closes.
+    wallpaper=$vault/image/wallpaper
+    (cd "$wallpaper" && sha256sum -c --quiet SHA256SUMS)
+    install -Dm644 -t "$root/usr/local/share/backgrounds" "$wallpaper/wallhaven-e8v3mo.jpg"
+    install -Dm644 "$wallpaper/wallpaper.json" "$root/etc/skel/.local/state/denial/wallpaper"
+    install -Dm644 -t "$root/etc/skel/.cache/denial/wallpaper-depth" "$wallpaper"/wallpaper-depth/*
   fi
   if [ -n "$dev_access" ] && [ -z "$setup" ]; then
     chroot "$root" useradd -m -u 1000 -U \

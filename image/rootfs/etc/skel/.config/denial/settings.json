@@ -11,7 +11,8 @@
       "opacity": 0.2,
       "windowOpacity": 0.5
     },
-    "monitorCornerRadiusScale": 0.4
+    "monitorCornerRadiusScale": 0.4,
+    "transparencyMode": "glass"
   },
   "applicationEnvironment": {
     "applications": {},
@@ -45,6 +46,9 @@
     "workspaceCount": 4,
     "workspaceSwitchingOrientation": "horizontal",
     "workspacesEnabled": true
+  },
+  "lockScreen": {
+    "blurRadius": 0.0
   },
   "mouse": {
     "accelerationEnabled": true,

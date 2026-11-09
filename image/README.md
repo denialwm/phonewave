@@ -248,7 +248,8 @@ roadstr` writes only `userdata`, over SSH from the initramfs rescue.
   Arch's `qemu-user-static`, checked against Arch's keyring; Arch Linux ARM's
   keyring is trusted only through its pinned build key.
 - About two minutes once packages are cached. `--dev-access` puts root's SSH
-  key and the user `logix` in; such an image never leaves this workstation.
+  key, the user `logix` and the owner's wallpaper (from the vault's
+  `image/wallpaper/`) in; such an image never leaves this workstation.
 
 ## Until Denial catches up
 
@@ -259,5 +260,6 @@ roadstr` writes only `userdata`, over SSH from the initramfs rescue.
   `DENIAL_RENDER_AHEAD=1`, the mobile shell's defaults in Denial's `dev`. They
   go once the denial package the image installs has them.
 - `rootfs/etc/skel/.config/denial/settings.json` is the document a mobile
-  deniald creates on first start, the mobile look included. It goes once the
+  deniald creates on first start, the mobile look included, with the owner's
+  lock screen: wallpaper unblurred. It goes once the
   denial package the image installs seeds that look itself.
