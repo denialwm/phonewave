@@ -11,9 +11,10 @@
 #
 # The ramdisk is image/initramfs/, which reads what phone it runs on from the
 # device tree; busybox and dropbearmulti from the vault's
-# image/initramfs-bin/; and the rescue's fastboot, image/fastboot/fastboot.c,
+# image/initramfs-bin/; the rescue's fastboot, image/fastboot/fastboot.c,
 # built static with the kernel's Terminus 16x32 font from linux-perpetua's
-# lib/fonts.
+# lib/fonts; and key-held.c beside it, which tells the early userspace that
+# a volume key asks for the rescue.
 #
 # The ABL decompresses legacy-lz4 ramdisks and passes the vendor_boot ramdisk
 # followed by this one, so this /init is the one that runs. The header is a
@@ -56,6 +57,8 @@ sed -n '/fontdata_ter16x32 = {/,/^} };/p' "$font" | grep -o '0x[0-9a-f]\{2\}' | 
 [ "$(tr , '\n' < "$work/font.inc" | wc -l)" = 16384 ] || { echo "$font is not 256 glyphs of 16x32" >&2; exit 1; }
 aarch64-linux-gnu-gcc -static -O2 -pthread -Wall -Wextra -Werror -I"$work" \
   -o "$root/bin/fastboot" "$here/fastboot/fastboot.c"
+aarch64-linux-gnu-gcc -static -O2 -Wall -Wextra -Werror \
+  -o "$root/bin/key-held" "$here/fastboot/key-held.c"
 (cd "$root" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet) > "$work/ramdisk.cpio"
 lz4 -q -l -12 --favor-decSpeed "$work/ramdisk.cpio" "$work/ramdisk.cpio.lz4"
 

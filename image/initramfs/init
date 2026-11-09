@@ -13,8 +13,9 @@
 # /usr/lib/phonewave-system/root. The gadget stays bound; the installed
 # system gives usb0 its address (10.77.71.2) and SSH.
 #
-# If neither holds one, or the root contains /etc/phone-rescue, or this is a
-# rescue init_boot (/etc/stay-in-rescue), this stays as PID 1 in rescue:
+# If neither holds one, or the root contains /etc/phone-rescue, or a volume
+# key is held down, or this is a rescue init_boot (/etc/stay-in-rescue), this
+# stays as PID 1 in rescue:
 # fastboot, which writes denial or userdata, SSH at 10.77.71.2 and a shell
 # on ttyGS0, and on the bootloader's framebuffer why and how to install.
 #
@@ -117,6 +118,7 @@ done
 [ -n "$root" ] || rescue "No system installed"
 [ ! -e /etc/stay-in-rescue ] || rescue "This init_boot stops in rescue"
 [ -e /newroot$rescue_flag ] && rescue "Rescue requested by the system"
+key-held && rescue "Volume key held"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 
 # The boot partition with this kernel's modules: its filesystem starts at the

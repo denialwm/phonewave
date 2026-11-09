@@ -1,0 +1,12 @@
+#!/bin/sh
+# Installs the packages the rescue's fastboot stored in the root
+# (`fastboot flash package FILE`), as the phone starts, before Denial and
+# before Droidloom is set up: Google apps flashed after the image are there
+# when Android first boots. Each package gets one try; a failure is in the
+# journal.
+set -u
+for package in /var/lib/phonewave-system/flashed/*.pkg.tar.zst; do
+  [ -e "$package" ] || continue
+  pacman -U --noconfirm "$package" || echo "could not install $package" >&2
+  rm -f "$package"
+done

@@ -1,0 +1,12 @@
+[Unit]
+Description=Install the packages flashed from the rescue
+ConditionDirectoryNotEmpty=/var/lib/phonewave-system/flashed
+After=pacman-keyring.service
+Before=phonewave-droidloom.service denial.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/phonewave-system/install-flashed
+
+[Install]
+WantedBy=multi-user.target

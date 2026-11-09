@@ -32,14 +32,28 @@ left lit, says why the phone stopped and what to run:
     fastboot flash userdata userdata.img
     fastboot flash denial denial.img
 
+A pacman package goes in the same way, after the root:
+
+    fastboot flash package droidloom-gapps-VERSION-aarch64.pkg.tar.zst
+
+The fastboot stores it in the installed root
+(`/var/lib/phonewave-system/flashed/`), and the phone installs it as it next
+starts, before Denial (`phonewave-system/install-flashed`). Droidloom's first
+setup turns on Google apps it finds installed, so the add-on flashed with
+the image needs nothing else; `flash.sh PACKAGE...` does both. On a phone
+whose Android has already booted the add-on installs but stays off: Google
+apps cannot join existing Android data.
+
 This fastboot writes only those two partitions and the `boot` and
 `init_boot` of the slot the bootloader started (`androidboot.slot_suffix`,
 never the other slot's), raw or sparse, and reboots;
 `getvar denial-install` answers `yes` only here, which is how the flash
 script knows the bootloader handed over. Every rescue serves it, whatever
 stopped the boot, beside SSH at `10.77.71.2`. Over an earlier install the
-phone boots that root instead: `install-userdata` asks it for the rescue,
-which a root holding `/etc/phone-rescue` gets.
+phone boots that root instead. A volume key held down while the phone
+starts, from the bootloader's logo until the install screen, stops it in
+the rescue; `install-userdata` asks the installed system for it, which a
+root holding `/etc/phone-rescue` gets.
 
 The init_boot is the same on every phone. The early userspace takes the
 phone's codename from the device tree's first compatible, its name from the
@@ -250,8 +264,8 @@ it (about 7 minutes): `image/pack` brings every recipe to its commit, then
     image/install-userdata HOST
 
 `--local-builds` installs the newest `tools/build` Denial and Droidloom
-(with droidloom-gapps when that build packed it) in place of the published
-releases. `install-userdata` sends the phone to its rescue, writes the root,
+(with droidloom-gapps when that build packed it, in a `--dev-access` image
+only) in place of the published releases. `install-userdata` sends the phone to its rescue, writes the root,
 puts the old root's SSH host keys and its canonical secure storage
 drop-ins (`/etc/systemd/system/*.d/80-canonical.conf`, see
 `services/fingerprint`) in the new one and reboots; the phone starts in

@@ -5,8 +5,10 @@
  * function beside the rescue's SSH, flashes only the root partitions,
  * denial and userdata, and the boot and init_boot of the slot it booted
  * from, from raw or sparse images, and draws on the bootloader's
- * framebuffer how to use it. The font is the kernel's
- * Terminus 16x32, which image/init-boot takes from linux-perpetua.
+ * framebuffer how to use it. "package" is no partition: it stores a pacman
+ * package in the installed root, which installs it as it next starts. The
+ * font is the kernel's Terminus 16x32, which image/init-boot takes from
+ * linux-perpetua.
  *
  * Usage: fastboot FFS_DIR PRODUCT SERIAL REASON
  * Returns once the descriptors are written, so the caller can bind the
@@ -28,6 +30,7 @@
 #include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -37,7 +40,8 @@ static const unsigned char font[256 * 64] = {
 #include "font.inc"
 };
 
-#define MAX_DOWNLOAD (256u << 20)
+/* A package arrives whole: the client splits only what is larger. */
+#define MAX_DOWNLOAD (1u << 30)
 #define CHUNK (1u << 20)
 
 static const char *const partitions[] = { "denial", "userdata" };
@@ -348,7 +352,7 @@ static int value(const char *name, char *s, size_t len)
 	uint64_t size;
 
 	if (!strcmp(name, "version"))
-		snprintf(s, len, "0.4");
+		snprintf(s, len, "0.5");
 	else if (!strcmp(name, "product"))
 		snprintf(s, len, "%s", product);
 	else if (!strcmp(name, "serialno"))
@@ -404,14 +408,79 @@ static void getvar(const char *name)
 	reply("OKAY");
 }
 
+/* Mounts the installed root, the one the early userspace would boot, at
+ * /mnt/root for writing. */
+static int mount_root(void)
+{
+	char dev[300];
+	uint64_t size;
+
+	mkdir("/mnt", 0755);
+	mkdir("/mnt/root", 0755);
+	for (unsigned i = 0; i < sizeof partitions / sizeof *partitions; i++) {
+		if (partition(partitions[i], dev, sizeof dev, &size) || unmount(dev) ||
+		    mount(dev, "/mnt/root", "ext4", MS_RDONLY, NULL))
+			continue;
+		if (!access("/mnt/root/usr/lib/phonewave-system/root", F_OK) &&
+		    !mount(NULL, "/mnt/root", NULL, MS_REMOUNT, NULL))
+			return 0;
+		umount("/mnt/root");
+	}
+	return -1;
+}
+
+/* A pacman package for the installed system: kept in the root, where
+ * phonewave-system's install-flashed installs it as the phone starts. */
+static void store_package(const uint8_t *buf, uint32_t len)
+{
+	static const uint8_t zstd[] = { 0x28, 0xb5, 0x2f, 0xfd };
+	static const char *const dirs[] = { "/mnt/root/var/lib/phonewave-system",
+		"/mnt/root/var/lib/phonewave-system/flashed" };
+	char path[128];
+	int fd = -1;
+
+	if (len < sizeof zstd || memcmp(buf, zstd, sizeof zstd)) {
+		reply("FAILnot a .pkg.tar.zst package");
+		return;
+	}
+	if (mount_root()) {
+		reply("FAILno system installed: flash the image first");
+		return;
+	}
+	status("Storing the package");
+	for (unsigned i = 0; i < sizeof dirs / sizeof *dirs; i++)
+		mkdir(dirs[i], 0755);
+	for (unsigned n = 0; fd < 0 && n < 100; n++) {
+		snprintf(path, sizeof path, "%s/%02u.pkg.tar.zst", dirs[1], n);
+		fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+	}
+	int failed = fd < 0 || write_all(fd, buf, len, 0) || fsync(fd);
+	if (fd >= 0)
+		close(fd);
+	if (failed && fd >= 0)
+		unlink(path);
+	failed |= umount("/mnt/root");
+	if (failed) {
+		status("package: write failed");
+		reply("FAILwrite failed");
+	} else {
+		status("Stored the package");
+		reply("OKAY");
+	}
+}
+
 static void flash(const char *name, const uint8_t *buf, uint32_t len)
 {
 	char dev[300], part[64];
 	uint64_t size;
 	const char *error = NULL;
 
+	if (!strcmp(name, "package")) {
+		store_package(buf, len);
+		return;
+	}
 	if (resolve(name, part, sizeof part) || partition(part, dev, sizeof dev, &size)) {
-		reply("FAILonly denial, userdata and this slot's boot, init_boot");
+		reply("FAILonly denial, userdata, package, boot and init_boot");
 		return;
 	}
 	name = part;

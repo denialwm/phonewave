@@ -5,11 +5,12 @@
 #   --droidloom   include Droidloom
 #   --local-builds  Denial and Droidloom from this workstation's newest
 #                 tools/build outputs (builds/*/PROJECT/latest), in place of
-#                 the published releases, with droidloom-gapps when the
-#                 Droidloom build packed it. For trying the streams' heads.
+#                 the published releases. For trying the streams' heads.
 #   --dev-access  root's SSH keys from every phone's vault, the vault's shared
-#                 image/private-rootfs, the owner's wallpaper and the user
-#                 logix. Only for images that never leave this workstation.
+#                 image/private-rootfs, the owner's wallpaper, the user logix
+#                 and, with --local-builds, droidloom-gapps when the Droidloom
+#                 build packed it. Only for images that never leave this
+#                 workstation.
 #   --setup       with --dev-access, no logix: the phone's setup makes the
 #                 account, as on every image without --dev-access.
 #
@@ -109,6 +110,8 @@ host() {
       [ -n "$newest" ] || { echo "no $project build in $builds" >&2; exit 1; }
       echo "local $project: $newest"
       ln "$newest"/*.pkg.tar.zst "$out/repo/"
+      # The local Google apps add-on is not ours to hand out.
+      [ -n "$dev_access" ] || rm -f "$out/repo"/droidloom-gapps-*
     done
   fi
   repo-add -q "$out/repo/phonewave.db.tar.zst" "$out/repo/"*.pkg.tar.zst
@@ -160,7 +163,12 @@ EOF
 # userspace boots it from: denial where the phone has one, so Android keeps
 # userdata, else userdata. The phone's boot image is its own
 # (devices/<codename>/ in Phonewave).
+# Usage: flash.sh [PACKAGE...]
+# Each PACKAGE is a pacman package the phone installs as it first starts,
+# such as droidloom-gapps, which has to be there before Android first boots.
 set -eu
+packages=
+for package; do packages="$packages $(realpath "$package")"; done
 cd "$(dirname "$0")"
 echo "waiting for Denial OS's install screen"
 until fastboot getvar denial-install 2>&1 | grep -q '^denial-install: yes'; do sleep 2; done
@@ -168,6 +176,7 @@ part=userdata
 fastboot getvar partition-size:denial 2>&1 | grep -q '^partition-size:denial: 0x' && part=denial
 echo "writing the root to $part"
 fastboot flash "$part" userdata.img
+for package in $packages; do fastboot flash package "$package"; done
 fastboot reboot
 EOF
   chmod +x "$out/flash.sh"
@@ -209,6 +218,9 @@ inside() {
     mount --bind "/dev/$node" "$root/dev/$node"
   done
   ln -s /proc/self/fd "$root/dev/fd"
+  ln -s /proc/self/fd/0 "$root/dev/stdin"
+  ln -s /proc/self/fd/1 "$root/dev/stdout"
+  ln -s /proc/self/fd/2 "$root/dev/stderr"
   mount -t proc proc "$root/proc"
   mount -t tmpfs -o mode=0755 tmpfs "$root/run"
   mount -t tmpfs tmpfs "$root/tmp"
