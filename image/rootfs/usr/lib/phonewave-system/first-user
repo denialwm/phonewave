@@ -2,32 +2,58 @@
 # Makes the phone's first person account, from Denial's setup, which runs as
 # denial-setup and starts this through pkexec:
 #
-#   first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password
+#   first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password, PIN
+#   first-user --fingerprint
+#   first-user --start
 #
 # LANGUAGE is en or zh; PHONE_NAME and TIME_ZONE may be empty, which keeps
-# the phone's. The password is the first line of standard input, never an
-# argument others could read. Status 3: the phone already has an account;
-# 2: what setup gave was refused; 1: the account was not made.
+# the phone's. The password is the first line of standard input and the lock
+# PIN, six digits or empty for none, the second: never arguments others could
+# read. Status 3: the phone already has an account; 2: what setup gave was
+# refused; 1: the account was not made; 4: made, but a phone setting (name,
+# time zone, language) failed; 5: made, but the PIN was not set.
 #
 # The account, password included, is made in one step: if any part fails,
 # nothing of it stays and setup can try again. It refuses once a person's
-# account exists. Then denial.service runs as the new account, and Denial
-# starts again as that person.
+# account exists. --fingerprint then runs deniald's fingerprint session for
+# that account, its PIN the key as in Settings. --start runs denial.service
+# as the account, and Denial starts again as that person.
 set -euo pipefail
 
 fail() { echo "$1" >&2; exit "${2:-1}"; }
 
 [ "$(id -u)" = 0 ] || fail "first-user runs as root"
-[ $# = 5 ] || fail "usage: first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password" 2
-user=$1 full_name=$2 phone_name=$3 language=$4 zone=$5
 
 # A person's account: what useradd hands out without --system.
 uid_min=$(awk '$1 == "UID_MIN" { print $2 }' /etc/login.defs)
 uid_max=$(awk '$1 == "UID_MAX" { print $2 }' /etc/login.defs)
-if getent passwd | awk -F: -v min="${uid_min:-1000}" -v max="${uid_max:-60000}" \
-    '$3 >= min && $3 <= max { found = 1 } END { exit !found }'; then
-  fail "the phone already has an account" 3
-fi
+people() {
+  getent passwd | awk -F: -v min="${uid_min:-1000}" -v max="${uid_max:-60000}" \
+    '$3 >= min && $3 <= max { print $3 }'
+}
+
+case ${1-} in
+  --fingerprint)
+    uid=$(people)
+    [[ $uid =~ ^[0-9]+$ ]] || fail "the phone has no single account" 2
+    # deniald takes the account from sudo's variable; root gives it here.
+    SUDO_UID=$uid exec /usr/bin/deniald --fingerprint-settings
+    ;;
+  --start)
+    [ -n "$(people)" ] || fail "the phone has no account yet" 2
+    # This runs inside the setup's own session, which the restart ends: hand
+    # both steps to systemd, after setup has had its answer. Droidloom, where
+    # installed, is set up for the new account once its session runs.
+    systemd-run --quiet --no-block --on-active=2 --unit=phonewave-first-user \
+      /bin/sh -c 'systemctl restart denial.service; systemctl start phonewave-droidloom.service'
+    exit 0
+    ;;
+esac
+
+[ $# = 5 ] || fail "usage: first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password, PIN" 2
+user=$1 full_name=$2 phone_name=$3 language=$4 zone=$5
+
+[ -z "$(people)" ] || fail "the phone already has an account" 3
 
 [[ $user =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || fail "$user is not a username" 2
 ! getent passwd "$user" >/dev/null && ! getent group "$user" >/dev/null ||
@@ -44,6 +70,8 @@ esac
 
 IFS= read -r password || true
 [ -n "$password" ] || fail "the password is empty" 2
+IFS= read -r pin || true
+[[ -z $pin || $pin =~ ^[0-9]{6}$ ]] || fail "the PIN is not six digits" 2
 
 # The groups every phone's user is in, where the phone has them.
 groups=
@@ -57,19 +85,30 @@ if ! printf '%s:%s\n' "$user" "$password" | chpasswd; then
   fail "the password was not taken"
 fi
 uid=$(id -u "$user")
+home=$(getent passwd "$user" | cut -d: -f6)
 
-# The rest is the phone's, not the account's: a failure ends with status 4,
-# and the account stays.
+# The rest is the phone's, not the account's: a failure ends with status 4
+# or 5, and the account stays.
 status=0
+if [ -n "$pin" ]; then
+  # Set as the account sets it in Settings, proven by its password.
+  reply=$(printf 'set\n%s\n%s\n' "$password" "$pin" |
+    runuser -u "$user" -- env -i HOME="$home" PATH=/usr/bin LC_ALL=C \
+      /usr/bin/deniald --lock-pin) || true
+  if [[ $reply != *'"event":"saved"'* ]]; then
+    echo "the PIN was not set: $reply" >&2
+    status=5
+  fi
+fi
 if [ -n "$phone_name" ]; then
-  hostnamectl hostname "$phone_name" || status=1
+  hostnamectl hostname "$phone_name" || status=${status/0/4}
 fi
 if [ -n "$zone" ]; then
-  timedatectl set-timezone "$zone" || status=1
+  timedatectl set-timezone "$zone" || status=${status/0/4}
 fi
 if [ "$lang" != C.UTF-8 ] && ! locale -a | grep -qix "${lang/UTF-8/utf8}"; then
   sed -i "s/^#\s*\($lang UTF-8\)/\1/" /etc/locale.gen
-  locale-gen >/dev/null || status=1
+  locale-gen >/dev/null || status=${status/0/4}
 fi
 printf 'LANG=%s\n' "$lang" > /etc/locale.conf.new
 mv /etc/locale.conf.new /etc/locale.conf
@@ -83,9 +122,5 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus
 EOF
 systemctl daemon-reload
 
-# This runs inside the setup's own session, which the restart ends: hand
-# both steps to systemd, after setup has had its answer. Droidloom, where
-# installed, is set up for the new account once its session runs.
-systemd-run --quiet --no-block --on-active=2 --unit=phonewave-first-user \
-  /bin/sh -c 'systemctl restart denial.service; systemctl start phonewave-droidloom.service'
-exit $((status ? 4 : 0))
+# Denial starts as the account at --start, once the person is done with setup.
+exit "$status"

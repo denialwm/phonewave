@@ -181,13 +181,20 @@ its setup instead of the lock screen. No "configured" flag.
   drop-in runs Denial as the system account `denial-setup`
   (`sysusers.d/phonewave-setup.conf`, its home `/var/lib/denial-setup`) and
   names the helper in `DENIAL_FIRST_USER_HELPER`, which turns setup on.
-- Setup asks the language, Wi-Fi, time zone, name and username, password and
-  the phone's name. Wi-Fi joined there is saved for the whole phone.
+- Setup asks the language, Wi-Fi, time zone, name and username, password,
+  a lock PIN (skippable) and the phone's name. Wi-Fi joined there is saved
+  for the whole phone.
 - `phonewave-system/first-user`, through pkexec, makes the account in one
   step, password included, and refuses once a person's account exists. It
-  sets the phone's name, time zone and language, names the account in
-  `denial.service.d/user.conf`, and restarts Denial as the new account, on
-  its home screen. Droidloom, where installed, is set up for it.
+  sets the PIN as Settings does, the phone's name, time zone and language,
+  and names the account in `denial.service.d/user.conf`.
+- With a PIN and a fingerprint reader, setup then offers a fingerprint
+  (skippable): `first-user --fingerprint` runs deniald's fingerprint session
+  for the new account, opened by its PIN.
+- `first-user --start` restarts Denial as the new account, on its home
+  screen. Droidloom, where installed, is set up for it. An account left
+  without `--start` (setup stopped halfway) starts the same way when setup
+  runs again.
 - The account joins `wheel`, `audio`, `input`, `render`, `video`, `dmail`
   and `gatekeeper`, as `--dev-access` does for `logix`.
 - `47-phone-setup.rules` lets `denial-setup`, at the phone, run the helper
