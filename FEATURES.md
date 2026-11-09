@@ -28,44 +28,44 @@ last.
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
 | Boot | works | 2026-11-06, devices-231, probe | The shared image on `denial` (sda13), Android keeps `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
-| Display | works | 2026-10-27, devices-125, user | RM692H5, 60 to 144 Hz (devices-128). Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
-| Brightness | works | 2026-10-28, devices-141, user | |
+| Display | works | 2026-11-09, devices-310, user | RM692H5, 60 to 144 Hz (devices-128); Denial runs it at 144 Hz. Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
+| Brightness | works | 2026-11-09, devices-310, user | |
 | Wake from screen off | works | 2026-11-02, devices-222, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms. Beside a monitor the phone sleeps to its always-on picture without locking |
 | GPU | works | 2026-10-27, devices-126, user | Adreno 840: freedreno GLES 3.2, turnip |
-| Touch | works | 2026-10-31, devices-168, user | Synaptics S3910, reporting at 240 Hz; its firmware starts at 120 Hz |
-| Keys | works | 2026-10-28, devices-141, user | |
+| Touch | works | 2026-11-09, devices-310, user | Synaptics S3910, reporting at 240 Hz; its firmware starts at 120 Hz |
+| Keys | works | 2026-11-09, devices-310, user | |
 | Haptics | works | devices-130, user | AW86938, hapticd |
 | Storage | works | | UFS |
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
-| Video out (USB-C) | works | 2026-11-02, devices-222, user | DisplayPort; the phone's screen goes off and on while the monitor stays lit |
+| Video out (USB-C) | works | 2026-11-09, devices-310, user | DisplayPort; the phone's screen goes off and on while the monitor stays lit |
 | Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
 | Battery | works | devices-130, probe | battmgr |
-| Wi-Fi | works | devices-128, user | WCN7860, ath12k |
-| Bluetooth | works | devices-130, probe | RX and TX checked with btmon. On the image (2026-11-06, devices-233) radio-addr gives the controller its address; RX and TX not tried again |
-| Speakers | untested | 2026-11-06, devices-233, probe | On the image: the ADSP starts from modem_b, the card registers, PipeWire shows the speakers through the shared UCM profile; nobody has listened yet |
+| Wi-Fi | works | 2026-11-09, devices-310, user | WCN7860, ath12k |
+| Bluetooth | works | 2026-11-09, devices-310, user | On the image radio-addr gives the controller its address |
+| Speakers | works | 2026-11-09, devices-310, user | Through the shared UCM profile; the amplifiers run 6 dB under stock, which has speaker protection in the audio DSP. Droidloom plays at full scale (fixed volume) |
 | Microphones | untested | 2026-11-06, devices-233, probe | On the image PipeWire shows the main microphone (AMIC1); not recorded yet |
-| Headphone jack | not started | | Reixo0's patches 0068 and on |
-| Mobile data | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
+| Headphone jack | not started | 2026-11-09, devices-310, probe | The codec reports the jack (Headphone Jack, Mic Jack, an input device); no playback or capture route in the UCM profile. Reixo0's patches 0068 and on |
+| Mobile data | works | 2026-11-09, devices-310, probe | 5G on Iliad, APN iliad; pings over the data bearer alone |
 | SMS | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
 | Calls | works | 2026-11-08, devices-304, user | Incoming over VoLTE: rings, wakes the screen and shows Calls over the lock screen; answered from it |
 | Call audio | works | 2026-11-08, devices-310, user | Both ways, on the speakers and the speaker microphone |
-| VoLTE | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that. Before the image: dmail registered IMS on Iliad |
-| GNSS | ? | | |
+| VoLTE | works | 2026-11-09, devices-310, user | dmail registers IMS on Iliad; calls ring and connect over it |
+| GNSS | not started | 2026-11-09, devices-310, probe | No GNSS device |
 | NFC | ? | | No NFC device on perpetua |
 | Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |
 | Video decode | not started | | No Iris for Kaanapali |
-| Rotation | works | 2026-11-06, devices-233, probe | On the image: hexagonrpcd serves the stock sensor files; steinerctl lists the sensors |
-| Light and proximity | works | 2026-11-06, devices-233, probe | On the image: hexagonrpcd serves the stock sensor files; steinerctl lists the sensors |
-| Compass and gyroscope | works | 2026-11-06, devices-233, probe | On the image: hexagonrpcd serves the stock sensor files; steinerctl lists the sensors |
-| Fingerprint | works | 2026-11-06, devices-233, user | Goodix GUM5228 through fprintd and fingerprint-phonewave like the other phones, on the shared image: the lock PIN in the TEE's Gatekeeper and canonical secure storage, both from the package and turned on by the tail; Settings sets the PIN and adds a finger. Before: Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
+| Rotation | works | 2026-11-09, devices-310, probe | steinerd reports the accelerometer and gyroscope live |
+| Light and proximity | works | 2026-11-09, devices-310, probe | steinerd reports both live |
+| Compass and gyroscope | works | 2026-11-09, devices-310, probe | steinerd reports both live |
+| Fingerprint | works | 2026-11-09, devices-310, user | Goodix GUM5228 through fprintd and fingerprint-phonewave like the other phones, on the shared image: the lock PIN in the TEE's Gatekeeper and canonical secure storage, both from the package and turned on by the tail; Settings sets the PIN and adds a finger. Before: Goodix GUM5228, about 220 ms from touch to result, through fprintd and fingerprint-phonewave like the other phones; `/usr/lib/modules/<release>/fingerprint/sensor.conf` names the sensor. After an early lift, tries fail for about 5 s. The armed sensor's base-update requests get a base, as on stock |
 | Suspend | partial | 2026-10-29, devices-159 | s2idle, woken by the RTC; CX and DDR sleep, XO does not. Wi-Fi reassociates about 8 s after resume. The fingerprint driver refuses suspend while a verify holds the sensor (the test stopped it by hand); nothing suspends the phone on its own yet |
-| Cooling | works | 2026-11-01, devices-169, probe | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
+| Cooling | works | 2026-11-09, devices-310, user | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump (AWP1921) on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | works | 2026-11-06, devices-231, probe | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps |
-| Shoulder triggers | ? | | |
-| RGB light | ? | | |
+| Android apps | works | 2026-11-09, devices-310, user | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps |
+| Shoulder triggers | not started | 2026-11-09, devices-310, probe | No input device for them |
+| RGB light | not started | 2026-11-09, devices-310, probe | No LED device |
 
 ## aston: OnePlus Ace 3 (SM8550)
 
