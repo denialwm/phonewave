@@ -20,8 +20,10 @@ pub enum Request {
     Zoom(f32),
     /// Take photo `shot`. The JPEG goes to the first descriptor; with three,
     /// the raw frame the preview showed goes to the second and its notes to
-    /// the third.
-    Shoot(u32),
+    /// the third. With a size, the photo is the middle of the frame at its
+    /// aspect ratio, scaled to it; it follows the shot, so a braun that
+    /// knows no size takes the full photo.
+    Shoot(u32, Option<(u32, u32)>),
     /// The client has read the frame in this slot.
     Release(u32),
 }
@@ -98,9 +100,13 @@ impl Request {
                 out.push(4);
                 out.extend_from_slice(&zoom.to_le_bytes());
             }
-            Request::Shoot(shot) => {
+            Request::Shoot(shot, size) => {
                 out.push(5);
                 out.extend_from_slice(&shot.to_le_bytes());
+                if let Some((width, height)) = size {
+                    out.extend_from_slice(&width.to_le_bytes());
+                    out.extend_from_slice(&height.to_le_bytes());
+                }
             }
             Request::Release(slot) => {
                 out.push(6);
@@ -118,7 +124,14 @@ impl Request {
             2 => Request::Close,
             3 => Request::Focus(reader.f32()?, reader.f32()?),
             4 => Request::Zoom(reader.f32()?),
-            5 => Request::Shoot(reader.u32()?),
+            5 => {
+                let shot = reader.u32()?;
+                let size = reader.u32().zip(reader.u32());
+                Request::Shoot(
+                    shot,
+                    size.filter(|&(width, height)| width > 0 && height > 0),
+                )
+            }
             6 => Request::Release(reader.u32()?),
             _ => return None,
         })
@@ -438,7 +451,8 @@ mod tests {
             Request::Close,
             Request::Focus(0.25, 0.75),
             Request::Zoom(2.0),
-            Request::Shoot(7),
+            Request::Shoot(7, None),
+            Request::Shoot(8, Some((1440, 1080))),
             Request::Release(2),
         ] {
             assert_eq!(Request::decode(&request.encode()), Some(request));
@@ -471,9 +485,9 @@ mod tests {
         let mut shared = Shared::create(4096).unwrap();
         assert!(shared.write(10, b"frame"));
         assert!(!shared.write(4094, b"frame"));
-        send(a.as_fd(), &Request::Shoot(1).encode(), &[shared.fd()]).unwrap();
+        send(a.as_fd(), &Request::Shoot(1, None).encode(), &[shared.fd()]).unwrap();
         let (bytes, fds) = recv(b.as_fd(), true).unwrap().unwrap();
-        assert_eq!(Request::decode(&bytes), Some(Request::Shoot(1)));
+        assert_eq!(Request::decode(&bytes), Some(Request::Shoot(1, None)));
         let view = Shared::open(fds.into_iter().next().unwrap(), 4096).unwrap();
         assert_eq!(view.read(10, 5), Some(&b"frame"[..]));
         assert!(recv(b.as_fd(), false).unwrap().is_none());

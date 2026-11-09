@@ -175,6 +175,7 @@ message. `braun::client` speaks it; `braun::proto` has the encoding.
 | `Focus(x, y)` | Focus on this point of the preview, 0 to 1 across and down |
 | `Zoom(zoom)` | Crop the middle `1 / zoom` of the frame |
 | `Shoot(shot)` with a file, or a file, a raw file and a notes file | Take photo `shot` into the file |
+| `Shoot(shot)` with `width` and `height` after the shot, and a file | Take photo `shot` into the file at that size: the middle of the frame at its aspect ratio, scaled |
 | `Release(slot)` | The preview in `slot` is read |
 
 | Reply | Meaning |

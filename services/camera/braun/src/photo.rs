@@ -238,7 +238,8 @@ fn demosaic(mosaic: &Plane, cell: [(usize, usize); 4]) -> Rgb {
 /// Develops the burst into a JPEG written to `out`. `rendering` is the white
 /// balance and matrix of the preview when the shutter was pressed, `base`
 /// its exposure on the sensor (microseconds x analogue gain) and `digital`
-/// its digital gain.
+/// its digital gain. With a `size`, the photo is the middle of the frame
+/// at its aspect ratio, scaled to it.
 #[allow(clippy::too_many_arguments)]
 pub fn develop(
     groups: &[Group],
@@ -247,6 +248,7 @@ pub fn develop(
     base: f32,
     digital: f32,
     zoom: f32,
+    size: Option<(u32, u32)>,
     rendering: &Rendering,
     out: File,
 ) -> std::io::Result<()> {
@@ -378,6 +380,10 @@ pub fn develop(
     }
     drop(rgb);
     let (pixels, out_width, out_height) = crop(pixels, out_width, out_height, zoom);
+    let (pixels, out_width, out_height) = match size {
+        Some(size) => fit(pixels, out_width, out_height, size),
+        None => (pixels, out_width, out_height),
+    };
     let mut file = std::io::BufWriter::new(out);
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, QUALITY)
         .encode(
@@ -401,13 +407,64 @@ pub fn develop(
 /// The middle `1 / zoom` of an RGB image, as the preview showed it.
 fn crop(image: Vec<u8>, width: usize, height: usize, zoom: f32) -> (Vec<u8>, usize, usize) {
     let (seen_x, seen_y) = isp::cropped(width, height, zoom);
+    (middle(image, width, height, seen_x, seen_y), seen_x, seen_y)
+}
+
+/// The middle `seen_x` x `seen_y` of an RGB `image`.
+fn middle(image: Vec<u8>, width: usize, height: usize, seen_x: usize, seen_y: usize) -> Vec<u8> {
     if (seen_x, seen_y) == (width, height) {
-        return (image, width, height);
+        return image;
     }
     let (first_x, first_y) = ((width - seen_x) / 2, (height - seen_y) / 2);
     let mut out = Vec::with_capacity(seen_x * seen_y * 3);
     for y in first_y..first_y + seen_y {
         out.extend_from_slice(&image[(y * width + first_x) * 3..][..seen_x * 3]);
     }
-    (out, seen_x, seen_y)
+    out
+}
+
+/// The middle of an RGB `image` at the aspect ratio of `size`, scaled to it.
+fn fit(image: Vec<u8>, width: usize, height: usize, size: (u32, u32)) -> (Vec<u8>, usize, usize) {
+    let (out_width, out_height) = (size.0 as usize, size.1 as usize);
+    let (seen_x, seen_y) = if width * out_height > height * out_width {
+        (height * out_width / out_height, height)
+    } else {
+        (width, width * out_height / out_width)
+    };
+    let image = middle(image, width, height, seen_x, seen_y);
+    if (seen_x, seen_y) == (out_width, out_height) {
+        return (image, out_width, out_height);
+    }
+    let seen = image::RgbImage::from_raw(seen_x as u32, seen_y as u32, image)
+        .expect("the middle is seen_x x seen_y RGB");
+    let scaled =
+        image::imageops::resize(&seen, size.0, size.1, image::imageops::FilterType::Triangle);
+    (scaled.into_raw(), out_width, out_height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An RGB image whose red is the column and green the row.
+    fn ramp(width: usize, height: usize) -> Vec<u8> {
+        (0..height)
+            .flat_map(|y| (0..width).flat_map(move |x| [x as u8, y as u8, 0]))
+            .collect()
+    }
+
+    #[test]
+    fn fit_takes_the_middle_at_the_aspect_ratio() {
+        // Portrait 3:4 to landscape 4:3 keeps the middle rows, all columns.
+        let (pixels, width, height) = fit(ramp(30, 40), 30, 40, (30, 22));
+        assert_eq!((width, height), (30, 22));
+        assert_eq!(pixels.len(), 30 * 22 * 3);
+        assert_eq!(&pixels[..3], &[0, 9, 0]);
+        // Same aspect ratio and size: unchanged.
+        let image = ramp(40, 30);
+        assert_eq!(fit(image.clone(), 40, 30, (40, 30)), (image, 40, 30));
+        // Scaled down.
+        let (pixels, width, height) = fit(ramp(40, 30), 40, 30, (20, 15));
+        assert_eq!((width, height, pixels.len()), (20, 15, 20 * 15 * 3));
+    }
 }

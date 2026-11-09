@@ -200,7 +200,7 @@ fn shot(id: &str, file: &str) -> Result<(), String> {
     let jpeg = std::fs::File::create(file).map_err(|error| format!("{file}: {error}"))?;
     let started = Instant::now();
     session
-        .send(&Request::Shoot(1), &[jpeg.as_fd()])
+        .send(&Request::Shoot(1, None), &[jpeg.as_fd()])
         .map_err(|error| error.to_string())?;
     drop(jpeg);
     let deadline = started + Duration::from_secs(60);
