@@ -1,50 +1,42 @@
 #!/usr/bin/env bash
-# Write a built userdata image on a phone that already runs one, without
-# going through fastboot. For quick tries; flash.sh is the install.
-# Usage: image/install-userdata DEVICE
+# Write the built image on a phone that already runs one, without going
+# through fastboot. For quick tries; flash.sh is the install.
+# Usage: image/install-userdata HOST
 #
 # The phone runs Linux, or already sits in our init_boot's rescue. Asks the
-# installed system for rescue, writes the image over SSH while nothing uses
-# userdata, reads it back, reboots into it.
+# installed system for rescue, writes the image over SSH where the early
+# userspace boots it from (denial where the phone has one, else userdata),
+# reads it back, reboots into it.
 set -euo pipefail
-here=$(cd "$(dirname "$0")" && pwd)
 cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
-device=${1:?usage: image/install-userdata DEVICE}
-. "$here/devices/$device"
-image=$cache/$device/image/userdata.img
+host=${1:?usage: image/install-userdata HOST}
+image=$cache/image/out/userdata.img
 # Rescue's dropbear makes new host keys every boot.
 phone=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
-  -o ConnectTimeout=3 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 "$ssh_host")
+  -o ConnectTimeout=3 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 "$host")
 
 in_rescue() { "${phone[@]}" "test -e /run/rescue" 2>/dev/null; }
 
-# Every phone answers at the same USB address and the host key is not
-# checked: act only on the phone whose device tree names this device.
-is_device() {
-  local found
-  found=$("${phone[@]}" 'tr "\0" "\n" < /proc/device-tree/compatible | head -n 1') || found=
-  [ "${found#*,}" = "$device" ] ||
-    { echo "$ssh_host is ${found:-unreachable}, not $device; nothing written" >&2; exit 1; }
-}
-
-is_device
 if ! in_rescue; then
   "${phone[@]}" "touch /etc/phone-rescue && sync && systemctl reboot" || true
   echo "rebooting into rescue"
   sleep 10
   for _ in $(seq 30); do in_rescue && break; sleep 3; done
-  in_rescue || { echo "no rescue shell on $ssh_host" >&2; exit 1; }
-  is_device
+  in_rescue || { echo "no rescue shell on $host" >&2; exit 1; }
 fi
 
-root_partition=${root_partition:-userdata}
-part=$("${phone[@]}" "grep -l '^PARTNAME=$root_partition\$' /sys/class/block/*/uevent | cut -d/ -f5")
-[ -n "$part" ] || { echo "no $root_partition partition" >&2; exit 1; }
-raw=$cache/$device/image/userdata.raw
+# Every phone answers at the same USB address: say which one this is.
+echo "$host is $("${phone[@]}" 'tr "\0" "\n" < /proc/device-tree/model')"
+for name in denial userdata; do
+  part=$("${phone[@]}" "grep -l '^PARTNAME=$name\$' /sys/class/block/*/uevent | cut -d/ -f5")
+  [ -z "$part" ] || break
+done
+[ -n "$part" ] || { echo "no denial or userdata partition" >&2; exit 1; }
+raw=$cache/image/out/userdata.raw
 simg2img "$image" "$raw"
 trap 'rm -f "$raw"' EXIT
 size=$(stat -c%s "$raw")
-echo "writing $size bytes to /dev/$part"
+echo "writing $size bytes to /dev/$part ($name)"
 gzip -1c "$raw" | "${phone[@]}" "{ ! mountpoint -q /newroot || umount /newroot; } && gunzip -c | dd of=/dev/$part bs=4M 2>/dev/null && sync"
 want=$(sha256sum "$raw" | cut -d' ' -f1)
 have=$("${phone[@]}" "head -c $size /dev/$part | sha256sum" | cut -d' ' -f1)

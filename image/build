@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Build the images that install a phone.
-# Usage: image/build DEVICE [--droidloom] [--dev-access [--setup]]
+# Usage: image/build [--droidloom] [--dev-access [--setup]]
 #
 #   --droidloom   include Droidloom
-#   --dev-access  root's SSH key and the user logix, from the vault. Only for
-#                 images that never leave this workstation.
+#   --dev-access  root's SSH keys from every phone's vault, the vault's shared
+#                 image/private-rootfs, the owner's wallpaper and the user
+#                 logix. Only for images that never leave this workstation.
 #   --setup       with --dev-access, no logix: the phone's setup makes the
 #                 account, as on every image without --dev-access.
 #
-# Writes $PHONEWAVE_CACHE (default /mnt/development/phonewave-cache)/DEVICE/image/: userdata.img, the device's boot
-# images, flash.sh. Runs without root: a user namespace owns the new root,
-# and QEMU runs the ARM install scripts inside it.
+# One image for every phone. Writes $PHONEWAVE_CACHE (default
+# /mnt/development/phonewave-cache)/image/out/: userdata.img, the shared
+# init_boot.img, flash.sh. Each phone's boot image is its own:
+# devices/<codename>/ in Phonewave. Runs without root: a user namespace owns
+# the new root, and QEMU runs the ARM install scripts inside it.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}
@@ -21,8 +24,6 @@ denial_key=AE4108FA5E91E26BE0EE331E0F5B3AD16E023091
 
 inside=
 [ "${1:-}" = --inside ] && { inside=1; shift; }
-device=${1:?usage: image/build DEVICE [--droidloom] [--dev-access [--setup]]}
-shift
 droidloom= dev_access= setup=
 for arg; do
   case $arg in
@@ -32,11 +33,8 @@ for arg; do
     *) echo "unknown option $arg" >&2; exit 2 ;;
   esac
 done
-[ -f "$here/devices/$device" ] || { echo "no image/devices/$device" >&2; exit 2; }
-. "$here/devices/$device"
-
 shared=$cache/image
-out=$cache/$device/image
+out=$shared/out
 qemu=$shared/qemu/usr/bin/qemu-aarch64-static
 gnupg=$shared/gnupg
 root=$out/root
@@ -88,17 +86,14 @@ host() {
   fi
 
   # Our packages, as a repository listed before Arch's: those image/pack
-  # builds for every device, then the device's own.
+  # builds.
   rm -rf "$out/repo"
   mkdir -p "$out/repo"
   local name
   for name in $(grep -hv '^\s*\(#\|$\)' "$here/packages/phonewave"); do
     ln "$(ls "$shared/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
   done
-  for name in "${packages[@]}"; do
-    ln "$(ls "$cache/$device/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
-  done
-  repo-add -q "$out/repo/device.db.tar.zst" "$out/repo/"*.pkg.tar.zst
+  repo-add -q "$out/repo/phonewave.db.tar.zst" "$out/repo/"*.pkg.tar.zst
 
   cat > "$out/pacman.conf" <<EOF
 [options]
@@ -109,7 +104,7 @@ ParallelDownloads = 5
 DisableSandbox
 NoExtract = $noextract
 
-[device]
+[phonewave]
 SigLevel = Optional TrustAll
 Server = file://$out/repo
 
@@ -134,43 +129,28 @@ EOF
   [ -n "$setup" ] && flags+=(--setup)
   PHONEWAVE_CACHE=$cache PHONEWAVE_VAULT=$vault \
     unshare --map-auto --map-root-user --mount --pid --fork --mount-proc \
-    "$0" --inside "$device" "${flags[@]}"
+    "$0" --inside "${flags[@]}"
 
-  # The device's boot image, until the image builds its own, and the
-  # init_boot every phone shares.
-  cp "$vault/$device/boot/$boot_img" "$out/boot.img"
+  # The init_boot every phone shares.
   "$here/init-boot" "$out/init_boot.img" ${dev_access:+--dev-access}
-  {
-    if [ "${bootloader_flash:-yes}" = yes ]; then
-      printf '#!/bin/sh\n# Flash this image on %s. The phone must be in its bootloader'"'"'s fastboot.\n' "$device"
-      cat <<'EOF'
-# The bootloader takes boot and init_boot. The root goes in from the
-# init_boot's own fastboot, which comes up while no denial or userdata
-# partition holds a system.
+  cat > "$out/flash.sh" <<'EOF'
+#!/bin/sh
+# Install this image on any phone from the init_boot's own fastboot, which
+# comes up while no denial or userdata partition holds a system, and which a
+# root holding /etc/phone-rescue asks for. The root goes where the early
+# userspace boots it from: denial where the phone has one, so Android keeps
+# userdata, else userdata. The phone's boot image is its own
+# (devices/<codename>/ in Phonewave).
 set -eu
 cd "$(dirname "$0")"
-fastboot flash boot_b boot.img
-fastboot flash init_boot_b init_boot.img
-fastboot reboot
-EOF
-    else
-      printf '#!/bin/sh\n# Install this image on %s.\n' "$device"
-      cat <<'EOF'
-# This phone's bootloader writes no partition: write boot.img to boot_b and
-# init_boot.img to init_boot_b from the phone itself, then boot slot B. The
-# root goes in from the init_boot's own fastboot, which comes up while no
-# denial or userdata partition holds a system.
-set -eu
-cd "$(dirname "$0")"
-EOF
-    fi
-    cat <<'EOF'
 echo "waiting for Denial OS's install screen"
 until fastboot getvar denial-install 2>&1 | grep -q '^denial-install: yes'; do sleep 2; done
+part=userdata
+fastboot getvar partition-size:denial 2>&1 | grep -q '^partition-size:denial: 0x' && part=denial
+echo "writing the root to $part"
+fastboot flash "$part" userdata.img
+fastboot reboot
 EOF
-    echo "fastboot flash ${root_partition:-userdata} userdata.img"
-    echo 'fastboot reboot'
-  } > "$out/flash.sh"
   chmod +x "$out/flash.sh"
   ls -la "$out"
 }
@@ -270,8 +250,13 @@ inside() {
   touch "$root/usr/lib/clock-epoch"
 
   if [ -n "$dev_access" ]; then
-    install -Dm600 "$vault/$device/private-rootfs/root/.ssh/authorized_keys" "$root/root/.ssh/authorized_keys"
-    cp -a "$vault/$device/private-rootfs/etc/." "$root/etc/"
+    # Root's keys from every phone's vault, as the init_boot's rescue takes
+    # them, and what every phone shares (the Wi-Fi network). A phone's own
+    # SSH host keys stay in its vault; the image's are made on first boot.
+    install -d -m700 "$root/root/.ssh"
+    cat "$vault"/*/private-rootfs/root/.ssh/authorized_keys | sort -u > "$root/root/.ssh/authorized_keys"
+    chmod 600 "$root/root/.ssh/authorized_keys"
+    cp -a "$vault/image/private-rootfs/etc/." "$root/etc/"
     # The owner's wallpaper, kept out of every package (vault image/wallpaper/
     # README.md), and the lock screen's depth mask made for it, which Denial
     # makes only when the wallpaper picker closes.

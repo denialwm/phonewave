@@ -50,9 +50,11 @@ only where the device tree describes the bootloader's framebuffer.
 
 ## The builder
 
-You pick a device, a distro (deferred: Arch Linux ARM only for now) and
-whether Droidloom is in. The builder installs exactly those packages into an
-empty root and packs the three images, plus a flash script.
+You pick a distro (deferred: Arch Linux ARM only for now) and whether
+Droidloom is in; the image is the same for every phone. The builder installs
+exactly those packages into an empty root and packs the root and the shared
+init_boot, plus a flash script. Each phone's boot image comes from its own
+`devices/<codename>/boot/`.
 
 Building chooses packages; it compiles nothing. Package install scripts and
 pacman hooks are ARM programs, so the x86 build host runs them through QEMU.
@@ -231,25 +233,30 @@ its setup instead of the lock screen. No "configured" flag.
 
 Build, flash, look, change, rebuild. The loop has to be quick.
 
-    image/build roadstr --dev-access
-    /mnt/development/phonewave-cache/roadstr/image/flash.sh   # phone in its bootloader
+    image/build --droidloom --dev-access --setup
+    /mnt/development/phonewave-cache/image/out/flash.sh   # phone in the rescue
 
-For a quicker try on a phone that already runs an image, `image/install-userdata
-roadstr` writes only `userdata`, over SSH from the initramfs rescue.
+One image for every phone: there is no per-device build. A phone's boot
+image is its own (`../devices/<codename>/`); `flash.sh` writes only the root,
+on `denial` where the phone has one, else on `userdata`, as the early
+userspace boots it. For a quicker try on a phone that already runs an image,
+`image/install-userdata HOST` writes the root the same way, over SSH from
+the initramfs rescue.
 
-- `packages/base`: what every image gets. `devices/<codename>`: the device's
-  packages and boot images. `rootfs/`: the `phonewave-system`
+- `packages/base`: what every image gets. `rootfs/`: the `phonewave-system`
   package's files; `image/pack phonewave-system` rebuilds it.
 - Output and caches live in `/mnt/development/phonewave-cache`
-  (`PHONEWAVE_CACHE`), never in home. The device's packages come from its
-  `<codename>/packages/`.
+  (`PHONEWAVE_CACHE`), never in home; the image in `image/out/`.
 - No root needed: the build runs in a user namespace, with the workstation's
   `/dev` and `/sys` out of reach of the install scripts. QEMU comes from
   Arch's `qemu-user-static`, checked against Arch's keyring; Arch Linux ARM's
   keyring is trusted only through its pinned build key.
-- About two minutes once packages are cached. `--dev-access` puts root's SSH
-  key, the user `logix` and the owner's wallpaper (from the vault's
-  `image/wallpaper/`) in; such an image never leaves this workstation.
+- About two minutes once packages are cached. `--dev-access` puts in root's
+  SSH keys from every phone's vault, the vault's `image/private-rootfs/`
+  (the Wi-Fi network), the owner's wallpaper (`image/wallpaper/`) and the
+  user `logix`; with `--setup` no account, and the phone's setup makes one.
+  Such an image never leaves this workstation. A phone's own SSH host keys
+  stay in its vault: the image makes new ones on first boot.
 
 ## Until Denial catches up
 

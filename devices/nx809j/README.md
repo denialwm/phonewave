@@ -68,8 +68,8 @@ the image boots from it and leaves Android's data alone. Android still boots
 from slot B's stock images; formatting `userdata` from Android is its own
 recovery and leaves `denial` alone.
 
-`image/build nx809j --droidloom --dev-access` builds the image; its
-`userdata.img` goes on `denial`. With boot-NAME.img on boot_b and the shared
+`image/build` builds the shared image; its `userdata.img` goes on
+`denial`, where `flash.sh` puts it. With boot-NAME.img on boot_b and the shared
 init_boot on init_boot_b, a phone whose `denial` holds no image stops in the
 rescue (SSH at 10.77.71.2, fastboot), and from there:
 

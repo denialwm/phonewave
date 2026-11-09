@@ -40,8 +40,8 @@ pair.
 
 ## Installing
 
-`image/build iceland --droidloom --dev-access` builds the image; its
-`userdata.img` goes on `userdata`. With boot-NAME.img on boot_b and the
+`image/build` builds the shared image; its `userdata.img` goes on
+`userdata`. With boot-NAME.img on boot_b and the
 shared init_boot on init_boot_b, a tablet whose `userdata` holds no image
 stops in the rescue (SSH at 10.77.71.2, fastboot), and from there:
 
