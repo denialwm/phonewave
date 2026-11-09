@@ -33,11 +33,13 @@ for name in denial userdata; do
 done
 [ -n "$part" ] || { echo "no denial or userdata partition" >&2; exit 1; }
 raw=$cache/image/out/userdata.raw
-keys=$cache/image/out/host-keys.tar
-trap 'rm -f "$raw" "$keys"' EXIT
-# The phone keeps its SSH identity: the installed root's host keys go into
-# the new one, which would otherwise make its own on first boot.
-"${phone[@]}" 'cd /newroot/etc/ssh 2>/dev/null && tar -cf - ssh_host_*' > "$keys" || : > "$keys"
+kept=$cache/image/out/phone-state.tar
+trap 'rm -f "$raw" "$kept"' EXIT
+# The phone keeps what is its own, not the image's: its SSH identity, which
+# the new root would otherwise make on first boot, and the owner's choice of
+# canonical secure storage (services/fingerprint), without which its
+# Gatekeeper cannot keep a PIN.
+"${phone[@]}" 'cd /newroot 2>/dev/null && tar -cf - $(ls -d etc/ssh/ssh_host_* etc/systemd/system/*.d/80-canonical.conf 2>/dev/null)' > "$kept" || : > "$kept"
 simg2img "$image" "$raw"
 size=$(stat -c%s "$raw")
 echo "writing $size bytes to /dev/$part ($name)"
@@ -46,9 +48,9 @@ want=$(sha256sum "$raw" | cut -d' ' -f1)
 have=$("${phone[@]}" "head -c $size /dev/$part | sha256sum" | cut -d' ' -f1)
 [ "$want" = "$have" ] || { echo "read back $have, wrote $want" >&2; exit 1; }
 echo "verified"
-if [ -s "$keys" ]; then
-  "${phone[@]}" "mkdir -p /mnt/new && mount -t ext4 /dev/$part /mnt/new && tar -C /mnt/new/etc/ssh -xof - && sync && umount /mnt/new" < "$keys"
-  echo "kept the phone's SSH host keys"
+if [ -s "$kept" ]; then
+  "${phone[@]}" "mkdir -p /mnt/new && mount -t ext4 /dev/$part /mnt/new && tar -C /mnt/new -xof - && sync && umount /mnt/new" < "$kept"
+  echo "kept the phone's own files: $(tar -tf "$kept" | grep -v '/$' | tr '\n' ' ')"
 fi
 echo "rebooting"
 "${phone[@]}" 'reboot -f' || true
