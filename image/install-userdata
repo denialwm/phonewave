@@ -37,8 +37,9 @@ if ! in_rescue; then
   is_device
 fi
 
-part=$("${phone[@]}" 'grep -l "^PARTNAME=userdata$" /sys/class/block/*/uevent | cut -d/ -f5')
-[ -n "$part" ] || { echo "no userdata partition" >&2; exit 1; }
+root_partition=${root_partition:-userdata}
+part=$("${phone[@]}" "grep -l '^PARTNAME=$root_partition\$' /sys/class/block/*/uevent | cut -d/ -f5")
+[ -n "$part" ] || { echo "no $root_partition partition" >&2; exit 1; }
 raw=$cache/$device/image/userdata.raw
 simg2img "$image" "$raw"
 trap 'rm -f "$raw"' EXIT

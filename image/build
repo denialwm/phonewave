@@ -167,9 +167,9 @@ EOF
     cat <<'EOF'
 echo "waiting for Denial OS's install screen"
 until fastboot getvar denial-install 2>&1 | grep -q '^denial-install: yes'; do sleep 2; done
-fastboot flash userdata userdata.img
-fastboot reboot
 EOF
+    echo "fastboot flash ${root_partition:-userdata} userdata.img"
+    echo 'fastboot reboot'
   } > "$out/flash.sh"
   chmod +x "$out/flash.sh"
   ls -la "$out"

@@ -4,7 +4,9 @@
 packages=()
 
 # The boot image in the vault's boot/, until the image builds its own.
-boot_img=boot-233-fingerprint.img
+boot_img=boot-314.img
+# Android keeps userdata: the root goes on the denial partition.
+root_partition=denial
 # The stock bootloader's fastboot writes nothing: flash.sh starts at the
 # init_boot's rescue.
 bootloader_flash=no
