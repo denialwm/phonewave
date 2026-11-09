@@ -21,4 +21,5 @@ xorg-xwayland
 kitty
 nano
 less
+diffutils
 htop
