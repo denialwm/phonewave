@@ -141,11 +141,13 @@ int main(void)
     assert(!goodix_worker_operate(&w,"enroll",0) && f.save==1 && w.identifier==77 && f.cancel==1 && f.post==1);
     f=(struct fake){.capture_retry=true,.controls={"capture","finish","capture","finish"}};w=worker(&f,records);
     assert(!goodix_worker_operate(&w,"enroll",0) && f.capture==2 && f.add==1 && f.save==1);
-    const unsigned retries[] = {1013, 1014, 1047};
+    const unsigned retries[] = {1013, 1014, 1047, 1180};
     for (unsigned i=0;i<sizeof(retries)/sizeof(retries[0]);i++) {
         f=(struct fake){.add_retry=retries[i],.controls={"capture","finish","capture","finish"}};w=worker(&f,records);
         assert(!goodix_worker_operate(&w,"enroll",0) && f.capture==2 && f.add==2 && f.save==1);
     }
+    f=(struct fake){.add_retry=1142,.controls={"capture","finish","capture","finish"}};w=worker(&f,records);
+    assert(goodix_worker_operate(&w,"enroll",0)==1142 && f.add==1 && !f.save);
     f=(struct fake){.controls={"capture","cancel"}};w=worker(&f,records);
     assert(goodix_worker_operate(&w,"enroll",0)==-ECANCELED && !f.save && !w.identifier && f.cancel==1 && f.post==1);
     FILE *broker_records=tmpfile();assert(broker_records);

@@ -271,6 +271,14 @@ static int enroll_begin(struct goodix_worker *w, bool *challenged)
     return ret;
 }
 
+/* Enrollment errors no further touch can mend: the challenge and the
+ * authorization token it was started with (1058 invalid challenge, 1059
+ * untrusted token, 1142 token timeout, 1182 token setup). */
+static bool enrollment_fatal(int status)
+{
+    return status == 1058 || status == 1059 || status == 1142 || status == 1182;
+}
+
 static int add_image(struct goodix_worker *w, bool first, uint32_t *remaining, uint32_t *id)
 {
     uint32_t packet[134] = {0, 1001, 1};
@@ -363,7 +371,10 @@ int goodix_worker_operate(struct goodix_worker *w, const char *operation, uint32
             ret = add_image(w, first_image, &remaining, &id);
             first_image = false;
             if (!ret) code = 0;
-            else if (ret == 1013 || ret == 1014 || ret == 1047 || ret == 1112) ret = 0; /* Quality or duplicate area: retry. */
+            /* A rejected image (partial 1013, quality 1014, duplicate area
+             * 1047, and codes not yet named such as 1180) asks for another
+             * touch; only the enrollment's own authorization ends it. */
+            else if (ret > 0 && !enrollment_fatal(ret)) ret = 0;
         } else if (!ret) ret = compare(w, &id, &code, finish);
         if (ret || remaining > last_remaining) { if (!ret) ret = -EPROTO; break; }
         if (enroll && !code && !w->total) w->total = remaining + 1;
