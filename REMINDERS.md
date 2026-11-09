@@ -178,10 +178,12 @@ not part of any device's configuration.
   unused at 0.67 s; the panel went white. Installing works without the
   screen (flash.sh asks fastboot). The rescue should draw through the
   display driver (KMS) where the phone has one, on every phone.
-- **USB gadget after a reconnect on the RedMagic.** Seen 2026-11-07: after
-  the cable came back, binding the gadget again failed, `cdc_ethernet bind
-  returned -19` and `failed to start phone: -19`; the computer saw no
-  device until the phone rebooted, which bound it at once.
+- **USB gadget after an external monitor on the RedMagic.** After a
+  monitor has been connected over USB-C, USB does not work until the phone
+  reboots; unplugging and replugging the cable alone is fine (user,
+  2026-11-09). Seen 2026-11-07: binding the gadget again failed,
+  `cdc_ethernet bind returned -19` and `failed to start phone: -19`; the
+  computer saw no device until the phone rebooted, which bound it at once.
 - **Internet over USB on this workstation.** The phone resolves names over
   the cable alone (systemd-resolved's fallback servers), and the computer's
   USB connection is NetworkManager's "shared", but the workstation's

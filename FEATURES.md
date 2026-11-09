@@ -47,7 +47,7 @@ last.
 | Microphones | untested | 2026-11-06, devices-233, probe | On the image PipeWire shows the main microphone (AMIC1); not recorded yet |
 | Headphone jack | not started | 2026-11-09, devices-310, probe | The codec reports the jack (Headphone Jack, Mic Jack, an input device); no playback or capture route in the UCM profile. Reixo0's patches 0068 and on |
 | Mobile data | works | 2026-11-09, devices-310, probe | 5G on Iliad, APN iliad; pings over the data bearer alone |
-| SMS | untested | 2026-11-06, devices-233, probe | On the image the modem starts (firmware from modem_b, rmtfs on its own EFS partitions) and waits for the SIM PIN; not tried past that |
+| SMS | works | 2026-11-09, devices-310, user | dmail |
 | Calls | works | 2026-11-08, devices-304, user | Incoming over VoLTE: rings, wakes the screen and shows Calls over the lock screen; answered from it |
 | Call audio | works | 2026-11-08, devices-310, user | Both ways, on the speakers and the speaker microphone |
 | VoLTE | works | 2026-11-09, devices-310, user | dmail registers IMS on Iliad; calls ring and connect over it |
