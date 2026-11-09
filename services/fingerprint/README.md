@@ -53,8 +53,10 @@ tail with links to `goodix-gatekeeper.socket`, `goodix-secure-storage.service`
 and fprintd's `70-goodix.conf` drop-in.
 
 - `goodix-secure-storage` serves the trusted apps' protected files and RPMB
-  callbacks. It reads `persist`, mounted read-only at `/run/goodix/persist`,
-  and writes only under `/var/lib/goodix-secure-storage`.
+  callbacks. It keeps the files where stock does, under `data/` of `persist`,
+  mounted at `/run/goodix/persist`, and commits the trusted apps'
+  authenticated RPMB writes: the Gatekeeper PIN needs both. Factory
+  calibration stays read-only, and nothing here programs an RPMB key.
 - `goodix-gatekeeper.socket` at `/run/gatekeeper/worker.sock`, one
   `goodix-gatekeeper-worker` per connection. Denial uses the native PIN
   wherever this socket exists. Its record keeps the opaque handle and SID,
@@ -63,21 +65,10 @@ and fprintd's `70-goodix.conf` drop-in.
   and may start Denial's PIN-gated fingerprint session for Settings
   (`/etc/sudoers.d/20-phone-fingerprint`).
 
-Writing the stock protected files under `persist/data` and committing
-authenticated RPMB writes is the owner's decision; RPMB has no rollback.
-Two drop-ins turn it on:
-
-    /etc/systemd/system/run-goodix-persist.mount.d/80-canonical.conf
-      [Mount]
-      Options=rw,nosuid,nodev,noexec
-
-    /etc/systemd/system/goodix-secure-storage.service.d/80-canonical.conf
-      [Service]
-      Environment=GOODIX_CANONICAL_AUTHENTICATED_STORAGE=1
-      ReadWritePaths=/run/goodix/persist/data
-
-Then `systemctl daemon-reload` and restart `goodix-secure-storage`. Factory
-calibration stays read-only, and nothing here programs an RPMB key.
+How `persist` is mounted is the mode. An owner who wants neither written
+overrides the mount in `/etc/systemd/system/run-goodix-persist.mount.d/`
+with `Options=ro,noload,nosuid,nodev,noexec`: secure storage then writes
+only under `/var/lib/goodix-secure-storage`, and the phone can set no PIN.
 
 ## Adding a phone
 

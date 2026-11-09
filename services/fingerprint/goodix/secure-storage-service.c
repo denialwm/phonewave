@@ -135,14 +135,15 @@ int main(int argc,char **argv)
     /* Fixed deployment paths: the daemon cannot be directed at arbitrary
      * partitions or a different private credential store through argv/env. */
     s.lock=open("/var/lib/goodix-secure-storage/listener.lock",O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600);
-    const char *commit=getenv("GOODIX_CANONICAL_AUTHENTICATED_STORAGE");
-    s.authenticated=commit && !strcmp(commit,"1");
     struct stat st;
     if(s.lock<0 || fstat(s.lock,&st) || !S_ISREG(st.st_mode) || st.st_uid || st.st_nlink!=1 || (st.st_mode&077) || flock(s.lock,LOCK_EX|LOCK_NB))goto done;
     s.store.base=open("/run/goodix/persist/data",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
     struct statvfs vfs;
-    if(s.store.base<0 || fstatvfs(s.store.base,&vfs) ||
-        (s.authenticated?!!(vfs.f_flag&ST_RDONLY):!(vfs.f_flag&ST_RDONLY)))goto done;
+    if(s.store.base<0 || fstatvfs(s.store.base,&vfs))goto done;
+    /* How persist is mounted is the mode: writable, the trusted apps' files
+     * and authenticated RPMB commits go where stock keeps them; read-only,
+     * into the private overlay, which keeps no Gatekeeper PIN. */
+    s.authenticated=!(vfs.f_flag&ST_RDONLY);
     if(s.authenticated){s.store.canonical=1;s.store.persist=fcntl(s.store.base,F_DUPFD_CLOEXEC,3);}
     else s.store.persist=private_directory("/var/lib/goodix-secure-storage/persist");
     s.store.data=private_directory("/var/lib/goodix-secure-storage/data");

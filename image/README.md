@@ -266,10 +266,8 @@ it (about 7 minutes): `image/pack` brings every recipe to its commit, then
 `--local-builds` installs the newest `tools/build` Denial and Droidloom
 (with droidloom-gapps when that build packed it, in a `--dev-access` image
 only) in place of the published releases. `install-userdata` sends the phone to its rescue, writes the root,
-puts the old root's SSH host keys and its canonical secure storage
-drop-ins (`/etc/systemd/system/*.d/80-canonical.conf`, see
-`services/fingerprint`) in the new one and reboots; the phone starts in
-setup. Without those drop-ins a Goodix phone's Gatekeeper cannot keep a PIN.
+puts the old root's SSH host keys in the new one and reboots; the phone
+starts in setup.
 
 To try setup again on a phone that already runs the image, write nothing:
 `tools/phone-setup-again HOST [PACKAGE...]` installs the given builds (say
@@ -283,8 +281,7 @@ image is its own (`../devices/<codename>/`); `flash.sh` writes only the root,
 on `denial` where the phone has one, else on `userdata`, as the early
 userspace boots it. For a quicker try on a phone that already runs an image,
 `image/install-userdata HOST` writes the root the same way, over SSH from
-the initramfs rescue, and keeps the phone's SSH host keys and secure
-storage choice.
+the initramfs rescue, and keeps the phone's SSH host keys.
 
 - `packages/base`: what every image gets. `rootfs/`: the `phonewave-system`
   package's files; `image/pack phonewave-system` rebuilds it.

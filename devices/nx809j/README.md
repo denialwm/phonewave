@@ -38,10 +38,10 @@ is marked unbootable by the bootloader; if slot B ever becomes unbootable
 too, ask the user before any slot command. The rollback for each partition
 is its stock copy in `backups/slot_b/`.
 
-Native credential storage has one explicit user-authorized exception:
-`goodix-secure-storage.service` may update encrypted secure files under
-`persist/data` and relay trusted-app authenticated RPMB commits in its
-canonical mode (`services/fingerprint`). Factory calibration files remain read-only; RPMB key
+Native credential storage has one exception, the package's default on
+every Goodix phone: `goodix-secure-storage.service` updates encrypted secure
+files under `persist/data` and relays trusted-app authenticated RPMB commits
+(`services/fingerprint`). Factory calibration files remain read-only; RPMB key
 programming and raw partition flashing remain forbidden. A fresh persist
 backup is held privately, but RPMB monotonic state has no verified rollback.
 The user accepted that limitation for native PIN/fingerprint bring-up.
@@ -199,7 +199,7 @@ tail also turns on the Goodix PIN and secure storage units, with fprintd's
 |---|---|
 | `/var/lib/phonewave-fingerprint/calibration` | This unit's calibration, copied once from persist's `goodix/` mounted read-only |
 | `/var/lib/phonewave-fingerprint/templates` | The worker's private store |
-| `/var/lib/goodix-secure-storage` | Secure storage's private overlay, the default mode |
+| `/var/lib/goodix-secure-storage` | Secure storage's private data, and its overlay while persist is read-only |
 
 The worker runs one-shot per operation (about 0.8 s for a list). For
 verification it brings the sensor up and selects the templates while the
@@ -217,9 +217,9 @@ The native PIN provider and secure storage are the package's
 `goodix-gatekeeper.socket` and `goodix-secure-storage.service`
 (services/fingerprint). The sensor worker delegates the shared listener so
 Gatekeeper can verify an enrollment challenge while the sensor is active.
-The user authorized canonical mode for this phone, with the rollback
-limitation in Partitions; its drop-ins are in the phone's /etc since
-2026-11-06, after persist was saved to the vault again.
+Secure storage writes where stock does, the package's default, with the
+rollback limitation in Partitions; persist was saved to the vault again on
+2026-11-06, before the first such write.
 
 The phone's fingerprint runtime uses native executables from the package.
 The Python scripts in the development checkout assemble the signed app and

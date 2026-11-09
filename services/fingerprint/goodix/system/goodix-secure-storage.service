@@ -1,8 +1,10 @@
 # The Goodix trusted app's protected files and RPMB callbacks. A phone whose
 # sensor needs it turns it on from its boot image's tail, with fprintd's
-# drop-in. Without GOODIX_CANONICAL_AUTHENTICATED_STORAGE=1 (a drop-in in
-# /etc, the owner's decision) it reads persist and RPMB and writes only
-# under /var/lib/goodix-secure-storage.
+# drop-in. It keeps the trusted apps' files where stock does, under
+# persist's data/, and commits their authenticated RPMB writes, which the
+# Gatekeeper PIN needs. With persist mounted read-only (an override of
+# run-goodix-persist.mount in /etc) it writes only under
+# /var/lib/goodix-secure-storage, and no PIN can be set.
 [Unit]
 Description=Goodix protected-file storage and RPMB callbacks
 Requires=run-goodix-persist.mount
@@ -25,6 +27,7 @@ LimitCORE=0
 NoNewPrivileges=yes
 ProtectHome=yes
 ProtectSystem=strict
+ReadWritePaths=-/run/goodix/persist/data
 RestrictAddressFamilies=AF_UNIX
 
 [Install]

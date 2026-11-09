@@ -36,10 +36,8 @@ raw=$cache/image/out/userdata.raw
 kept=$cache/image/out/phone-state.tar
 trap 'rm -f "$raw" "$kept"' EXIT
 # The phone keeps what is its own, not the image's: its SSH identity, which
-# the new root would otherwise make on first boot, and the owner's choice of
-# canonical secure storage (services/fingerprint), without which its
-# Gatekeeper cannot keep a PIN.
-"${phone[@]}" 'cd /newroot 2>/dev/null && tar -cf - $(ls -d etc/ssh/ssh_host_* etc/systemd/system/*.d/80-canonical.conf 2>/dev/null)' > "$kept" || : > "$kept"
+# the new root would otherwise make on first boot.
+"${phone[@]}" 'cd /newroot 2>/dev/null && tar -cf - $(ls -d etc/ssh/ssh_host_* 2>/dev/null)' > "$kept" || : > "$kept"
 simg2img "$image" "$raw"
 size=$(stat -c%s "$raw")
 echo "writing $size bytes to /dev/$part ($name)"

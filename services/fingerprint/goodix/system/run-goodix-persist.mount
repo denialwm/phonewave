@@ -1,8 +1,8 @@
 [Unit]
-Description=The phone's persist partition, read-only, for Goodix secure storage
+Description=The phone's persist partition, for Goodix secure storage
 Before=goodix-secure-storage.service
 # The first calibration copy mounts persist read-only in its own namespace,
-# which fails while canonical mode holds it read-write.
+# which fails while this mount holds it read-write.
 After=phonewave-fingerprint-calibration.service
 StopWhenUnneeded=yes
 
@@ -10,6 +10,6 @@ StopWhenUnneeded=yes
 What=/dev/disk/by-partlabel/persist
 Where=/run/goodix/persist
 Type=ext4
-# noload: never replay persist's journal.
-Options=ro,noload,nosuid,nodev,noexec
+# Writable: secure storage keeps the trusted apps' protected files in data/.
+Options=rw,nosuid,nodev,noexec
 DirectoryMode=0700
