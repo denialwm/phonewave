@@ -43,9 +43,11 @@ case ${1-} in
     [ -n "$(people)" ] || fail "the phone has no account yet" 2
     # This runs inside the setup's own session, which the restart ends: hand
     # both steps to systemd, after setup has had its answer. Droidloom, where
-    # installed, is set up for the new account once its session runs.
+    # installed, is set up first, so the new session starts it with the rest
+    # of the session: started earlier, it would wake the desktop portal before
+    # Denial has said which desktop this is.
     systemd-run --quiet --no-block --on-active=2 --unit=phonewave-first-user \
-      /bin/sh -c 'systemctl restart denial.service; systemctl start phonewave-droidloom.service'
+      /bin/sh -c 'systemctl start phonewave-droidloom.service; systemctl restart denial.service'
     exit 0
     ;;
 esac

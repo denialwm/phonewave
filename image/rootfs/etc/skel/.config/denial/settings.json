@@ -54,6 +54,9 @@
     "accelerationEnabled": true,
     "speed": 0.0
   },
+  "power": {
+    "idleDpmsTimeoutSeconds": 30
+  },
   "revision": 1,
   "touchpad": {
     "naturalScrollEnabled": false,
