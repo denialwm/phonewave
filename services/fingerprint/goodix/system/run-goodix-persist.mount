@@ -1,6 +1,9 @@
 [Unit]
 Description=The phone's persist partition, read-only, for Goodix secure storage
 Before=goodix-secure-storage.service
+# The first calibration copy mounts persist read-only in its own namespace,
+# which fails while canonical mode holds it read-write.
+After=phonewave-fingerprint-calibration.service
 StopWhenUnneeded=yes
 
 [Mount]
