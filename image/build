@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Build the images that install a phone.
-# Usage: image/build [--droidloom] [--dev-access [--setup]]
+# Usage: image/build [--droidloom] [--local-builds] [--dev-access [--setup]]
 #
 #   --droidloom   include Droidloom
+#   --local-builds  Denial and Droidloom from this workstation's newest
+#                 tools/build outputs (builds/*/PROJECT/latest), in place of
+#                 the published releases, with droidloom-gapps when the
+#                 Droidloom build packed it. For trying the streams' heads.
 #   --dev-access  root's SSH keys from every phone's vault, the vault's shared
 #                 image/private-rootfs, the owner's wallpaper and the user
 #                 logix. Only for images that never leave this workstation.
@@ -17,6 +21,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}
+builds=${DENIAL_BUILDS:-/mnt/development/denial-os/builds}
 cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
 alarm_mirror=http://mirror.archlinuxarm.org
 alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -24,10 +29,11 @@ denial_key=AE4108FA5E91E26BE0EE331E0F5B3AD16E023091
 
 inside=
 [ "${1:-}" = --inside ] && { inside=1; shift; }
-droidloom= dev_access= setup=
+droidloom= local_builds= dev_access= setup=
 for arg; do
   case $arg in
     --droidloom) droidloom=1 ;;
+    --local-builds) local_builds=1 ;;
     --dev-access) dev_access=1 ;;
     --setup) setup=1 ;;
     *) echo "unknown option $arg" >&2; exit 2 ;;
@@ -93,6 +99,18 @@ host() {
   for name in $(grep -hv '^\s*\(#\|$\)' "$here/packages/phonewave"); do
     ln "$(ls "$shared/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
   done
+  # The repository comes first, so its Denial and Droidloom win over the
+  # published ones whatever their versions.
+  if [ -n "$local_builds" ]; then
+    local project newest
+    for project in denial ${droidloom:+droidloom}; do
+      newest=$(for l in "$builds"/*/"$project"/latest; do readlink -f "$l"; done |
+        awk -F/ '{ print $NF "\t" $0 }' | sort | tail -1 | cut -f2)
+      [ -n "$newest" ] || { echo "no $project build in $builds" >&2; exit 1; }
+      echo "local $project: $newest"
+      ln "$newest"/*.pkg.tar.zst "$out/repo/"
+    done
+  fi
   repo-add -q "$out/repo/phonewave.db.tar.zst" "$out/repo/"*.pkg.tar.zst
 
   cat > "$out/pacman.conf" <<EOF
@@ -125,6 +143,7 @@ EOF
 
   local flags=()
   [ -n "$droidloom" ] && flags+=(--droidloom)
+  [ -n "$local_builds" ] && flags+=(--local-builds)
   [ -n "$dev_access" ] && flags+=(--dev-access)
   [ -n "$setup" ] && flags+=(--setup)
   PHONEWAVE_CACHE=$cache PHONEWAVE_VAULT=$vault \
@@ -196,8 +215,9 @@ inside() {
 
   local list=()
   mapfile -t list < <(grep -hv '^\s*\(#\|$\)' "$here/packages/base" "$here/packages/phonewave")
-  list+=("${packages[@]}")
   [ -n "$droidloom" ] && list+=(droidloom-runtime droidloom-image)
+  [ -n "$droidloom" ] && compgen -G "$out/repo/droidloom-gapps-*" > /dev/null &&
+    list+=(droidloom-gapps)
   pacman -r "$root" --config "$out/pacman.conf" --gpgdir "$gnupg" --cachedir "$shared/pkg" \
     --hookdir "$root/etc/pacman.d/hooks" --logfile "$out/pacman.log" \
     -Sy --noconfirm "${list[@]}"

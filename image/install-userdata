@@ -33,13 +33,22 @@ for name in denial userdata; do
 done
 [ -n "$part" ] || { echo "no denial or userdata partition" >&2; exit 1; }
 raw=$cache/image/out/userdata.raw
+keys=$cache/image/out/host-keys.tar
+trap 'rm -f "$raw" "$keys"' EXIT
+# The phone keeps its SSH identity: the installed root's host keys go into
+# the new one, which would otherwise make its own on first boot.
+"${phone[@]}" 'cd /newroot/etc/ssh 2>/dev/null && tar -cf - ssh_host_*' > "$keys" || : > "$keys"
 simg2img "$image" "$raw"
-trap 'rm -f "$raw"' EXIT
 size=$(stat -c%s "$raw")
 echo "writing $size bytes to /dev/$part ($name)"
 gzip -1c "$raw" | "${phone[@]}" "{ ! mountpoint -q /newroot || umount /newroot; } && gunzip -c | dd of=/dev/$part bs=4M 2>/dev/null && sync"
 want=$(sha256sum "$raw" | cut -d' ' -f1)
 have=$("${phone[@]}" "head -c $size /dev/$part | sha256sum" | cut -d' ' -f1)
 [ "$want" = "$have" ] || { echo "read back $have, wrote $want" >&2; exit 1; }
-echo "verified; rebooting"
+echo "verified"
+if [ -s "$keys" ]; then
+  "${phone[@]}" "mkdir -p /mnt/new && mount -t ext4 /dev/$part /mnt/new && tar -C /mnt/new/etc/ssh -xof - && sync && umount /mnt/new" < "$keys"
+  echo "kept the phone's SSH host keys"
+fi
+echo "rebooting"
 "${phone[@]}" 'reboot -f' || true

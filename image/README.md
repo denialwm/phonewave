@@ -236,12 +236,24 @@ Build, flash, look, change, rebuild. The loop has to be quick.
     image/build --droidloom --dev-access --setup
     /mnt/development/phonewave-cache/image/out/flash.sh   # phone in the rescue
 
+To try the streams' heads on a phone that runs an image, with no hands on
+it (about 7 minutes): `image/pack` brings every recipe to its commit, then
+
+    image/build --droidloom --local-builds --dev-access --setup
+    image/install-userdata HOST
+
+`--local-builds` installs the newest `tools/build` Denial and Droidloom
+(with droidloom-gapps when that build packed it) in place of the published
+releases. `install-userdata` sends the phone to its rescue, writes the root,
+puts the old root's SSH host keys in the new one and reboots; the phone
+starts in setup.
+
 One image for every phone: there is no per-device build. A phone's boot
 image is its own (`../devices/<codename>/`); `flash.sh` writes only the root,
 on `denial` where the phone has one, else on `userdata`, as the early
 userspace boots it. For a quicker try on a phone that already runs an image,
 `image/install-userdata HOST` writes the root the same way, over SSH from
-the initramfs rescue.
+the initramfs rescue, and keeps the phone's SSH host keys.
 
 - `packages/base`: what every image gets. `rootfs/`: the `phonewave-system`
   package's files; `image/pack phonewave-system` rebuilds it.
