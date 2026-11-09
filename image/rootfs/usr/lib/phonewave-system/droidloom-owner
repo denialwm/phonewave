@@ -25,8 +25,13 @@ home=$(getent passwd "$user" | cut -d: -f6)
 "$helper" setup --uid "$uid" --data-home "$home/.local/share" --state-home "$home/.local/state"
 runuser -u "$user" -- sh -c 'mkdir -p "$1" && ln -sfn /usr/lib/systemd/user/droidloom.service "$1/droidloom.service"' \
   sh "$home/.config/systemd/user/graphical-session.target.wants"
-# A session already running starts it now; otherwise the session will.
+# A graphical session already running starts it now; otherwise the session
+# will. The user manager alone is not one: runuser above starts it, and
+# Droidloom started then would wake the desktop portal before Denial has said
+# which desktop this is, and the portal keeps that choice for the session.
 if systemctl is-active --quiet "user@$uid.service"; then
   systemctl --user --machine="$user@" daemon-reload
-  systemctl --user --machine="$user@" --no-block start droidloom.service
+  if systemctl --user --machine="$user@" is-active --quiet graphical-session.target; then
+    systemctl --user --machine="$user@" --no-block start droidloom.service
+  fi
 fi
