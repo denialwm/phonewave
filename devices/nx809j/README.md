@@ -17,7 +17,7 @@ record.md, the add-device record; boot/ the built images and the devices231
 boot image they take their header from; firmware/tail/ the firmware the tail
 carries, laid out as its firmware/; backups/ this unit's partition copies
 (`backups/manifest.json`), the old root (nx809j-before-image-20261106) and
-Android's storage (droidloom-20261106); private-rootfs/ root's
+Android's storage (droidloom-20261109, a `phone-backup`); private-rootfs/ root's
 authorized_keys, which init_boot also carries, the SSH host keys, the Wi-Fi
 connection and sudoers; survey/ what was read from the phone.
 
@@ -76,9 +76,8 @@ fastboot flash denial userdata.img
 fastboot reboot
 ```
 
-Android's storage goes back with `droidloomctl restore` from a
-`phone-backup`, or, for the archive taken before the move, by unpacking it
-into Droidloom's `data_dir` with the cell stopped.
+Android's storage goes back with `phone-backup HOST --restore FILE` (or
+`droidloomctl restore` on the phone).
 
 ## Audio
 

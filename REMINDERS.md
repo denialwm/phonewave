@@ -64,9 +64,9 @@ not part of any device's configuration.
   `linux` until then, is named `denial` and holds the image; Android keeps
   `userdata`. Before the move the old root was saved in the vault,
   `nx809j/backups/nx809j-before-image-20261106/` (as the Ace 3's, owners
-  intact), and Android's storage in `droidloom-20261106/`, which is back on
-  the phone with the Ace 3's local Google apps package. The image's fresh
-  Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
+  intact), and Android's storage, which is back on the phone with the Ace
+  3's local Google apps package; `droidloom-20261109/` holds the latest
+  backup of it. The image's fresh Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
   What `devices/nx809j/rootfs/` and the old root held, and where it goes:
   - Shared since 2026-11-06, boot image 233-shared: the ADSP, CDSP and
     modem firmware from modem_b; the modem through the shared `modem-setup`,
