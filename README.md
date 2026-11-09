@@ -22,7 +22,7 @@ Named after Future Gadget #8 from Steins;Gate, a microwave wired to a phone.
 | `devices/<codename>/rootfs/` | Files installed on that device, at the same path. `rootfs/usr/lib/udev/rules.d/x.rules` installs to `/usr/lib/udev/rules.d/x.rules`. |
 | `devices/<codename>/boot/` | Packs a linux-perpetua release into the device's boot images, and the init_boot sources. |
 | `devices/<codename>/packaging/` | Pacman packages for the device, where it has them. |
-| `tools/` | Host scripts for any phone: `phone-reboot`, `phone-shot`, `phone-notifications`, `phone-backup` (Android storage to and from this computer), `phone-install` (build recipes here and install them, no publish). Each takes the phone's SSH host. |
+| `tools/` | Host scripts for any phone: `phone-reboot`, `phone-shot`, `phone-notifications`, `phone-backup` (Android storage to and from this computer), `phone-install` (build recipes here and install them, no publish), `phone-setup-again` (install builds, then back to first-start setup without writing the image). Each takes the phone's SSH host. |
 | `image/` | The device image builder: one userdata image, per-device boot images. |
 | `REMINDERS.md` | Open work, until it is done. |
 | `services/<capability>/<name>/` | Daemons and drivers for one hardware capability: haptics, fingerprint, clock. Each is a self-contained project. |

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Put a phone on the shared image back into its first-start setup, the loop
+# for trying setup: seconds, where writing the image again takes minutes.
+#   phone-setup-again HOST [PACKAGE...]
+# First installs the given package files the phone has, such as a Denial
+# build from tools/build. Then removes what setup made: every person's
+# account with its home, its fingers and its Droidloom (configuration, rule,
+# Android data), and starts Denial as denial-setup again. The phone's name,
+# time zone and language stay as setup left them; a new image resets those.
+set -euo pipefail
+usage='usage: phone-setup-again HOST [PACKAGE...]'
+host=${1:?$usage}
+shift
+for file in "$@"; do
+  [ -f "$file" ] || { echo "$file: no such package file" >&2; exit 2; }
+done
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=15
+  -o ServerAliveCountMax=4)
+# The SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+
+dir=$(ssh "${ssh_options[@]}" "$host" mktemp -d)
+trap 'ssh "${ssh_options[@]}" "$host" rm -rf "$dir"' EXIT
+names=()
+for file in "$@"; do
+  names+=("${file##*/}")
+  # Not scp: it reads an epoch's colon in a file name as a host.
+  ssh "${ssh_options[@]}" "$host" "cat > '$dir/${file##*/}'" < "$file"
+done
+
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s "$dir" "${names[@]}" <<'PHONE'
+set -eu
+dir=$1
+shift
+# Only what the phone has: pacman -U would add the rest.
+install=
+for name; do
+  package=$(pacman -Qqp "$dir/$name")
+  ! pacman -Qq "$package" >/dev/null 2>&1 || install="$install $dir/$name"
+done
+[ -z "$install" ] || pacman -U --noconfirm $install
+
+systemctl stop denial.service droidloomd.service
+min=$(awk '$1 == "UID_MIN" { print $2 }' /etc/login.defs)
+max=$(awk '$1 == "UID_MAX" { print $2 }' /etc/login.defs)
+for user in $(getent passwd | awk -F: -v min="${min:-1000}" -v max="${max:-60000}" \
+    '$3 >= min && $3 <= max { print $1 }'); do
+  uid=$(id -u "$user")
+  systemctl stop "user@$uid.service"
+  # Its fingers leave the reader with it; none enrolled is not a failure.
+  if fprintd-list "$user" 2>/dev/null | grep -q '^ - #'; then
+    fprintd-delete "$user"
+  fi
+  rm -rf "/var/lib/droidloom/users/$uid"
+  userdel -r "$user" 2>&1 | grep -v 'mail spool' >&2 || true
+  ! getent passwd "$user" >/dev/null || { echo "$user was not removed" >&2; exit 1; }
+  echo "removed $user"
+done
+# Droidloom's setup for the account, which the phone's next one runs again.
+rm -rf /etc/droidloom /etc/polkit-1/rules.d/49-droidloom.rules
+/usr/lib/phonewave-system/setup-session
+systemctl daemon-reload
+systemctl start denial.service
+echo "Denial runs setup as $(systemctl show -P User denial.service)"
+PHONE

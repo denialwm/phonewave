@@ -257,6 +257,13 @@ drop-ins (`/etc/systemd/system/*.d/80-canonical.conf`, see
 `services/fingerprint`) in the new one and reboots; the phone starts in
 setup. Without those drop-ins a Goodix phone's Gatekeeper cannot keep a PIN.
 
+To try setup again on a phone that already runs the image, write nothing:
+`tools/phone-setup-again HOST [PACKAGE...]` installs the given builds (say
+`builds/<codename>/denial/latest/*.pkg.tar.zst`), removes the account setup
+made with its fingers and Droidloom, and starts setup again in seconds
+(`usr/lib/phonewave-system/setup-session`, which the image build runs too).
+A new image is for changes to what the image holds.
+
 One image for every phone: there is no per-device build. A phone's boot
 image is its own (`../devices/<codename>/`); `flash.sh` writes only the root,
 on `denial` where the phone has one, else on `userdata`, as the early

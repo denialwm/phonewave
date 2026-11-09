@@ -1,0 +1,20 @@
+#!/bin/sh
+# Starts Denial in the phone's first-start setup from now on: as denial-setup
+# (sysusers.d), with first-user as its helper, from a home fresh from
+# /etc/skel, so setup looks like the phone it sets up. The image build runs
+# it in a new root without a person's account; tools/phone-setup-again on a
+# phone whose account it has just removed. Starts nothing itself.
+set -eu
+uid=$(id -u denial-setup)
+rm -rf /var/lib/denial-setup
+install -d -m 700 /var/lib/denial-setup
+cp -a /etc/skel/. /var/lib/denial-setup/
+chown -R denial-setup:denial-setup /var/lib/denial-setup
+install -Dm644 /dev/stdin /etc/systemd/system/denial.service.d/user.conf <<UNIT
+[Service]
+User=denial-setup
+Group=denial-setup
+Environment=XDG_RUNTIME_DIR=/run/user/$uid
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus
+Environment=DENIAL_FIRST_USER_HELPER=/usr/lib/phonewave-system/first-user
+UNIT
