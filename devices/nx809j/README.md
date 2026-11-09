@@ -17,7 +17,9 @@ record.md, the add-device record; boot/ the built images and the devices231
 boot image they take their header from; firmware/tail/ the firmware the tail
 carries, laid out as its firmware/; backups/ this unit's partition copies
 (`backups/manifest.json`), the old root (nx809j-before-image-20261106) and
-Android's storage (droidloom-20261109, a `phone-backup`); private-rootfs/ root's
+Android's storage (droidloom-20261109, a `phone-backup`), Denial's wallpaper
+and appearance settings (denial-appearance-20261109, a tar of the files
+under /home/logix); private-rootfs/ root's
 authorized_keys, which init_boot also carries, the SSH host keys, the Wi-Fi
 connection and sudoers; survey/ what was read from the phone.
 

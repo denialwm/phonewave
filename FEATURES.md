@@ -28,7 +28,7 @@ last.
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
 | Boot | works | 2026-11-06, devices-231, probe | The shared image on `denial` (sda13), Android keeps `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
-| Display | works | 2026-11-09, devices-310, user | RM692H5, 60 to 144 Hz (devices-128); Denial runs it at 144 Hz. Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
+| Display | works | 2026-11-09, devices-314, user | RM692H5, 60 to 144 Hz (devices-128); Denial runs it at 144 Hz. Two boots came up with a corrupted screen (devices-130, 2026-10-28); cause unknown |
 | Brightness | works | 2026-11-09, devices-310, user | |
 | Wake from screen off | works | 2026-11-02, devices-222, user | Power key; also double tap and the fingerprint area. The panel stays in standby and wakes in 12 to 23 ms. Beside a monitor the phone sleeps to its always-on picture without locking |
 | GPU | works | 2026-10-27, devices-126, user | Adreno 840: freedreno GLES 3.2, turnip |
