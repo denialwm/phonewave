@@ -32,6 +32,8 @@ struct goodix_worker {
     /* An operation's session is open: a capture follows, so an interrupt
      * leaves the sensor awake for it. */
     bool active;
+    /* The session waits for its next touch: no finger is on the sensor. */
+    bool waiting;
     /* A verification ended without a match: its session is closed and the
      * sensor sleeps, still initialized, for the next attempt. */
     bool resting;

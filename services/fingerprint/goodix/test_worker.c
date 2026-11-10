@@ -146,6 +146,9 @@ int main(void)
         f=(struct fake){.add_retry=retries[i],.controls={"capture","finish","capture","finish"}};w=worker(&f,records);
         assert(!goodix_worker_operate(&w,"enroll",0) && f.capture==2 && f.add==2 && f.save==1);
     }
+    f=(struct fake){.add_retry=1013,.controls={"capture","finish"}};w=worker(&f,records);
+    assert(!goodix_worker_operate(&w,"enroll",0) && f.capture==2 && f.add==2 && f.save==1);
+    puts("PASS: a partial enrollment image is taken again within the same touch");
     f=(struct fake){.add_retry=1142,.controls={"capture","finish","capture","finish"}};w=worker(&f,records);
     assert(goodix_worker_operate(&w,"enroll",0)==1142 && f.add==1 && !f.save);
     f=(struct fake){.controls={"capture","cancel"}};w=worker(&f,records);
@@ -190,11 +193,15 @@ int main(void)
     assert(!goodix_worker_irq(&w) && f.base_capture==1 && f.base_update==1 && w.sleeping && f.sleeps==1 && !w.base_blocked);
     f=(struct fake){.irq_flags=1};w=worker(&f,records);w.initialized=w.sleeping=w.active=true;
     assert(!goodix_worker_irq(&w) && !f.base_capture && !f.base_update);
+    f=(struct fake){.irq_flags=1};w=worker(&f,records);w.contact=contact;w.initialized=w.sleeping=w.active=w.waiting=true;
+    assert(!goodix_worker_irq(&w) && f.base_capture==1 && f.base_update==1 && !w.sleeping && !f.sleeps);
+    f=(struct fake){.irq_flags=1,.touch=true};w=worker(&f,records);w.contact=contact;w.initialized=w.sleeping=w.active=w.waiting=true;
+    assert(!goodix_worker_irq(&w) && !f.base_capture && !f.base_update && !w.base_blocked);
     f=(struct fake){.irq_flags=1,.touch=true};w=worker(&f,records);w.contact=contact;w.initialized=w.sleeping=true;
     assert(!goodix_worker_irq(&w) && !f.base_capture && !f.base_update && w.sleeping && !w.base_blocked);
     f=(struct fake){.irq_flags=3};w=worker(&f,records);w.initialized=w.sleeping=true;
     assert(goodix_worker_irq(&w)==-EIO && !f.base_capture);
-    puts("PASS: an idle base-update interrupt takes and hands over a base; a session or a touch defers it");
+    puts("PASS: a base-update interrupt takes and hands over a base when idle or waiting for a touch; a touch or the rest of a session defers it");
     f=(struct fake){.irq_flags=1,.fail_target=1001,.fail_command=22,.failure=1004};w=worker(&f,records);w.initialized=w.sleeping=true;
     assert(!goodix_worker_irq(&w) && w.base_blocked && w.sleeping && f.base_capture==1);
     assert(!goodix_worker_irq(&w) && f.base_capture==1);

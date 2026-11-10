@@ -219,9 +219,12 @@ int goodix_worker_irq(struct goodix_worker *w)
     if (!ret && (query[8] & 2)) {
         if (restore_sleep) (void)simple(w, 1002, 12);
         ret = -EIO; /* Unexpected reset: fail the operation, never reset/retry blindly. */
-    } else if (!ret && (query[8] & 1) && !w->active && !w->base_blocked) {
-        /* During an operation the request waits: the sensor repeats it. A
-         * failed base never fails the operation the worker is waiting for. */
+    } else if (!ret && (query[8] & 1) && (!w->active || w->waiting) && !w->base_blocked) {
+        /* A session takes it only while it waits for a touch: a sensor that
+         * has never been idle has no base, and rejects most images until it
+         * has one. With a finger on it the request waits: the sensor repeats
+         * it. A failed base never fails the operation the worker is waiting
+         * for. */
         (void)base_update(w);
     }
     int parked = restore_sleep ? goodix_worker_sleep(w) : 0;
@@ -360,7 +363,9 @@ int goodix_worker_operate(struct goodix_worker *w, const char *operation, uint32
     uint32_t last_remaining = 100;
     bool first_image = true;
     for (unsigned attempt = 0; !ret && attempt < 100; attempt++) {
+        w->waiting = true;
         ret = control(w, "capture", verify);
+        w->waiting = false;
         if (ret) break;
         uint32_t remaining = last_remaining, id = 0, code = 3, finish[13] = {0};
         ret = sensor_capture(w, enroll ? 1 : 2, 0, false);
@@ -368,8 +373,17 @@ int goodix_worker_operate(struct goodix_worker *w, const char *operation, uint32
         if (!ret) ret = record(w, "UFW1 captured");
         if (ret == 1112) ret = 0;
         else if (!ret && enroll) {
-            ret = add_image(w, first_image, &remaining, &id);
-            first_image = false;
+            /* The touchscreen reports a finger as it lands, before it lies
+             * flat: an image rejected as partial or poor is taken again,
+             * twice at most, while the finger settles. */
+            for (unsigned take = 0;; take++) {
+                ret = add_image(w, first_image, &remaining, &id);
+                first_image = false;
+                if ((ret != 1013 && ret != 1014) || take == 2) break;
+                int again = sensor_capture(w, 1, 0, false);
+                fprintf(stderr, "Goodix enrollment image %d taken again: %d\n", ret, again);
+                if (again) break;
+            }
             if (!ret) code = 0;
             /* A rejected image (partial 1013, quality 1014, duplicate area
              * 1047, and codes not yet named such as 1180) asks for another
