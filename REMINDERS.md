@@ -170,13 +170,6 @@ not part of any device's configuration.
   - an image without `--dev-access` is untried on a phone;
   - the Pad 4 keeps `denial-setup`, its home and the test shell in
     `/var/lib/denial-setup`; nothing runs as it.
-- **The rescue's screen on command-mode panels.** Seen 2026-11-07 on the
-  RedMagic: the rescue drew its install screen into the bootloader's
-  framebuffer, but the RM692H5 is a command-mode panel that shows only what
-  the display controller sends, and the kernel turned the DSI clocks off as
-  unused at 0.67 s; the panel went white. Installing works without the
-  screen (flash.sh asks fastboot). The rescue should draw through the
-  display driver (KMS) where the phone has one, on every phone.
 - **USB gadget after an external monitor on the RedMagic.** After a
   monitor has been connected over USB-C, USB does not work until the phone
   reboots; unplugging and replugging the cable alone is fine (user,
