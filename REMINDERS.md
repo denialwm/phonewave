@@ -181,12 +181,14 @@ not part of any device's configuration.
   USB connection is NetworkManager's "shared", but the workstation's
   `/etc/nftables.conf` drops every forwarded packet, so nothing past it
   answers. Seen on the Edge 70, 2026-11-05.
-- **Google apps on a phone's Droidloom.** The Ace 3's restored Android data
-  was set up with Google apps, which the public Droidloom packages leave out,
-  so it runs a local `droidloom-gapps` package built from the same LiteGapps
-  archive (the add-on in `droidloom/.work/gapps-arm64`). One package serves
-  every Droidloom release until the Android base images move; it is not
-  published.
+- **Google apps package.** Published by hand since 2026-11-10 at
+  `packages.denialwm.org/gapps/aarch64/`, outside Droidloom's repository and
+  every image: users flash it in the rescue (`fastboot flash package`). It
+  is built here from the LiteGapps add-on in `droidloom/.work/gapps-arm64`
+  (`tools/build` packs it with each Droidloom build) and uploaded with its
+  `.sha256` to `/srv/packages/gapps/aarch64/` on the package server. One
+  package serves every Droidloom release until the Android base images move;
+  a new base needs a new package there. No x86_64 package is published.
 - **Droidloom release name on package installs.** A restore on the packaged
   release 30 said the phone runs release "unknown": the backup's release check
   cannot read a package install's release.

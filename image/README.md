@@ -36,6 +36,11 @@ A pacman package goes in the same way, after the root:
 
     fastboot flash package droidloom-gapps-VERSION-aarch64.pkg.tar.zst
 
+Google apps for Droidloom are that one package, apart from Droidloom's own
+repository: `https://packages.denialwm.org/gapps/aarch64/`, each file with
+its `.sha256`. One package fits every Droidloom release on the same Android
+base.
+
 The fastboot stores it in the installed root
 (`/var/lib/phonewave-system/flashed/`), and the phone installs it as it next
 starts, before Denial (`phonewave-system/install-flashed`). Droidloom's first
