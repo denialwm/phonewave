@@ -3,6 +3,7 @@
 # denial-setup and starts this through pkexec:
 #
 #   first-user USERNAME FULL_NAME PHONE_NAME LANGUAGE TIME_ZONE < password, PIN
+#   first-user --zone TIME_ZONE
 #   first-user --fingerprint
 #   first-user --start
 #
@@ -15,7 +16,10 @@
 #
 # The account, password included, is made in one step: if any part fails,
 # nothing of it stays and setup can try again. It refuses once a person's
-# account exists. --fingerprint then runs deniald's fingerprint session for
+# account exists. --zone, before that, sets the time zone as soon as setup
+# knows it, and its country as the one whose rules the Wi-Fi radios follow,
+# so setup's Wi-Fi step finds the networks that country allows.
+# --fingerprint then runs deniald's fingerprint session for
 # that account, its PIN the key as in Settings. --start runs denial.service
 # as the account, and Denial starts again as that person.
 set -euo pipefail
@@ -33,6 +37,21 @@ people() {
 }
 
 case ${1-} in
+  --zone)
+    zone=${2-}
+    [ -z "$(people)" ] || fail "the phone already has an account" 3
+    [[ -n $zone && $zone != *..* && -f /usr/share/zoneinfo/$zone ]] ||
+      fail "$zone is not a time zone" 2
+    timedatectl set-timezone "$zone"
+    # tzdata's zone.tab names each zone's country; Settings' helper, where
+    # the phone has it, keeps the country and tells the radios now.
+    country=$(awk -F'\t' -v zone="$zone" '!/^#/ && $3 == zone { print $1; exit }' \
+      /usr/share/zoneinfo/zone.tab)
+    if [[ $country =~ ^[A-Z]{2}$ && -x /usr/lib/denial-apps/wifi-country ]]; then
+      /usr/lib/denial-apps/wifi-country "$country"
+    fi
+    exit 0
+    ;;
   --fingerprint)
     uid=$(people)
     [[ $uid =~ ^[0-9]+$ ]] || fail "the phone has no single account" 2
