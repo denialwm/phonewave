@@ -64,9 +64,9 @@ not part of any device's configuration.
   `linux` until then, is named `denial` and holds the image; Android keeps
   `userdata`. Before the move the old root was saved in the vault,
   `nx809j/backups/nx809j-before-image-20261106/` (as the Ace 3's, owners
-  intact), and Android's storage, which is back on the phone with the Ace
-  3's local Google apps package; `droidloom-20261109/` holds the latest
-  backup of it. The image's fresh Android storage is beside it, `/var/lib/droidloom/users/1000/data.fresh-image`.
+  intact), and Android's storage. Installed clean 2026-11-10 from published
+  packages and Android's storage restored from that day's backup (the vault's
+  `backups/droidloom-20261110-LOCATION.md` says where it is).
   What `devices/nx809j/rootfs/` and the old root held, and where it goes:
   - Shared since 2026-11-06, boot image 233-shared: the ADSP, CDSP and
     modem firmware from modem_b; the modem through the shared `modem-setup`,
@@ -162,13 +162,12 @@ not part of any device's configuration.
   image built with `--dev-access --setup` and Denial from `tools/build`
   (0.2.1.r341.g010c10ef): the user went through setup ("it worked, quite
   nice for a first try"); the account, the device's name, time zone and the
-  Wi-Fi joined in setup were all there after. Still open:
-  - the published `denial` package has no setup until a release carries
-    010c10e: an image without `--dev-access` built before then starts Denial
-    as `denial-setup` with no way to make an account;
-  - setup offers no PIN or fingerprint yet; Settings sets both after;
-  - handing Droidloom to the new account is untried: the Moto image had no
-    Droidloom;
+  Wi-Fi joined in setup were all there after. Second run 2026-11-10 on the RedMagic, an
+  image of published packages only (`image/build --published`, Denial
+  0.6.3, Droidloom release 32, Google apps flashed with it): setup made
+  the account and Droidloom was handed to it.
+  Still open:
+  - an image without `--dev-access` is untried on a phone;
   - the Pad 4 keeps `denial-setup`, its home and the test shell in
     `/var/lib/denial-setup`; nothing runs as it.
 - **The rescue's screen on command-mode panels.** Seen 2026-11-07 on the
@@ -198,3 +197,7 @@ not part of any device's configuration.
 - **Droidloom release name on package installs.** A restore on the packaged
   release 30 said the phone runs release "unknown": the backup's release check
   cannot read a package install's release.
+- **Audio command timeout at boot on the RedMagic.** Seen 2026-11-10 on
+  devices-321, on every boot checked: six seconds after the ADSP comes up
+  the kernel logs `qcom-apm gprsvc:service:2:3: CMD timeout for [1001021]
+  opcode`. The sound card appears all the same. Cause unknown.
