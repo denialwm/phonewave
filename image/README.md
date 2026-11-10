@@ -202,6 +202,9 @@ its setup instead of the lock screen. No "configured" flag.
   step, password included, and refuses once a person's account exists. It
   sets the PIN as Settings does, the phone's name, time zone and language,
   and names the account in `denial.service.d/user.conf`.
+- `first-user --zone TIME_ZONE`, as setup's time zone step ends, sets the
+  zone and its country as the one the Wi-Fi radios follow, before setup's
+  Wi-Fi step looks for networks.
 - With a PIN and a fingerprint reader, setup then offers a fingerprint
   (skippable): `first-user --fingerprint` runs deniald's fingerprint session
   for the new account, opened by its PIN.
