@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Write the built image on a phone that already runs one, without going
 # through fastboot. For quick tries; flash.sh is the install.
-# Usage: image/install-userdata HOST
+# Usage: image/install-userdata HOST [PACKAGE...]
 #
 # The phone runs Linux, or already sits in our init_boot's rescue. Asks the
 # installed system for rescue, writes the image over SSH where the early
 # userspace boots it from (denial where the phone has one, else userdata),
-# reads it back, reboots into it.
+# reads it back, reboots into it. Each PACKAGE is a pacman package the phone
+# installs as it first starts, as flash.sh's: droidloom-gapps, say, which has
+# to be there before Android first boots.
 set -euo pipefail
 cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
-host=${1:?usage: image/install-userdata HOST}
+host=${1:?usage: image/install-userdata HOST [PACKAGE...]}
+shift
 image=$cache/image/out/userdata.img
 # Rescue's dropbear makes new host keys every boot.
 phone=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
@@ -49,6 +52,19 @@ echo "verified"
 if [ -s "$kept" ]; then
   "${phone[@]}" "mkdir -p /mnt/new && mount -t ext4 /dev/$part /mnt/new && tar -C /mnt/new -xof - && sync && umount /mnt/new" < "$kept"
   echo "kept the phone's own files: $(tar -tf "$kept" | grep -v '/$' | tr '\n' ' ')"
+fi
+if [ $# -gt 0 ]; then
+  # Where the rescue's fastboot stores them, for phonewave-system's
+  # install-flashed.
+  flashed=/mnt/new/var/lib/phonewave-system/flashed
+  "${phone[@]}" "mkdir -p /mnt/new && mount -t ext4 /dev/$part /mnt/new && mkdir -p $flashed"
+  n=0
+  for package; do
+    "${phone[@]}" "cat > $flashed/$(printf %02u $n).pkg.tar.zst" < "$package"
+    n=$((n + 1))
+  done
+  "${phone[@]}" "sync && umount /mnt/new"
+  echo "stored $# package(s) for the first start"
 fi
 echo "rebooting"
 "${phone[@]}" 'reboot -f' || true

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Build the images that install a phone.
-# Usage: image/build [--droidloom] [--local-builds] [--dev-access [--setup]]
+# Usage: image/build [--droidloom] [--local-builds | --published] [--dev-access [--setup]]
 #
 #   --droidloom   include Droidloom
 #   --local-builds  Denial and Droidloom from this workstation's newest
 #                 tools/build outputs (builds/*/PROJECT/latest), in place of
 #                 the published releases. For trying the streams' heads.
+#   --published   every package from the published repositories, none that
+#                 image/pack built here: the image a new user gets.
 #   --dev-access  root's SSH keys from every phone's vault, the vault's shared
 #                 image/private-rootfs, the owner's wallpaper, the user logix
 #                 and, with --local-builds, droidloom-gapps when the Droidloom
@@ -30,16 +32,19 @@ denial_key=AE4108FA5E91E26BE0EE331E0F5B3AD16E023091
 
 inside=
 [ "${1:-}" = --inside ] && { inside=1; shift; }
-droidloom= local_builds= dev_access= setup=
+droidloom= local_builds= published= dev_access= setup=
 for arg; do
   case $arg in
     --droidloom) droidloom=1 ;;
     --local-builds) local_builds=1 ;;
+    --published) published=1 ;;
     --dev-access) dev_access=1 ;;
     --setup) setup=1 ;;
     *) echo "unknown option $arg" >&2; exit 2 ;;
   esac
 done
+[ -z "$local_builds" ] || [ -z "$published" ] ||
+  { echo "--local-builds and --published exclude each other" >&2; exit 2; }
 shared=$cache/image
 out=$shared/out
 qemu=$shared/qemu/usr/bin/qemu-aarch64-static
@@ -93,13 +98,22 @@ host() {
   fi
 
   # Our packages, as a repository listed before Arch's: those image/pack
-  # builds.
+  # builds, or with --published the ones phones update from.
   rm -rf "$out/repo"
-  mkdir -p "$out/repo"
-  local name
-  for name in $(grep -hv '^\s*\(#\|$\)' "$here/packages/phonewave"); do
-    ln "$(ls "$shared/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
-  done
+  local name ours
+  if [ -n "$published" ]; then
+    ours='[denial-phone]
+SigLevel = Required TrustedOnly
+Server = https://packages.denialwm.org/phone/$arch'
+  else
+    ours="[phonewave]
+SigLevel = Optional TrustAll
+Server = file://$out/repo"
+    mkdir -p "$out/repo"
+    for name in $(grep -hv '^\s*\(#\|$\)' "$here/packages/phonewave"); do
+      ln "$(ls "$shared/packages/$name"-[0-9]*.pkg.tar.zst | sort -V | tail -1)" "$out/repo/"
+    done
+  fi
   # The repository comes first, so its Denial and Droidloom win over the
   # published ones whatever their versions.
   if [ -n "$local_builds" ]; then
@@ -114,7 +128,8 @@ host() {
       [ -n "$dev_access" ] || rm -f "$out/repo"/droidloom-gapps-*
     done
   fi
-  repo-add -q "$out/repo/phonewave.db.tar.zst" "$out/repo/"*.pkg.tar.zst
+  [ -n "$published" ] ||
+    repo-add -q "$out/repo/phonewave.db.tar.zst" "$out/repo/"*.pkg.tar.zst
 
   cat > "$out/pacman.conf" <<EOF
 [options]
@@ -125,9 +140,7 @@ ParallelDownloads = 5
 DisableSandbox
 NoExtract = $noextract
 
-[phonewave]
-SigLevel = Optional TrustAll
-Server = file://$out/repo
+$ours
 
 [core]
 Server = $alarm_mirror/\$arch/\$repo
@@ -147,6 +160,7 @@ EOF
   local flags=()
   [ -n "$droidloom" ] && flags+=(--droidloom)
   [ -n "$local_builds" ] && flags+=(--local-builds)
+  [ -n "$published" ] && flags+=(--published)
   [ -n "$dev_access" ] && flags+=(--dev-access)
   [ -n "$setup" ] && flags+=(--setup)
   PHONEWAVE_CACHE=$cache PHONEWAVE_VAULT=$vault \

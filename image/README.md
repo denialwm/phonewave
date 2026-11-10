@@ -268,9 +268,13 @@ it (about 7 minutes): `image/pack` brings every recipe to its commit, then
 
 `--local-builds` installs the newest `tools/build` Denial and Droidloom
 (with droidloom-gapps when that build packed it, in a `--dev-access` image
-only) in place of the published releases. `install-userdata` sends the phone to its rescue, writes the root,
+only) in place of the published releases. `install-userdata HOST [PACKAGE...]` sends the phone to its rescue, writes the root,
 puts the old root's SSH host keys in the new one and reboots; the phone
 starts in setup.
+
+To try what a new user gets, `image/build --droidloom --published` takes
+every package from the published repositories and none that `image/pack`
+built here; `--dev-access --setup` beside it keeps SSH for the lab.
 
 To try setup again on a phone that already runs the image, write nothing:
 `tools/phone-setup-again HOST [PACKAGE...]` installs the given builds (say
