@@ -264,13 +264,24 @@ To try the streams' heads on a phone that runs an image, with no hands on
 it (about 7 minutes): `image/pack` brings every recipe to its commit, then
 
     image/build --droidloom --local-builds --dev-access --setup
-    image/install-userdata HOST
+    ssh HOST 'touch /etc/phone-rescue && sync && systemctl reboot'
+    /mnt/development/phonewave-cache/image/out/flash.sh [PACKAGE...]
 
 `--local-builds` installs the newest `tools/build` Denial and Droidloom
 (with droidloom-gapps when that build packed it, in a `--dev-access` image
-only) in place of the published releases. `install-userdata HOST [PACKAGE...]` sends the phone to its rescue, writes the root,
-puts the old root's SSH host keys in the new one and reboots; the phone
-starts in setup.
+only) in place of the published releases. `flash.sh` waits for the rescue's
+fastboot, writes the root and reboots; the phone starts in setup. It is the
+install every user runs and needs nothing but fastboot: use it first. The
+phone makes new SSH host keys, so forget the old ones
+(`ssh-keygen -R HOST`).
+
+`image/install-userdata HOST [PACKAGE...]` does the same over SSH, rescue
+included, and puts the old root's SSH host keys in the new one. It works
+only while the rescue lets the workstation's key in; when it stops at
+"no rescue shell", the phone already sits in the rescue: run `flash.sh`.
+
+Either way the whole root is rewritten: copy off the phone first whatever
+only it holds, such as a Droidloom backup under `/var/tmp`.
 
 To try what a new user gets, `image/build --droidloom --published` takes
 every package from the published repositories and none that `image/pack`
