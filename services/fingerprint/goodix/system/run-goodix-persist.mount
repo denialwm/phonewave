@@ -4,6 +4,11 @@ Before=goodix-secure-storage.service
 # The first calibration copy mounts persist read-only in its own namespace,
 # which fails while this mount holds it read-write.
 After=phonewave-fingerprint-calibration.service
+# That copy runs after local-fs.target, which a mount by default comes
+# before: keep only the shutdown half of the defaults.
+DefaultDependencies=no
+Conflicts=umount.target
+Before=umount.target
 StopWhenUnneeded=yes
 
 [Mount]
