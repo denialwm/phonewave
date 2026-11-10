@@ -281,7 +281,17 @@ only while the rescue lets the workstation's key in; when it stops at
 "no rescue shell", the phone already sits in the rescue: run `flash.sh`.
 
 Either way the whole root is rewritten: copy off the phone first whatever
-only it holds, such as a Droidloom backup under `/var/tmp`.
+only it holds. To keep Android across an install:
+
+    tools/phone-backup HOST DIR              # before: Android's storage to DIR
+    out/flash.sh droidloom-gapps-...         # the image, with Google apps if the backup had them
+    tools/phone-backup HOST --restore FILE   # after setup made the account
+
+The restore runs once setup has made the account, which is when Droidloom
+is set up, and takes root on the phone. It keeps the storage it replaces as
+`DATA_DIR.before-restore-DATE` on the phone: delete it once the apps work.
+On the phone itself the same is `droidloomctl backup FILE` and
+`droidloomctl restore FILE` (Droidloom's docs/INSTALL.md).
 
 To try what a new user gets, `image/build --droidloom --published` takes
 every package from the published repositories and none that `image/pack`
