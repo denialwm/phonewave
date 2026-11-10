@@ -469,6 +469,44 @@ static void store_package(const uint8_t *buf, uint32_t len)
 	}
 }
 
+/* An SSH public key for the installed system: kept beside the flashed
+ * packages, where phonewave-system's flashed-keys gives it to the phone's
+ * person, at once or when setup makes the account. */
+static void store_key(const uint8_t *buf, uint32_t len)
+{
+	static const char *const kinds[] = { "ssh-", "ecdsa-", "sk-" };
+	static const char *const dirs[] = { "/mnt/root/var/lib/phonewave-system",
+		"/mnt/root/var/lib/phonewave-system/flashed" };
+	int known = 0;
+
+	for (unsigned i = 0; i < sizeof kinds / sizeof *kinds; i++)
+		known |= len > strlen(kinds[i]) && !memcmp(buf, kinds[i], strlen(kinds[i]));
+	if (!known || len > 16384 || memchr(buf, 0, len)) {
+		reply("FAILnot an SSH public key (.pub)");
+		return;
+	}
+	if (mount_root()) {
+		reply("FAILno system installed: flash the image first");
+		return;
+	}
+	for (unsigned i = 0; i < sizeof dirs / sizeof *dirs; i++)
+		mkdir(dirs[i], 0755);
+	int fd = open("/mnt/root/var/lib/phonewave-system/flashed/authorized_keys",
+		      O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0600);
+	int failed = fd < 0 || write(fd, buf, len) != (ssize_t)len ||
+		     (buf[len - 1] != '\n' && write(fd, "\n", 1) != 1) || fsync(fd);
+	if (fd >= 0)
+		close(fd);
+	failed |= umount("/mnt/root");
+	if (failed) {
+		status("ssh-key: write failed");
+		reply("FAILwrite failed");
+	} else {
+		status("Stored the SSH key");
+		reply("OKAY");
+	}
+}
+
 static void flash(const char *name, const uint8_t *buf, uint32_t len)
 {
 	char dev[300], part[64];
@@ -479,8 +517,12 @@ static void flash(const char *name, const uint8_t *buf, uint32_t len)
 		store_package(buf, len);
 		return;
 	}
+	if (!strcmp(name, "ssh-key")) {
+		store_key(buf, len);
+		return;
+	}
 	if (resolve(name, part, sizeof part) || partition(part, dev, sizeof dev, &size)) {
-		reply("FAILonly denial, userdata, package, boot and init_boot");
+		reply("FAILonly denial, userdata, package, ssh-key, boot, init_boot");
 		return;
 	}
 	name = part;

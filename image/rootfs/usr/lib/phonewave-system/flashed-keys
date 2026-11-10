@@ -1,0 +1,24 @@
+#!/bin/sh
+# Gives the SSH public keys the rescue's fastboot stored in the root
+# (`fastboot flash ssh-key FILE`) to the phone's person, as authorized keys.
+# install-flashed runs it as the phone starts and first-user when setup makes
+# the account: keys flashed before the phone has an account wait for it.
+set -eu
+keys=/var/lib/phonewave-system/flashed/authorized_keys
+[ -s "$keys" ] || exit 0
+uid_min=$(awk '$1 == "UID_MIN" { print $2 }' /etc/login.defs)
+uid_max=$(awk '$1 == "UID_MAX" { print $2 }' /etc/login.defs)
+user=$(getent passwd | awk -F: -v min="${uid_min:-1000}" -v max="${uid_max:-60000}" \
+  '$3 >= min && $3 <= max { print $1 }')
+# No account yet, or more than one: the keys stay where they are.
+[ -n "$user" ] && [ "$(echo "$user" | wc -l)" = 1 ] || exit 0
+home=$(getent passwd "$user" | cut -d: -f6)
+install -d -m 700 -o "$user" -g "$(id -gn "$user")" "$home/.ssh"
+touch "$home/.ssh/authorized_keys"
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  grep -qxF -- "$key" "$home/.ssh/authorized_keys" || printf '%s\n' "$key" >> "$home/.ssh/authorized_keys"
+done < "$keys"
+chown "$user:$(id -gn "$user")" "$home/.ssh/authorized_keys"
+chmod 600 "$home/.ssh/authorized_keys"
+rm -f "$keys"

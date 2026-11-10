@@ -49,6 +49,16 @@ the image needs nothing else; `flash.sh PACKAGE...` does both. On a phone
 whose Android has already booted the add-on installs but stays off: Google
 apps cannot join existing Android data.
 
+An SSH public key goes in the same way:
+
+    fastboot flash ssh-key ~/.ssh/id_ed25519.pub
+
+The fastboot appends it to `flashed/authorized_keys` in the installed root,
+and `phonewave-system/flashed-keys` gives it to the phone's person as an
+authorized key: as the phone next starts where it has an account, else when
+setup makes one (`first-user`). An image without `--dev-access` holds no key,
+so this is how its user gets SSH.
+
 This fastboot writes only those two partitions and the `boot` and
 `init_boot` of the slot the bootloader started (`androidboot.slot_suffix`,
 never the other slot's), raw or sparse, and reboots;

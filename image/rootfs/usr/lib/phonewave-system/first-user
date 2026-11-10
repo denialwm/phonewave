@@ -107,6 +107,8 @@ if ! printf '%s:%s\n' "$user" "$password" | chpasswd; then
 fi
 uid=$(id -u "$user")
 home=$(getent passwd "$user" | cut -d: -f6)
+# SSH keys flashed from the rescue before the account existed.
+/usr/lib/phonewave-system/flashed-keys || true
 
 # The rest is the phone's, not the account's: a failure ends with status 4
 # or 5, and the account stays.
