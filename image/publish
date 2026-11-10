@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Put the built image, and phones' boot images, where users download them:
+# https://packages.denialwm.org/images/.
+# Usage: image/publish HOST [CODENAME=BOOT_IMAGE...]
+#
+#   HOST                 SSH name of the package server; its user may sudo
+#   CODENAME=BOOT_IMAGE  a phone's boot image, named after its kernel build:
+#                        nx809j=/path/boot-321.img
+#
+# Packs $PHONEWAVE_CACHE/image/out as denial-mobile-DATE.zip (userdata.img,
+# init_boot.img, flash.sh, SHA256SUMS), DATE the day the image was built, and
+# each boot image as boot/CODENAME/CODENAME-NAME.zip, each with a .sha256
+# beside it. Only an image built without --dev-access: one that holds the
+# lab's keys never leaves this workstation. The server keeps the two newest
+# images and every boot image.
+set -euo pipefail
+cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
+out=$cache/image/out
+work=${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/image/release
+usage='usage: image/publish HOST [CODENAME=BOOT_IMAGE...]'
+host=${1:?$usage}
+shift
+remote=/srv/packages/images
+
+[ -f "$out/userdata.img" ] || { echo "no image in $out: run image/build" >&2; exit 1; }
+[ ! -e "$out/root/root/.ssh/authorized_keys" ] ||
+  { echo "this image was built with --dev-access" >&2; exit 1; }
+size=$(od -An -tu4 -j12 -N4 "$out/init_boot.img" | tr -d ' ')
+! tail -c +4097 "$out/init_boot.img" | head -c "$size" | lz4 -dc 2>/dev/null |
+  cpio -t 2>/dev/null | grep -q authorized_keys ||
+  { echo "this init_boot was built with --dev-access" >&2; exit 1; }
+
+version=$(date -r "$out/userdata.img" +%Y.%m.%d)
+name=denial-mobile-$version
+rm -rf "$work"
+mkdir -p "$work/$name"
+cp "$out/userdata.img" "$out/init_boot.img" "$out/flash.sh" "$work/$name/"
+(cd "$work/$name" && sha256sum userdata.img init_boot.img flash.sh > SHA256SUMS)
+(cd "$work" && zip -q -6 -r "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
+rm -r "$work/$name"
+
+for boot; do
+  codename=${boot%%=*} image=${boot#*=}
+  [ "$codename" != "$boot" ] && [ -f "$image" ] || { echo "$usage" >&2; exit 2; }
+  file=$(basename "$image" .img)
+  mkdir -p "$work/boot/$codename/stage"
+  cp "$image" "$work/boot/$codename/stage/boot.img"
+  (cd "$work/boot/$codename/stage" && sha256sum boot.img > SHA256SUMS &&
+    zip -q -9 "../$codename-$file.zip" boot.img SHA256SUMS)
+  rm -r "$work/boot/$codename/stage"
+  (cd "$work/boot/$codename" && sha256sum "$codename-$file.zip" > "$codename-$file.zip.sha256")
+done
+
+# A file goes up under a temporary name and takes its own only once the
+# server read the same hash.
+send() {  # FILE, relative to $work
+  local want
+  want=$(sha256sum < "$work/$1" | cut -d' ' -f1)
+  ssh -o BatchMode=yes "$host" "
+    set -e
+    sudo install -d -o packages -g packages -m 755 '$remote/$(dirname "$1")'
+    sudo -u packages sh -c 'cat > $remote/$1.partial'
+    [ \"\$(sha256sum < '$remote/$1.partial' | cut -d' ' -f1)\" = $want ]
+    sudo -u packages mv '$remote/$1.partial' '$remote/$1'
+    sudo chmod 644 '$remote/$1'" < "$work/$1"
+  echo "sent $1"
+}
+ssh -o BatchMode=yes "$host" "sudo install -d -o packages -g packages -m 755 $remote"
+(cd "$work" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) | while read -r file; do
+  send "$file" < /dev/null
+done
+ssh -o BatchMode=yes "$host" "
+  cd $remote
+  ls denial-mobile-*.zip | sort | head -n -2 | while read -r old; do
+    sudo -u packages rm -f \"\$old\" \"\$old.sha256\"
+  done
+  sudo chown -R packages:packages $remote
+  sudo restorecon -R $remote
+  ls -la . boot/*"
+echo "published https://packages.denialwm.org/images/$name.zip"

@@ -68,6 +68,9 @@ Apps and their libraries are not part of Phonewave; they live in
 
 ## Install
 
+To install Denial Mobile on a phone, follow the manual's
+[Install on a phone](https://manual.denialwm.org/docs/install-on-a-phone/).
+
 Device files:
 
 ```sh

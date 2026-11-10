@@ -302,6 +302,25 @@ To try what a new user gets, `image/build --droidloom --published` takes
 every package from the published repositories and none that `image/pack`
 built here; `--dev-access --setup` beside it keeps SSH for the lab.
 
+## Publishing
+
+Users install from `https://packages.denialwm.org/images/`, as the manual's
+"Install on a phone" page says (denial-website,
+`manual/content/docs/install-on-a-phone.md`, English and Chinese):
+
+    image/build --droidloom --published        # no --dev-access
+    image/publish denial-repo nx809j=/path/to/boot-321.img
+
+`image/publish HOST [CODENAME=BOOT_IMAGE...]` packs `out/` as
+`denial-mobile-DATE.zip` and each boot image as
+`boot/CODENAME/CODENAME-NAME.zip`, each with a `.sha256`, and uploads them;
+it refuses an image or init_boot built with `--dev-access`. The server keeps
+the two newest images. Test the image on a phone first, then publish that
+same build. After publishing, bring the manual page up to date: the image's
+name in its links and commands, and the device table's boot image and
+tested stock firmware. A device joins the table when the published image
+has passed on it. Google apps are a file apart, in `gapps/aarch64/`.
+
 To try setup again on a phone that already runs the image, write nothing:
 `tools/phone-setup-again HOST [PACKAGE...]` installs the given builds (say
 `builds/<codename>/denial/latest/*.pkg.tar.zst`), removes the account setup
