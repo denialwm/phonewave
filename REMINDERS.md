@@ -166,8 +166,9 @@ not part of any device's configuration.
   image of published packages only (`image/build --published`, Denial
   0.6.3, Droidloom release 32, Google apps flashed with it): setup made
   the account and Droidloom was handed to it.
+  Third run the same day, the same image without `--dev-access`: the user
+  set it up and it works.
   Still open:
-  - an image without `--dev-access` is untried on a phone;
   - the Pad 4 keeps `denial-setup`, its home and the test shell in
     `/var/lib/denial-setup`; nothing runs as it.
 - **USB gadget after an external monitor on the RedMagic.** After a
