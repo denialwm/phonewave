@@ -231,7 +231,8 @@ pub struct Camera {
     /// Clockwise turn that puts the image upright on the phone held
     /// upright.
     pub rotation: u32,
-    /// The image is shown and kept mirrored, as a mirror would show it.
+    /// The preview is mirrored, as a mirror would show it; photos are kept
+    /// as the scene is.
     pub mirror: bool,
     pub lens: Option<Lens>,
     pub colour: Colour,

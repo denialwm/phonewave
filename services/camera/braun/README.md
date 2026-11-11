@@ -129,8 +129,8 @@ own while the preview goes on:
 4. White balance, the digital gain, the matrix and the tone of the
    preview at the shutter, with radiance taken at the preview's exposure,
    so the photo looks like the preview with less noise and more detail.
-   The image is turned upright, and mirrored for a front camera, as its
-   preview is.
+   The image is turned upright. A front camera's preview is mirrored,
+   as a mirror would show it; its photo is not, so text in it reads.
 
 Photos are JPEGs at the sensor's full output. A 3072x4096 photo is written
 about 2.5 s after the shutter on the Ace 3 and 1.9 s on the RedMagic 11 Pro.

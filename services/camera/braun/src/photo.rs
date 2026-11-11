@@ -410,7 +410,9 @@ pub fn develop(
                     m[6] * r + m[7] * g + m[8] * b,
                 ]
             };
-            let (ox, oy) = place(x, y, width, height, camera.rotation, camera.mirror);
+            // Never mirrored: the preview is, for framing, but a photo keeps
+            // the scene as it is, text readable.
+            let (ox, oy) = place(x, y, width, height, camera.rotation, false);
             let pixel = (oy * out_width + ox) * 3;
             pixels[pixel..pixel + 3].copy_from_slice(&tone.display(colour));
         }
