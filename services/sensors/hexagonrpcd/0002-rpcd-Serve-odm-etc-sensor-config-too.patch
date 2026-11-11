@@ -1,0 +1,67 @@
+From c9bdb2a8327d663d915fb310f123f6fa4d421c44 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Wed, 11 Nov 2026 14:56:19 +0100
+Subject: [PATCH] rpcd: Serve /odm/etc/sensor/config too
+
+OnePlus keeps the sensor configuration in /odm/etc/sensor/config, without
+the s. Map it to odm/sensor/config/ under the device directory, empty when
+that is missing.
+---
+ hexagonrpcd/rpcd_builder.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/hexagonrpcd/rpcd_builder.c b/hexagonrpcd/rpcd_builder.c
+index a384b43..dd16e4e 100644
+--- a/hexagonrpcd/rpcd_builder.c
++++ b/hexagonrpcd/rpcd_builder.c
+@@ -28,6 +28,7 @@
+ // These paths are relative, with a prepended '/' if missing from previous segments
+ #define ACDBDATA		"/acdb/"
+ #define DSP_LIBS		"/dsp/"
++#define ODM_SENSOR_CONFIG	"/odm/sensor/config/"
+ #define ODM_SENSORS_CONFIG	"/odm/sensors/config/"
+ #define SENSORS_CONFIG		"/sensors/config/"
+ #define SENSORS_REGISTRY	"/sensors/registry/"
+@@ -112,13 +113,14 @@ static struct hexagonfs_dirent *hfs_map_or_empty(const char *name, const char *p
+  */
+ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ {
+-	char *acdbdata, *dsp_libs, *odm_sns_cfg, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
++	char *acdbdata, *dsp_libs, *odm_sensor_cfg, *odm_sns_cfg, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
+ 	size_t n_prefix;
+ 	struct hexagonfs_dirent *persist_dir, *vendor_dir;
+ 
+ 	n_prefix = strlen(prefix);
+ 
+ 	acdbdata = malloc(n_prefix + strlen(ACDBDATA) + 1);
++	odm_sensor_cfg = malloc(n_prefix + strlen(ODM_SENSOR_CONFIG) + 1);
+ 	odm_sns_cfg = malloc(n_prefix + strlen(ODM_SENSORS_CONFIG) + 1);
+ 	sns_cfg = malloc(n_prefix + strlen(SENSORS_CONFIG) + 1);
+ 	sns_reg = malloc(n_prefix + strlen(SENSORS_REGISTRY) + 1);
+@@ -132,6 +134,11 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 		strcat(acdbdata, ACDBDATA);
+ 	}
+ 
++	if (odm_sensor_cfg != NULL) {
++		strcpy(odm_sensor_cfg, prefix);
++		strcat(odm_sensor_cfg, ODM_SENSOR_CONFIG);
++	}
++
+ 	if (odm_sns_cfg != NULL) {
+ 		strcpy(odm_sns_cfg, prefix);
+ 		strcat(odm_sns_cfg, ODM_SENSORS_CONFIG);
+@@ -200,7 +207,10 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
+ 			 * partition and point the DSP there.
+ 			 */
+ 			hfs_mkdir("odm", 1,
+-				hfs_mkdir("etc", 1,
++				hfs_mkdir("etc", 2,
++					hfs_mkdir("sensor", 1,
++						hfs_map_or_empty("config", odm_sensor_cfg)
++					),
+ 					hfs_mkdir("sensors", 1,
+ 						hfs_map_or_empty("config", odm_sns_cfg)
+ 					)
+-- 
+2.55.0
+

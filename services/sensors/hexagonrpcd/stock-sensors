@@ -12,6 +12,7 @@ copies what the ADSP's sensor drivers read into DIR:
     sensors/sns_reg.conf  vendor's etc/sensors/sns_reg_config
     sensors/registry      persist's sensors/registry/registry
     odm/sensors/config    odm's etc/sensors/config, where the phone has one
+    odm/sensor/config     odm's etc/sensor/config, where the phone has one
     dsp                   empty
 
 A copy, not the partitions: the ADSP may write its registry, and those
@@ -132,9 +133,11 @@ def main():
                             os.path.join(sensors, "sns_reg.conf"))
             shutil.copytree(os.path.join(persist, "sensors/registry/registry"),
                             os.path.join(sensors, "registry"))
-            odm = os.path.join(work, "odm/etc/sensors/config")
-            if os.path.isdir(odm):
-                shutil.copytree(odm, os.path.join(out, "odm/sensors/config"))
+            # Xiaomi's odm says sensors, OnePlus's sensor.
+            for name in ("sensors", "sensor"):
+                odm = os.path.join(work, "odm/etc", name, "config")
+                if os.path.isdir(odm):
+                    shutil.copytree(odm, os.path.join(out, "odm", name, "config"))
             os.mkdir(os.path.join(out, "dsp"))
         finally:
             for path in reversed(mounted):
