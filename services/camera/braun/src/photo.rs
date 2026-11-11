@@ -13,6 +13,9 @@ use crate::isp::{self, Rendering, Shader, TONE_RANGE, Tone, lift};
 
 /// Frames are aligned by up to this many cells (2x2 sensor pixels).
 const MAX_SHIFT: i32 = 64;
+/// A shift is taken when it leaves at most this share of the unlikeness of
+/// no shift.
+const SHIFT_WORTH: f32 = 0.9;
 const QUALITY: u8 = 92;
 
 /// Frames taken at one exposure.
@@ -107,25 +110,59 @@ fn pyramid(plane: Plane, levels: usize) -> Vec<Plane> {
     out
 }
 
-/// Mean absolute difference of `a` and `b` shifted by (`dx`, `dy`), over
-/// the middle of the image.
-fn difference(a: &Plane, b: &Plane, dx: i32, dy: i32, margin: usize) -> f32 {
-    let mut sum = 0f32;
+/// How unlike `a` and `b` shifted by (`dx`, `dy`) are over the middle of
+/// the image: one minus their correlation, 0 for the same picture. Frames
+/// of different brackets differ in brightness and contrast wherever their
+/// exposures are off from what was asked; correlation leaves both out, so
+/// a shift is not taken to make up for them.
+fn unlikeness(a: &Plane, b: &Plane, dx: i32, dy: i32, margin: usize) -> f32 {
     let step = (a.width / 256).max(1);
-    let mut count = 0;
+    let (mut sa, mut sb, mut saa, mut sbb, mut sab, mut n) = (0f64, 0f64, 0f64, 0f64, 0f64, 0f64);
     for y in (margin..a.height - margin).step_by(step) {
         let by = (y as i32 + dy) as usize;
         for x in (margin..a.width - margin).step_by(step) {
             let bx = (x as i32 + dx) as usize;
-            sum += (a.at(x, y) - b.at(bx, by)).abs();
-            count += 1;
+            let (va, vb) = (a.at(x, y) as f64, b.at(bx, by) as f64);
+            sa += va;
+            sb += vb;
+            saa += va * va;
+            sbb += vb * vb;
+            sab += va * vb;
+            n += 1.0;
         }
     }
-    sum / count.max(1) as f32
+    let covariance = sab - sa * sb / n;
+    let spread = ((saa - sa * sa / n) * (sbb - sb * sb / n)).sqrt();
+    if spread <= 0.0 {
+        return 1.0;
+    }
+    (1.0 - covariance / spread) as f32
 }
 
-/// The shift in cells that lays `frame` on `reference`, coarse to fine.
+/// The shift in cells that lays `frame` on `reference`, coarse to fine; no
+/// shift unless it makes the two clearly more alike. A frame of noise, as
+/// a short exposure in the dark gives, fits some shift a little better by
+/// chance, and taking it would smear the photo and bring the edge in.
 fn align(reference: &[Plane], frame: &[Plane]) -> (i32, i32) {
+    let found = search(reference, frame);
+    if found == (0, 0) {
+        return found;
+    }
+    let margin = MAX_SHIFT as usize + 2;
+    let (a, b) = (&reference[0], &frame[0]);
+    if a.width <= 2 * margin || a.height <= 2 * margin {
+        return (0, 0);
+    }
+    let shifted = unlikeness(a, b, found.0, found.1, margin);
+    let still = unlikeness(a, b, 0, 0, margin);
+    if shifted < still * SHIFT_WORTH {
+        found
+    } else {
+        (0, 0)
+    }
+}
+
+fn search(reference: &[Plane], frame: &[Plane]) -> (i32, i32) {
     let levels = reference.len();
     let (mut dx, mut dy) = (0, 0);
     for level in (0..levels).rev() {
@@ -148,7 +185,7 @@ fn align(reference: &[Plane], frame: &[Plane]) -> (i32, i32) {
                 if cx.unsigned_abs() as usize >= margin || cy.unsigned_abs() as usize >= margin {
                     continue;
                 }
-                let score = difference(a, b, cx, cy, margin);
+                let score = unlikeness(a, b, cx, cy, margin);
                 if score < best.0 {
                     best = (score, cx, cy);
                 }
@@ -451,6 +488,73 @@ mod tests {
         (0..height)
             .flat_map(|y| (0..width).flat_map(move |x| [x as u8, y as u8, 0]))
             .collect()
+    }
+
+    /// A plane of `width` x `height` cells from `value(x, y)`.
+    fn plane(width: usize, height: usize, value: impl Fn(usize, usize) -> f32) -> Plane {
+        let mut plane = Plane::new(width, height);
+        for y in 0..height {
+            for x in 0..width {
+                plane.data[y * width + x] = value(x, y);
+            }
+        }
+        plane
+    }
+
+    /// Repeatable noise in 0..1.
+    fn noise(seed: u64, x: usize, y: usize) -> f32 {
+        let mut h = 0;
+        for value in [seed, x as u64, y as u64] {
+            h = (h ^ value).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            h ^= h >> 29;
+            h = h.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            h ^= h >> 32;
+        }
+        (h >> 40) as f32 / (1u64 << 24) as f32
+    }
+
+    /// Detail at every scale and repeating at none, as a scene has: noise
+    /// smoothed over 64, 16 and 4 cells.
+    fn scene(x: usize, y: usize) -> f32 {
+        [(64usize, 1.0), (16, 0.5), (4, 0.25)]
+            .iter()
+            .map(|&(size, weight)| {
+                let (cx, cy) = (x / size, y / size);
+                let (fx, fy) = (
+                    (x % size) as f32 / size as f32,
+                    (y % size) as f32 / size as f32,
+                );
+                let at = |dx, dy| noise(size as u64, cx + dx, cy + dy);
+                let top = at(0, 0) * (1.0 - fx) + at(1, 0) * fx;
+                let bottom = at(0, 1) * (1.0 - fx) + at(1, 1) * fx;
+                weight * (top * (1.0 - fy) + bottom * fy)
+            })
+            .sum()
+    }
+
+    const W: usize = 640;
+    const H: usize = 480;
+
+    #[test]
+    fn align_finds_a_shift_through_a_different_exposure() {
+        let reference = plane(W, H, |x, y| scene(x + 20, y + 20) + 0.05 * noise(1, x, y));
+        // The same scene moved by (7, -5) cells, at half the contrast and
+        // brighter, as a bracket whose exposure is off.
+        let frame = plane(W, H, |x, y| {
+            0.5 * scene(x + 13, y + 25) + 2.0 + 0.05 * noise(2, x, y)
+        });
+        assert_eq!(align(&pyramid(reference, 5), &pyramid(frame, 5)), (7, -5));
+    }
+
+    #[test]
+    fn align_keeps_noise_where_it_is() {
+        // Nothing but noise, as a lens on the table or a short exposure in
+        // the dark.
+        for seed in 0..8 {
+            let reference = plane(W, H, |x, y| noise(seed, x, y));
+            let frame = plane(W, H, |x, y| noise(seed + 100, x, y));
+            assert_eq!(align(&pyramid(reference, 5), &pyramid(frame, 5)), (0, 0));
+        }
     }
 
     #[test]
