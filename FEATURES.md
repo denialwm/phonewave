@@ -183,9 +183,9 @@ last.
 | NFC | none | | |
 | Camera | ? | | |
 | Video decode | not started | | No Iris for Kaanapali; the stock vendor firmware has APV |
-| Rotation | not started | | steinerd needs the tablet's stock sensor files |
-| Light and proximity | not started | | |
-| Compass and gyroscope | not started | | |
+| Rotation | works | 2026-11-11, devices-322, user | steinerd, with the tail's `steinerd/top` naming the sensor axis at the screen's top edge |
+| Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
+| Compass and gyroscope | works | 2026-11-11, devices-322, probe | steinerd: bmi3x0 accelerometer and gyroscope, ak0991x magnetometer, bu52053nvx hall |
 | Fingerprint | none | | |
 | Suspend | broken | 2026-10-31, devices-14, probe | Each boot ends at `PM: suspend entry (deep)` and the tablet boots again |
 | Cooling | untested | | The device tree throttles the GPU from 90 °C since devices-235 |

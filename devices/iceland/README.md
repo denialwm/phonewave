@@ -61,6 +61,25 @@ the kernel loads by itself once the early userspace binds them under
 `qcom/kaanapali/oneplus/iceland`. The tail carries the topology,
 `qcom/kaanapali/OnePlus-Pad4-tplg.bin`.
 
+## Sensors
+
+steinerd offers orientation, acceleration, rotation rate, compass heading,
+light and proximity from the ADSP's sensor core: bmi3x0 accelerometer and
+gyroscope, ak0991x magnetometer, stk36c01 light and proximity, bu52053nvx
+hall. The tail turns on `hexagonrpcd.service` (services/sensors/hexagonrpcd),
+which serves the ADSP its configuration from the stock `vendor_b`, `odm_b`
+and persist. The tablet's own sensors are described in odm's
+`etc/sensor/config`; with vendor's alone the core finds none.
+The sensor core's x axis points to the screen's top edge, the long one
+with the camera's side up in landscape as the panel scans out: the tail's
+`steinerd/top` says `+x`.
+
+With the sensor core running, the panel lost part of a frame whenever the
+memory fell to its lowest frequency, at the end of each animation, until the
+display driver's peak bandwidth vote stopped being lower than its average
+(linux-perpetua 183c4eb728a1, devices-322). `underrun:` in
+`/sys/kernel/debug/dri/0/encoder-0/status` counts those frames.
+
 ## Bluetooth
 
 The WCN7860's Peri takes its factory RAM patch and NVM, `qca/pad4/` in the
