@@ -167,8 +167,8 @@ last.
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
 | Video out (USB-C) | works | 2026-10-15, user | DisplayPort |
-| Charging | works | 2026-11-03, devices-225, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; USB-PD chargers raised to 9 V at 1.5 A (8.89 V × 1.49 A, 13.2 W in, battery +2.6 A at 14 %; still +0.1 A under full CPU load) |
-| Battery | works | 2026-10-28, devices-14, user | |
+| Charging | works | 2026-11-11, devices-337, user; 2026-11-03, devices-225, probe | SuperVOOC at 51–55 W on both SC8547D pumps (OnePlus 80 W adapter, 35 to 38 % in 2 min, battery connector 48 °C); 14.7 W from a 5 V wall charger; USB-PD chargers raised to 9 V at 1.5 A (8.89 V × 1.49 A, 13.2 W in, battery +2.6 A at 14 %; still +0.1 A under full CPU load) |
+| Battery | works | 2026-11-11, devices-337, user | |
 | Wi-Fi | works | 2026-11-06, devices-243, user, probe | ath12k. The country set in Settings reaches the WCN7860 (`iw reg get`: phy#0 IT). Joins its saved 5180 MHz network at boot, 160 MHz EHT 2x2. The chip runs on one MAC (`qcom,no-dbs`): with DBS its scans missed 5180–5320 MHz (REMINDERS) |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
 | Speakers | works | 2026-10-28, devices-14, user | ADSP from modem_b since devices-235: sound card up, probe |
@@ -181,7 +181,7 @@ last.
 | VoLTE | none | | |
 | GNSS | ? | | |
 | NFC | none | | |
-| Camera | ? | | |
+| Camera | partial | 2026-11-11, devices-341, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; `braunctl shot` takes a photo with each; untuned. Front colour order checked (RGGB). Rear colour order, rotation and gain steps not checked yet: it saw only the table. No focus: the rear lens actuator is not driven |
 | Video decode | not started | | No Iris for Kaanapali; the stock vendor firmware has APV |
 | Rotation | works | 2026-11-11, devices-322, user | steinerd, with the tail's `steinerd/top` naming the sensor axis at the screen's top edge |
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
@@ -189,9 +189,9 @@ last.
 | Fingerprint | none | | |
 | Suspend | broken | 2026-10-31, devices-14, probe | Each boot ends at `PM: suspend entry (deep)` and the tablet boots again |
 | Cooling | untested | | The device tree throttles the GPU from 90 °C since devices-235 |
-| Denial | works | 2026-11-06, devices-235, probe | The image's `denial` package (0.6.2) |
+| Denial | works | 2026-11-11, devices-337, user | The published image's `denial` package (0.6.3), on the `denial` partition |
 | Native apps | works | 2026-10-28, devices-14, user | |
-| Android apps | works | 2026-11-06, devices-235, probe | Droidloom packages (0.1.0-30.1 candidate) with the Google apps package, its Android storage kept through the move to the image |
+| Android apps | works | 2026-11-11, devices-337, user | Droidloom 0.1.0-32 packages with the Google apps package, from the published image |
 | Pen | ? | | |
 | Keyboard cover | ? | | |
 

@@ -1,0 +1,7 @@
+# SmartSens chip IDs 0xc658 and 0xd154 (OnePlus Pad 4 rear and front). The
+# driver's gain code is linear, 128 for 1x. Black measured 64 on the rear
+# and 65 on the front.
+black = 64
+white = 1000
+analogue_gain = { m0 = 1, c0 = 0, m1 = 0, c1 = 128 }
+max_gain = 32
