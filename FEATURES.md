@@ -158,7 +158,7 @@ last.
 | Boot | works | 2026-11-11, devices-337, user, probe | The shared image on `denial`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
 | Display | works | 2026-11-11, devices-337, user, probe | NT36536, both DSI links, DSC 1.2. Taken over from the bootloader as it runs: the timing engine counts on at 120 frames a second through the kernel's start, no frame lost on two boots |
 | Brightness | works | 2026-10-28, devices-14, user | |
-| Wake from screen off | works | user | Power key |
+| Wake from screen off | works | 2026-11-12, devices-347, user | Power key; also double tap. The panel stays powered while blanked, as on stock, and its touch controller waits in gesture mode |
 | GPU | works | user | Adreno 840 |
 | Touch | works | user | |
 | Keys | works | 2026-10-28, devices-14, user | |
@@ -187,7 +187,7 @@ last.
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
 | Compass and gyroscope | works | 2026-11-11, devices-322, probe | steinerd: bmi3x0 accelerometer and gyroscope, ak0991x magnetometer, bu52053nvx hall |
 | Fingerprint | none | | |
-| Suspend | partial | 2026-11-11, devices-346, probe | s2idle sleeps until the RTC wakes it (306 s, woken by an alarm Droidloom's Android set); Wi-Fi comes back after resume. deep returns at once from the firmware (it rebooted the tablet on devices-14); the kernel still picks deep unless told s2idle. Nothing suspends the tablet on its own: the image turns suspend off |
+| Suspend | partial | 2026-11-12, devices-347, probe | s2idle, the default since devices-347, sleeps until the RTC wakes it (306 s, woken by an alarm Droidloom's Android set). Wi-Fi comes back after resume. deep returns at once from the firmware (it rebooted the tablet on devices-14). Nothing suspends the tablet on its own: the image turns suspend off |
 | Cooling | untested | | The device tree throttles the GPU from 90 °C since devices-235 |
 | Denial | works | 2026-11-11, devices-337, user | The published image's `denial` package (0.6.3), on the `denial` partition |
 | Native apps | works | 2026-10-28, devices-14, user | |
