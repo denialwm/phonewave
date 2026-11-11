@@ -181,7 +181,7 @@ last.
 | VoLTE | none | | |
 | GNSS | ? | | |
 | NFC | none | | |
-| Camera | partial | 2026-11-11, devices-341, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; `braunctl shot` takes a photo with each; untuned. Front colour order checked (RGGB). Rear colour order, rotation and gain steps not checked yet: it saw only the table. No focus: the rear lens actuator is not driven |
+| Camera | partial | 2026-11-11, devices-342, user, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; photos with each over Wi-Fi (user); untuned. Photos are landscape as the panel. Rear: text comes out upright and unmirrored, colours right (RGGB), gain steps 1.5x to 6x within 4 %. Front: colour order checked (RGGB). Not checked: the front's mirroring, gains of 8x and above. No focus: the rear lens actuator is not driven |
 | Video decode | not started | | No Iris for Kaanapali; the stock vendor firmware has APV |
 | Rotation | works | 2026-11-11, devices-322, user | steinerd, with the tail's `steinerd/top` naming the sensor axis at the screen's top edge |
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
