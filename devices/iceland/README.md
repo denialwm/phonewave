@@ -54,6 +54,22 @@ pair.
 `denial`. With boot-NAME.img on boot_b and the shared init_boot on
 init_boot_b, the image's `flash.sh` writes it from the rescue's fastboot.
 
+## Display
+
+The NT36536 LCD is a video-mode panel on both DSI links with DSC 1.2. The
+bootloader leaves it running with its picture and the kernel goes on from
+there, restarting nothing (linux-perpetua dd400323a583, devices-337): the
+boot log is on the bootloader's framebuffer until the display driver has the
+controller up, then the driver's first frame goes out on the timing engine,
+the DSI links, the PLL, the panel and the backlight as they run. The device
+tree asks for it with the MDSS node's `memory-region`, and gives that node
+the second power domain the bootloader's pipeline runs on,
+`DISP_CC_MDSS_CORE_INT2_GDSC`.
+
+The kernel log says `intf_1: bootloader's stream goes on at frame N` at the
+take-over. The frame counter, MDP `0x9801000` + INTF + `0xac`, counts on from
+the bootloader's start at 120 a second: measured twice, no frame lost.
+
 ## Audio
 
 The ADSP runs the factory firmware from modem_b, split .mdt images, which
