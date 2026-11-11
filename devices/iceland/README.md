@@ -1,8 +1,9 @@
 # OnePlus Pad 4 (iceland)
 
 The tablet runs Arch Linux on linux-perpetua from slot B, from the image every
-phone shares (`image/`), on `userdata`: the tablet has no Android data to
-keep. boot_b holds the kernel and after it the tail: modules, the GPU, touch,
+phone shares (`image/`), on `denial`, an 80 GiB partition made on 2026-11-11
+after `userdata`, which shrank to make room and still holds the root of
+2026-11-06 with its Droidloom storage. boot_b holds the kernel and after it the tail: modules, the GPU, touch,
 Wi-Fi and Bluetooth firmware, the audio topology and boot/tail/. init_boot_b
 holds the init_boot every phone shares (`image/init-boot`). `ssh iceland-usb`
 reaches the tablet as root over USB at 10.77.71.2, `ssh iceland` as logix
@@ -26,9 +27,18 @@ from the tablet's own modem partition (`image/stock-firmware`).
 
 ## Partitions
 
-Only `boot_b` and `init_boot_b` are written, one at a time. Never
-set_active, erase, format, GPT edits or EDL: tablet #1 was lost that way. The
-tail turns no slot marking on, so nothing writes the partition table.
+Only `boot_b`, `init_boot_b` and `denial` are written, one at a time. Never
+set_active, erase, format or EDL: tablet #1 was lost to empty xbl and abl
+partitions. The tail turns no slot marking on, so nothing writes the
+partition table.
+
+`sda`, which holds no part of the boot chain, got its `denial` partition from
+the rescue: `e2fsck -f` and `resize2fs` on `userdata` (the rescue's clock
+must be set first, or resize2fs asks for the check again; 4.5 minutes for
+72 GB moved), then `sfdisk /dev/sda` from an edited `sfdisk --dump`, which
+keeps every other entry as it was. The tools came from the installed root,
+copied to the rescue's /tmp with their libraries. The table before and after
+is in the vault, `backups/gpt-sda-20261111-*`.
 
 Write an image with `dd` from the running system: first check that
 `androidboot.slot_suffix` in `/proc/bootconfig` is `_b`, and write by
@@ -41,14 +51,8 @@ pair.
 ## Installing
 
 `image/build` builds the shared image; its `userdata.img` goes on
-`userdata`. With boot-NAME.img on boot_b and the
-shared init_boot on init_boot_b, a tablet whose `userdata` holds no image
-stops in the rescue (SSH at 10.77.71.2, fastboot), and from there:
-
-```sh
-fastboot flash userdata userdata.img
-fastboot reboot
-```
+`denial`. With boot-NAME.img on boot_b and the shared init_boot on
+init_boot_b, the image's `flash.sh` writes it from the rescue's fastboot.
 
 ## Audio
 

@@ -155,7 +155,7 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | 2026-11-06, devices-243, probe | The shared image on `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
+| Boot | works | 2026-11-11, devices-337, user, probe | The shared image on `denial`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
 | Display | works | user | |
 | Brightness | works | 2026-10-28, devices-14, user | |
 | Wake from screen off | works | user | Power key |
