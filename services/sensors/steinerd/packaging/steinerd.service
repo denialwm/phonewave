@@ -13,7 +13,10 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 ProtectControlGroups=yes
-ProtectKernelModules=yes
+# ProtectKernelModules= without hiding /usr/lib/modules, where the boot
+# image's tail says how the sensors sit against the screen.
+CapabilityBoundingSet=~CAP_SYS_MODULE
+SystemCallFilter=~@module
 ProtectKernelLogs=yes
 PrivateDevices=yes
 RestrictAddressFamilies=AF_UNIX AF_QIPCRTR

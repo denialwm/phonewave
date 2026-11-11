@@ -9,6 +9,7 @@ use async_signal::Signals;
 use futures_lite::{StreamExt, future};
 
 use crate::bus::{Bus, Command, Kind, Props};
+use crate::frame::Frame;
 use crate::orientation::Classifier;
 use crate::pb::{self, Value};
 use crate::qmi;
@@ -123,6 +124,8 @@ struct State {
     claims: BTreeMap<Kind, BTreeSet<String>>,
     sensors: BTreeMap<Source, Sensor>,
     classifier: Classifier,
+    /// The sensor core's axes against the screen's.
+    frame: Frame,
     /// The gyroscope's bias in rad/s, as the core last reported it.
     gyro_bias: [f32; 3],
     /// When each throttled value was last published, in DSP ticks.
@@ -136,7 +139,10 @@ const CORE_WAIT: Duration = Duration::from_secs(60);
 
 impl Daemon {
     pub async fn run(mut self) -> Result<(), String> {
-        let mut state = State::default();
+        let mut state = State {
+            frame: Frame::load(),
+            ..State::default()
+        };
         loop {
             let wake = future::or(
                 async { Wake::Core(Core::connect(CORE_WAIT).await) },
@@ -321,6 +327,7 @@ impl State {
             }
             (Source::Accel, msg::MEASUREMENT) => {
                 if let [x, y, z, ..] = floats()[..] {
+                    let (x, y, z) = self.frame.vector(x, y, z);
                     let ns = (u128::from(e.timestamp) * 625 / 12) as u64;
                     if let Some(o) = self.classifier.feed(x, y, z, ns) {
                         self.props.orientation = o;
@@ -339,7 +346,8 @@ impl State {
                     && due(&mut self.rotation_rate_at, e.timestamp, MOTION_TICKS)
                 {
                     let [bx, by, bz] = self.gyro_bias;
-                    self.props.rotation_rate = ((x - bx).into(), (y - by).into(), (z - bz).into());
+                    let (x, y, z) = self.frame.vector(x - bx, y - by, z - bz);
+                    self.props.rotation_rate = (x.into(), y.into(), z.into());
                 }
             }
             (Source::GyroCal, msg::CALIBRATION) => {
@@ -356,6 +364,7 @@ impl State {
                 if let [x, y, z, w, ..] = floats()[..]
                     && (due(&mut self.heading_at, e.timestamp, HEADING_TICKS) || changed)
                 {
+                    let (x, y, z, w) = self.frame.attitude(x, y, z, w);
                     self.props.heading = (heading(x, y, z, w) * 10.0).round() / 10.0 % 360.0;
                     self.props.heading_accuracy = accuracy;
                 }

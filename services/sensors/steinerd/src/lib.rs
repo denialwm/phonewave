@@ -3,6 +3,7 @@
 
 pub mod bus;
 pub mod daemon;
+pub mod frame;
 pub mod orientation;
 pub mod pb;
 pub mod qmi;

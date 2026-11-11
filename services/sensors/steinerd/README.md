@@ -23,6 +23,12 @@ sensor core and nothing more.
   when the ADSP came up stay missing until the ADSP restarts. The device's
   `rootfs/` carries the unit; the files are the phone's own and are not in
   this repository.
+- Where the sensor core's y axis is not the screen's top edge, the boot
+  image's tail names the axis that is, in `steinerd/top`: `+x`, `-y` or
+  `-x` (`+y` without the file). steinerd turns acceleration, rotation rate,
+  orientation and heading into the screen's frame with it; `steinerctl raw`
+  shows the core's own. To find it, stand the phone upright and read
+  `steinerctl raw accel 25`: the axis near +9.8 is the one.
 
 `steinerctl list` shows what the core offers. If it lists only platform
 sensors (`steinerctl list registry timer` answers, `accel` says none), the
