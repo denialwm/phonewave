@@ -187,7 +187,7 @@ last.
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
 | Compass and gyroscope | works | 2026-11-11, devices-322, probe | steinerd: bmi3x0 accelerometer and gyroscope, ak0991x magnetometer, bu52053nvx hall |
 | Fingerprint | none | | |
-| Suspend | broken | 2026-10-31, devices-14, probe | Each boot ends at `PM: suspend entry (deep)` and the tablet boots again |
+| Suspend | partial | 2026-11-11, devices-346, probe | s2idle sleeps until the RTC wakes it (306 s, woken by an alarm Droidloom's Android set); Wi-Fi comes back after resume. deep returns at once from the firmware (it rebooted the tablet on devices-14); the kernel still picks deep unless told s2idle. Nothing suspends the tablet on its own: the image turns suspend off |
 | Cooling | untested | | The device tree throttles the GPU from 90 °C since devices-235 |
 | Denial | works | 2026-11-11, devices-337, user | The published image's `denial` package (0.6.3), on the `denial` partition |
 | Native apps | works | 2026-10-28, devices-14, user | |
