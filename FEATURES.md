@@ -181,7 +181,7 @@ last.
 | VoLTE | none | | |
 | GNSS | ? | | |
 | NFC | none | | |
-| Camera | partial | 2026-11-11, devices-343, user, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; the Camera app shows both, untuned (user). Photos are landscape as the panel. Rear: text comes out upright and unmirrored; BGGR since devices-343, before which orange came out blue (user); gain steps 1.5x to 6x within 4 %. Front: RGGB, orientation and mirroring right (user). Not checked: rear gains of 8x and above. No focus: the rear lens actuator is not driven |
+| Camera | partial | 2026-11-11, devices-344, user, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; the Camera app shows both, untuned (user). Photos are landscape as the panel. Both send BGGR: as RGGB, orange came out blue on the rear and blue red on the front (user). Rear: text comes out upright and unmirrored; gain steps 1.5x to 6x within 4 %. Front: orientation and mirroring right (user). Not checked: rear gains of 8x and above. No focus: the rear lens actuator is not driven |
 | Video decode | not started | | No Iris for Kaanapali; the stock vendor firmware has APV |
 | Rotation | works | 2026-11-11, devices-322, user | steinerd, with the tail's `steinerd/top` naming the sensor axis at the screen's top edge |
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
