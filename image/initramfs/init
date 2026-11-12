@@ -76,6 +76,18 @@ rescue() {
 	touch /run/rescue
 	mkdir -p $g/functions/ffs.fastboot /dev/usb-ffs/fastboot
 	ln -s $g/functions/ffs.fastboot $g/configs/c.1/ffs.fastboot
+	# Windows binds WinUSB to fastboot from the Microsoft OS descriptors it
+	# writes, and asks for them once per device version: the rescue's is
+	# its own. Its network and serial are interface associations, which
+	# Windows reads only under this device class.
+	echo 0x0201 > $g/bcdDevice
+	echo 0xef > $g/bDeviceClass
+	echo 0x02 > $g/bDeviceSubClass
+	echo 0x01 > $g/bDeviceProtocol
+	echo 1 > $g/os_desc/use
+	echo 0xcd > $g/os_desc/b_vendor_code
+	echo MSFT100 > $g/os_desc/qw_sign
+	ln -s $g/configs/c.1 $g/os_desc/c.1
 	mount -t functionfs fastboot /dev/usb-ffs/fastboot &&
 		fastboot /dev/usb-ffs/fastboot "$product" "$(cat $g/strings/0x409/serialnumber)" "$*" ||
 		{ mark "rescue: no fastboot"; rm $g/configs/c.1/ffs.fastboot; }

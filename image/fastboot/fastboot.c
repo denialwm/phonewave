@@ -646,9 +646,15 @@ static void *control(void *arg)
 	.wMaxPacketSize = (size) }
 #define COMPANION { .bLength = USB_DT_SS_EP_COMP_SIZE, .bDescriptorType = USB_DT_SS_ENDPOINT_COMP }
 
+/* Windows binds a driver to a vendor interface only when the device names
+ * one: WinUSB, under the device interface GUID Android's adb and fastboot
+ * look for, as adbd announces it. The kernel turns the ASCII into UTF-16. */
+#define GUID_NAME "DeviceInterfaceGUID"
+#define GUID_VALUE "{F72FE0D4-CBCB-407D-8814-9ED673D0DD6B}"
+
 static const struct {
 	struct usb_functionfs_descs_head_v2 header;
-	__le32 fs_count, hs_count, ss_count;
+	__le32 fs_count, hs_count, ss_count, os_count;
 	struct {
 		struct usb_interface_descriptor interface;
 		struct usb_endpoint_descriptor_no_audio out, in;
@@ -660,17 +666,36 @@ static const struct {
 		struct usb_endpoint_descriptor_no_audio in;
 		struct usb_ss_ep_comp_descriptor in_companion;
 	} __attribute__((packed)) ss;
+	struct usb_os_desc_header compat_header;
+	struct usb_ext_compat_desc compat;
+	struct usb_os_desc_header prop_header;
+	struct {
+		__le32 dwSize, dwPropertyDataType;
+		__le16 wPropertyNameLength;
+		char name[sizeof GUID_NAME];
+		__le32 dwPropertyDataLength;
+		char data[sizeof GUID_VALUE];
+	} __attribute__((packed)) prop;
 } __attribute__((packed)) descriptors = {
 	.header = {
 		.magic = FUNCTIONFS_DESCRIPTORS_MAGIC_V2,
 		.length = sizeof descriptors,
-		.flags = FUNCTIONFS_HAS_FS_DESC | FUNCTIONFS_HAS_HS_DESC | FUNCTIONFS_HAS_SS_DESC,
+		.flags = FUNCTIONFS_HAS_FS_DESC | FUNCTIONFS_HAS_HS_DESC | FUNCTIONFS_HAS_SS_DESC |
+			 FUNCTIONFS_HAS_MS_OS_DESC,
 	},
-	.fs_count = 3, .hs_count = 3, .ss_count = 5,
+	.fs_count = 3, .hs_count = 3, .ss_count = 5, .os_count = 2,
 	.fs = { INTERFACE, ENDPOINT(1 | USB_DIR_OUT, 64), ENDPOINT(2 | USB_DIR_IN, 64) },
 	.hs = { INTERFACE, ENDPOINT(1 | USB_DIR_OUT, 512), ENDPOINT(2 | USB_DIR_IN, 512) },
 	.ss = { INTERFACE, ENDPOINT(1 | USB_DIR_OUT, 1024), COMPANION,
 		ENDPOINT(2 | USB_DIR_IN, 1024), COMPANION },
+	.compat_header = { .dwLength = sizeof descriptors.compat_header + sizeof descriptors.compat,
+			   .bcdVersion = 0x0100, .wIndex = 4, .bCount = 1 },
+	.compat = { .Reserved1 = 1, .CompatibleID = "WINUSB" },
+	.prop_header = { .dwLength = sizeof descriptors.prop_header + sizeof descriptors.prop,
+			 .bcdVersion = 0x0100, .wIndex = 5, .wCount = 1 },
+	.prop = { .dwSize = sizeof descriptors.prop, .dwPropertyDataType = 1 /* REG_SZ */,
+		  .wPropertyNameLength = sizeof GUID_NAME, .name = GUID_NAME,
+		  .dwPropertyDataLength = sizeof GUID_VALUE, .data = GUID_VALUE },
 };
 
 static const struct {
