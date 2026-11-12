@@ -1256,15 +1256,25 @@ impl Life {
     }
 
     /// The device's override, else the provider database for the SIM's home
-    /// network, else the modem's default.
+    /// network and provider name, else the modem's default.
     async fn pick_apn(&self) -> String {
         match config::apn_override(Path::new(config::APN_FILE)) {
             Ok(Some(apn)) => return apn,
             Ok(None) => {}
             Err(e) => log(e),
         }
+        let spn = match sim::service_provider_name(&self.m.uim).await {
+            Ok(spn) => spn,
+            Err(e) => {
+                log(format!("SIM provider name: {e}"));
+                None
+            }
+        };
         match network::home_network(&self.m.nas).await {
-            Ok(Some((mcc, mnc))) => apn::lookup(mcc, mnc).unwrap_or_default(),
+            Ok(Some((mcc, mnc))) => {
+                log(format!("home network {mcc} {mnc}, SIM provider {spn:?}"));
+                apn::lookup(mcc, mnc, spn.as_deref()).unwrap_or_default()
+            }
             Ok(None) => String::new(),
             Err(e) => {
                 log(format!("home network: {e}"));

@@ -3,7 +3,9 @@
 use std::time::Duration;
 
 use crate::qmi::{Client, Error, Message};
+use crate::sms::gsm7;
 
+const READ_TRANSPARENT: u16 = 0x20;
 const VERIFY_PIN: u16 = 0x26;
 const REGISTER_EVENTS: u16 = 0x2e;
 const GET_CARD_STATUS: u16 = 0x2f;
@@ -15,6 +17,9 @@ const CHANGE_PROVISIONING_SESSION: u16 = 0x38;
 pub const SESSION_PRIMARY_GW: u8 = 0;
 pub const SESSION_SECONDARY_GW: u8 = 2;
 const PIN1: u8 = 1;
+/// EF_SPN, under the USIM's ADF: MF 3F00, ADF 7FFF (TS 31.102 4.2.12).
+const EF_SPN: u16 = 0x6f46;
+const ADF_USIM_PATH: [u8; 4] = [0x00, 0x3f, 0xff, 0x7f];
 /// The QMI error for a request that changes nothing, such as activating an
 /// active session.
 const NO_EFFECT: u16 = 0x1a;
@@ -169,6 +174,50 @@ pub async fn deactivate(uim: &Client, session: u8) -> Result<(), Error> {
     }
 }
 
+/// The provider name in EF_SPN: a display condition byte, then the name in
+/// the GSM default alphabet or UCS2 (TS 31.101 Annex A), padded with 0xff.
+pub fn parse_spn(file: &[u8]) -> Option<String> {
+    let name = file.get(1..)?;
+    let name = match name.first() {
+        // UCS2, big endian; the other UCS2 forms (0x81, 0x82) mark a base page.
+        Some(0x80) => char::decode_utf16(
+            name[1..]
+                .chunks_exact(2)
+                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .take_while(|&c| c != 0xffff),
+        )
+        .collect::<Result<String, _>>()
+        .ok()?,
+        Some(0x81 | 0x82) => return None,
+        _ => {
+            let end = name.iter().position(|&b| b == 0xff).unwrap_or(name.len());
+            gsm7::decode(&name[..end])
+        }
+    };
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// The provider name the SIM holds, if it holds one.
+pub async fn service_provider_name(uim: &Client) -> Result<Option<String>, Error> {
+    let mut file = EF_SPN.to_le_bytes().to_vec();
+    file.push(ADF_USIM_PATH.len() as u8);
+    file.extend_from_slice(&ADF_USIM_PATH);
+    let msg = Message::request(READ_TRANSPARENT)
+        .with(0x01, [SESSION_PRIMARY_GW, 0])
+        .with(0x02, file)
+        // Offset 0, length 0: the whole file.
+        .with(0x03, [0, 0, 0, 0]);
+    let reply = uim.call(msg, TIMEOUT).await?;
+    // The read result: a length, then the file's bytes.
+    Ok(match reply.tlv(0x11) {
+        Some([a, b, rest @ ..]) => rest
+            .get(..u16::from_le_bytes([*a, *b]) as usize)
+            .and_then(parse_spn),
+        _ => None,
+    })
+}
+
 /// Verifies PIN1 once. Returns the outcome and the retries left, which the
 /// modem reports on failure too.
 pub async fn verify_pin1(
@@ -231,6 +280,17 @@ mod tests {
             APP_USIM,
         ];
         assert!(parse_card_status(&v).is_err());
+    }
+
+    #[test]
+    fn reads_the_provider_name() {
+        let mut gsm = vec![0x01];
+        gsm.extend_from_slice(b"Public Mobile");
+        gsm.extend_from_slice(&[0xff; 3]);
+        assert_eq!(parse_spn(&gsm).as_deref(), Some("Public Mobile"));
+        let ucs2 = [0x00, 0x80, 0x00, b'T', 0x00, b'M', 0xff, 0xff];
+        assert_eq!(parse_spn(&ucs2).as_deref(), Some("TM"));
+        assert_eq!(parse_spn(&[0x00, 0xff, 0xff]), None);
     }
 
     #[test]
