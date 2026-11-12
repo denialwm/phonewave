@@ -68,7 +68,8 @@ stopped the boot, beside SSH at `10.77.71.2`. Over an earlier install the
 phone boots that root instead. A volume key held down while the phone
 starts, from the bootloader's logo until the install screen, stops it in
 the rescue; `install-userdata` asks the installed system for it, which a
-root holding `/etc/phone-rescue` gets.
+root holding `/etc/phone-rescue` gets once: the rescue removes the file, so
+`fastboot reboot` starts the system again.
 
 The init_boot is the same on every phone. The early userspace takes the
 phone's codename from the device tree's first compatible, its name from the
