@@ -191,7 +191,7 @@ last.
 | Cooling | partial | 2026-11-12, devices-353, probe | Throttles on an estimate of the case, held at 45 °C by the power allocator, one clock step a cycle. Under a GPU burn and eight busy CPU threads it held 44.8 to 45.2 °C for four minutes, the GPU between 222 and 382 MHz. With the battery connector thermistor in the estimate (devices-353), charging held it over 45 °C in a game menu and the GPU at 160 MHz (user: lagging hard); devices-354 estimates from the board (40 %), subboard (40 %) and skin (20 %) thermistors, not yet tried. The XO thermistor throttles fully from 78 °C, the SoC from 105 °C. Not checked: the estimate against a thermometer on the case |
 | Denial | works | 2026-11-11, devices-337, user | The published image's `denial` package (0.6.3), on the `denial` partition |
 | Native apps | works | 2026-10-28, devices-14, user | |
-| Android apps | works | 2026-11-11, devices-337, user | Droidloom 0.1.0-32 packages with the Google apps package, from the published image |
+| Android apps | works | 2026-11-12, devices-354, Droidloom 0.1.0-33.4, user | Droidloom with the Google apps package. Minimizing and restoring a game quickly, again and again, never leaves it frozen |
 | Pen | ? | | |
 | Keyboard cover | ? | | |
 
