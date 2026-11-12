@@ -52,7 +52,9 @@ echo 0x1d6b > $g/idVendor
 echo 0x0104 > $g/idProduct
 echo 0x0200 > $g/bcdUSB
 echo 0x0200 > $g/bcdDevice
-echo "$codename-$(uname -r)" > $g/strings/0x409/serialnumber
+# The kernel release, which names the device. Windows' fastboot reads at most
+# 31 characters of the serial and garbles a longer one.
+uname -r > $g/strings/0x409/serialnumber
 echo 'Linux' > $g/strings/0x409/manufacturer
 echo "$product" > $g/strings/0x409/product
 echo 'ACM serial + ECM network' > $g/configs/c.1/strings/0x409/configuration
