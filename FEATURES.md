@@ -156,7 +156,7 @@ last.
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
 | Boot | works | 2026-11-11, devices-337, user, probe | The shared image on `denial`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
-| Display | works | 2026-11-11, devices-337, user, probe | NT36536, both DSI links, DSC 1.2. Taken over from the bootloader as it runs: the timing engine counts on at 120 frames a second through the kernel's start, no frame lost on two boots |
+| Display | works | 2026-11-12, devices-356, probe; 2026-11-11, devices-337, user, probe | NT36536, both DSI links, DSC 1.2. Taken over from the bootloader as it runs: the timing engine counts on at 120 frames a second through the kernel's start, no frame lost on two boots. Denial then runs it at 144 Hz |
 | Brightness | works | 2026-10-28, devices-14, user | |
 | Wake from screen off | works | 2026-11-12, devices-349, user | Power key; also double tap. The panel stays powered while blanked, as on stock, and its touch controller waits in gesture mode |
 | GPU | works | user | Adreno 840 |
