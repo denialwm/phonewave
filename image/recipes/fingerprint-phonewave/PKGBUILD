@@ -27,6 +27,8 @@ url='https://github.com/denialwm/phonewave'
 license=(LGPL-2.1-or-later)
 _src=$startdir/../../../services/fingerprint
 . "$startdir/../recipe.sh"
+# 2: OpenSSL 4; 1 linked libcrypto.so.3.
+pkgrel=2
 source=("libfprint::git+https://gitlab.freedesktop.org/libfprint/libfprint.git#commit=$_libfprint"
         "libgusb::git+https://github.com/hughsie/libgusb.git#commit=$_gusb"
         "quic-teec::git+https://github.com/qualcomm/quic-teec.git#commit=$_teec"
@@ -174,7 +176,9 @@ build() {
 
 package_libfprint-phonewave() {
   pkgdesc='Library for fingerprint readers, with the uff driver for phone sensors'
-  depends=(glib2 libgudev libgusb openssl pixman)
+  # makepkg pins libcrypto.so to the soname it links, so a new OpenSSL
+  # waits for a rebuild instead of breaking the library.
+  depends=(glib2 libgudev libgusb libcrypto.so pixman)
   provides=("libfprint=$_libfprint_version" libfprint-2.so=2-64)
   conflicts=(libfprint)
   meson install -C libfprint-build --destdir "$pkgdir" --skip-subprojects --no-rebuild
