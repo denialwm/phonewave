@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Put a Denial shell build over the shell the denial package installed, and
+# restart Denial on it: for commits that change Dart alone.
+#   phone-denial-shell HOST [BUILD]
+# BUILD is a shell build's folder (tools/build start denial-shell DEVICE),
+# by default the device's latest. The phone's Flutter engine must be the one
+# the shell was compiled against; otherwise build and install the packages.
+# Files are replaced by rename, never in place: the running shell keeps the
+# library it has mapped. pacman -U or -Syu of a denial package puts its own
+# shell back.
+set -euo pipefail
+host=${1:?usage: phone-denial-shell HOST [BUILD]}
+device=${host%-wifi}
+device=${device%-usb}
+build=${2:-/mnt/development/denial-os/builds/$device/denial-shell/latest}
+build=$(readlink -f "$build")
+[[ -f $build/flutter/lib/libapp.so && -s $build/engine.sha256 ]] ||
+  { echo "no shell build in $build" >&2; exit 2; }
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
+# The SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+archive=/tmp/denial-shell.tar
+tar -C "$build/flutter" -cf - lib/libapp.so data/flutter_assets |
+  ssh "${ssh_options[@]}" "$host" "cat > $archive"
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s -- "$(cat "$build/engine.sha256")" "$archive" <<'REMOTE'
+set -eu
+root=/usr/lib/denial/flutter
+trap 'rm -f "$2"' EXIT
+engine=$(sha256sum "$root/lib/libflutter_engine.so" | cut -d' ' -f1)
+if [ "$engine" != "$1" ]; then
+  echo "STOP: the phone's Flutter engine is not the one this shell was built for; install the packages." >&2
+  exit 1
+fi
+stage=$(mktemp -d "$root/.shell.XXXXXX")
+trap 'rm -rf "$stage" "$2"' EXIT
+tar -C "$stage" --no-same-owner -xf "$2"
+chmod 755 "$stage" "$stage/lib/libapp.so"
+mv -f "$stage/lib/libapp.so" "$root/lib/libapp.so"
+rm -rf "$root/data/flutter_assets.old"
+mv "$root/data/flutter_assets" "$root/data/flutter_assets.old"
+mv "$stage/data/flutter_assets" "$root/data/flutter_assets"
+rm -rf "$root/data/flutter_assets.old"
+sync
+systemctl restart denial.service
+sleep 4
+systemctl is-active --quiet denial.service || { echo "STOP: denial.service is not running" >&2; exit 1; }
+echo "PASS: shell $(sha256sum "$root/lib/libapp.so" | cut -c1-12) running, deniald $(pgrep -o -x deniald)."
+REMOTE
+echo "Shell of $(cat "$build/commit" 2>/dev/null || echo "$build") on $host."
