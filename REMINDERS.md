@@ -190,6 +190,12 @@ not part of any device's configuration.
   `.sha256` to `/srv/packages/gapps/aarch64/` on the package server. One
   package serves every Droidloom release until the Android base images move;
   a new base needs a new package there. No x86_64 package is published.
+  Not checked yet (seen 2026-11-12): whether the published file was built
+  for the published Droidloom's base. Several different files carry the
+  same name and version, and Droidloom stops at start on a mismatch ("GApps
+  image identity mismatch"): compare the `base_images` in its
+  `usr/lib/droidloom/addons/gapps/manifest.json` with the published
+  droidloom-image's `usr/lib/droidloom/images/images/*.img`.
 - **Droidloom release name on package installs.** A restore on the packaged
   release 30 said the phone runs release "unknown": the backup's release check
   cannot read a package install's release.
