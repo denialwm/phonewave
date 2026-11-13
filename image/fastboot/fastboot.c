@@ -122,9 +122,9 @@ static void screen(void)
 		return;
 	}
 	fb.mem = mmap(NULL, fb.fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	close(fd);
 	if (fb.mem == MAP_FAILED) {
 		fb.mem = NULL;
+		close(fd);
 		return;
 	}
 	/* The text console would draw over the message. */
@@ -143,6 +143,10 @@ static void screen(void)
 		}
 		fclose(f);
 	}
+	/* A framebuffer the display driver registers counts as blank until
+	 * someone unblanks it; the picture would stay dark. */
+	ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
+	close(fd);
 	/* The commands fit on one line: 38 characters across. */
 	fb.scale = fb.var.xres / (38 * 16) ? fb.var.xres / (38 * 16) : 1;
 	fill(0, 0, fb.var.xres, fb.var.yres, pixel(0));
