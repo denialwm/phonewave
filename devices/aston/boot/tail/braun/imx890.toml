@@ -1,4 +1,4 @@
-# The Ace 3's main camera: the QTech IMX890 module and its DW9719 focus motor.
+# The 12R's main camera: the QTech IMX890 module and its DW9719 focus motor.
 # Colour is the module's stock tuning.
 
 role = "main"

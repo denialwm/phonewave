@@ -8,7 +8,7 @@ its own.
 
 | Card | Phone |
 |---|---|
-| `sm8550/astonsnd` | OnePlus Ace 3 |
+| `sm8550/astonsnd` | OnePlus 12R |
 | `kaanapali/Nubia-NX809J` | RedMagic 11 Pro |
 | `kaanapali/OnePlus-Pad4` | OnePlus Pad 4 |
 | `kaanapali/Xiaomi-17` | Xiaomi 17 |

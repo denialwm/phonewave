@@ -27,7 +27,7 @@ Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds it
 through linux-perpetua-build unless the release exists, and writes the vault's
 boot/boot-NAME.img. The ADSP and modem firmware are not in the tail: they do
 not fit beside the rest, and come from the phone's own modem partition
-(`image/stock-firmware`), as on the Ace 3.
+(`image/stock-firmware`), as on the 12R.
 
 ## Partitions
 
@@ -140,7 +140,7 @@ dmail (services/modem/dmail) owns it, as on every phone: its `modem-setup`
 starts rmtfs on the phone's own EFS partitions, read-only, and tqftpserv
 (services/modem/linux-msm). The tail turns dmail on and carries its device
 file, `boot/tail/dmail/device.toml`. The data endpoints are those of
-Kaanapali's IPA (AP to modem 2, modem to AP 24), the same as the Ace 3. The
+Kaanapali's IPA (AP to modem 2, modem to AP 24), the same as the 12R. The
 modem firmware comes from modem_b (`boot/tail/stock-firmware.conf`).
 
 VoLTE: the `[ims]` section of the device file names the phone as the

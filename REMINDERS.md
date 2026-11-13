@@ -17,7 +17,7 @@ not part of any device's configuration.
   screen-on power by about 0.4 W (0.82 W against 1.23 W); a packet after an
   idle period waited up to about 0.7 s for the next DTIM. Find out whether
   ath11k still needs either, and set what it needs for every phone.
-- **OnePlus Ace 3 (aston) onto the shared image.** Before the move, its
+- **OnePlus 12R (aston) onto the shared image.** Before the move, its
   root was saved in the vault, `aston/backups/aston-before-image-20261105/`:
   `system-owners.tar.zst` (/etc, /usr/local, /srv, the service state under
   /var/lib and every file no package owns, owners intact), `files/` (the same
@@ -63,7 +63,7 @@ not part of any device's configuration.
 - **RedMagic (nx809j) onto the shared image.** Moved 2026-11-06: sda13,
   `linux` until then, is named `denial` and holds the image; Android keeps
   `userdata`. Before the move the old root was saved in the vault,
-  `nx809j/backups/nx809j-before-image-20261106/` (as the Ace 3's, owners
+  `nx809j/backups/nx809j-before-image-20261106/` (as the 12R's, owners
   intact), and Android's storage. Installed clean 2026-11-10 from published
   packages and Android's storage restored from that day's backup (the vault's
   `backups/droidloom-20261110-LOCATION.md` says where it is).
@@ -113,7 +113,7 @@ not part of any device's configuration.
   - Retired with the move: `rootfs/`, `tools/` (deploy, audit, health,
     rescue, Denial release and recording tools), `boot/package_pad4_devices.py`
     and the USB rescue it packed into init_boot.
-- **Fingerprint on the Ace 3: what is left.** Seen 2026-11-05: the helper
+- **Fingerprint on the 12R: what is left.** Seen 2026-11-05: the helper
   runs the worker once per request. The worker's resident mode
   (`uff-resident.h`, socket in `/run/phonewave-fingerprint`) has no unit.
 - **Fingerprint enrollment on the RedMagic.** Its Gatekeeper keeps the lock

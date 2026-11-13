@@ -1,6 +1,6 @@
-# OnePlus Ace 3, sold outside China as the OnePlus 12R.
+# OnePlus 12R. The same hardware is sold in China as the OnePlus Ace 3.
 codename = "aston"
-model = "OnePlus Ace 3"
+model = "OnePlus 12R"
 chassis = "handset"
 soc = "sm8550"
 dtb = "qcom/sm8550-oneplus-aston.dtb"

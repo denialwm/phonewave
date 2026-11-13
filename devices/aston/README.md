@@ -1,4 +1,4 @@
-# OnePlus Ace 3 (aston)
+# OnePlus 12R (aston)
 
 The phone runs Arch Linux on linux-perpetua from slot B, from the image every
 phone shares (`image/`). Slot A keeps stock Android and is never written.

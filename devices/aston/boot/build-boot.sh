@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Build the Ace 3's own build of linux-perpetua and its boot image: the kernel,
+# Build the 12R's own build of linux-perpetua and its boot image: the kernel,
 # then the filesystem image/boot-tail packs with its modules, the firmware
 # that overrides linux-firmware's and tail/. The boot userspace is the
 # init_boot image of image/init-boot; no device access.

@@ -3,7 +3,7 @@
 Cuts the subject out of a wallpaper so the Denial lock screen can draw its
 clock behind it. Two models run as native Vulkan compute through wgpu:
 BiRefNet_lite finds the subject and Depth Anything V2 Small keeps only the
-parts of it in front. On the Ace 3 (Adreno 740) a mask takes about 2.2 s.
+parts of it in front. On the 12R (Adreno 740) a mask takes about 2.2 s.
 
 Denial runs it in the background when the wallpaper picker closes, if
 `wallpaper-depth` is on `PATH`. Without the package the lock screen draws no
@@ -46,7 +46,7 @@ sudo make install
 `make` downloads the two models from Hugging Face at the revisions pinned in
 `models.txt` and checks their SHA-256. With `HALF=1`, the default, the weights
 are installed as float16: 155 MB in place of 307 MB. On 15 wallpapers on the
-Ace 3, at most 0.12% of a mask's pixels moved by more than 16/255 and the
+12R, at most 0.12% of a mask's pixels moved by more than 16/255 and the
 subject's edge moved on at most 0.2% of its pixels; the time was the same.
 `HALF=0` installs them as published.
 

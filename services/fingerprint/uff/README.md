@@ -1,6 +1,6 @@
-# OPLUS UFF optical fingerprint (OnePlus Ace 3), and the shared stack
+# OPLUS UFF optical fingerprint (OnePlus 12R), and the shared stack
 
-The Ace 3's under-display sensor on `aston` is a Goodix G7s behind OPLUS's
+The 12R's under-display sensor on `aston` is a Goodix G7s behind OPLUS's
 UFF stack. The signed `uff_gx` trusted app runs unchanged in QTEE; no Android
 HAL or vendor userspace is involved. The kernel side is
 `drivers/misc/oplus-uff-fp.c` in linux-perpetua (power, reset and IRQ;
@@ -29,7 +29,7 @@ a phone names its sensor are in `../README.md`.
 | `uff-storage-test.c`, `test-libfprint-passive.c`, `test-libfprint-optical.c` | Tests that run on the phone: storage confinement, libfprint discovery, real optical enroll and verify |
 | `build/assemble_firmware.py` | Assembles `uff_gx.elf` and `uff_spi.elf` from the factory `odm_b` blobs in the vault (`aston/firmware/factory/`) |
 
-## The Ace 3's part
+## The 12R's part
 
 The tail's `fingerprint/sensor.conf` names the `uff` worker, the
 `presentation` contact and `/dev/fp_illumination`, and points at

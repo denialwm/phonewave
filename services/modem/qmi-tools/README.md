@@ -1,6 +1,6 @@
 # qmi-tools
 
-Small QMI clients that talk to the modem over QRTR, used during Ace 3 (aston)
+Small QMI clients that talk to the modem over QRTR, used during 12R (aston)
 cellular bring-up. Each one sends a single request or a short fixed sequence
 and prints the result; message layouts follow libqmi's `data/qmi-service-*.json`.
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Cross-build for the Ace 3 (Arch Linux ARM). Links against the phone-matched
+# Cross-build for the 12R (Arch Linux ARM). Links against the phone-matched
 # sysroot so no newer glibc symbols from the host leak in.
 set -eu
 cd "$(dirname "$0")"

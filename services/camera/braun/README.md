@@ -133,7 +133,7 @@ own while the preview goes on:
    as a mirror would show it; its photo is not, so text in it reads.
 
 Photos are JPEGs at the sensor's full output. A 3072x4096 photo is written
-about 2.5 s after the shutter on the Ace 3 and 1.9 s on the RedMagic 11 Pro.
+about 2.5 s after the shutter on the 12R and 1.9 s on the RedMagic 11 Pro.
 
 A shot can also keep the raw frame the preview showed at the shutter, for
 tuning: packed RAW10 as the sensor sends it, and notes with the sensor,
@@ -204,5 +204,5 @@ and focus settle.
 
 | Device | Cameras |
 |---|---|
-| `aston` (OnePlus Ace 3) | IMX890 main with DW9719 focus, S5K3P9 front, both calibrated from the stock tuning; IMX355 ultrawide, untuned |
+| `aston` (OnePlus 12R) | IMX890 main with DW9719 focus, S5K3P9 front, both calibrated from the stock tuning; IMX355 ultrawide, untuned |
 | `nx809j` (RedMagic 11 Pro) | OV50E40 main with DW9785 focus, OV50D40 ultrawide, OV02F10 auxiliary, OV16A1Q front; untuned |

@@ -2,7 +2,7 @@
 
 Not started. Each works on its own, but they work best together: run BiRefNet
 on fewer pixels, then recover what that loses with depth and the wallpaper's
-own colours. Times are from the Ace 3, where a mask takes 2.2 s and BiRefNet's
+own colours. Times are from the 12R, where a mask takes 2.2 s and BiRefNet's
 GPU time is 1.7 s of that.
 
 ## Run BiRefNet on fewer pixels

@@ -67,7 +67,7 @@ last.
 | Shoulder triggers | not started | 2026-11-09, devices-310, probe | No input device for them |
 | RGB light | not started | 2026-11-09, devices-310, probe | No LED device |
 
-## aston: OnePlus Ace 3 (SM8550)
+## aston: OnePlus 12R (SM8550)
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |

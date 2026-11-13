@@ -33,7 +33,7 @@ device: hardware facts, firmware, boot images, the kernel package. A tool that
 works on every phone goes in `tools/`. There are no device build tools:
 Denial is just Denial, and the apps and Droidloom build the same way for every
 phone. Example: dmail drives any Qualcomm modem, so it
-lives in `services/modem/dmail/`. The Ace 3's data endpoints belong to that
+lives in `services/modem/dmail/`. The 12R's data endpoints belong to that
 phone, so they live in its boot image's tail,
 `devices/aston/boot/tail/dmail/device.toml`.
 
@@ -44,7 +44,7 @@ Apps and their libraries are not part of Phonewave; they live in
 
 | Codename | Device | SoC |
 |---|---|---|
-| `aston` | OnePlus Ace 3 (OnePlus 12R) | SM8550 |
+| `aston` | OnePlus 12R | SM8550 |
 | `roadstr` | Motorola Edge 70 | Eliza |
 | `iceland` | OnePlus Pad 4 | Kaanapali (SM8850) |
 
