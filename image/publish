@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Put the built image, and phones' boot images, where users download them:
 # https://packages.denialwm.org/images/.
-# Usage: image/publish HOST [CODENAME=BOOT_IMAGE...]
+# Usage: image/publish HOST [--boot-only] [CODENAME=BOOT_IMAGE...]
 #
 #   HOST                 SSH name of the package server; its user may sudo
+#   --boot-only          send only the boot images, for a phone that joins
+#                        the image already published
 #   CODENAME=BOOT_IMAGE  a phone's boot image, named after its kernel build:
 #                        nx809j=/path/boot-321.img
 #
@@ -17,27 +19,32 @@ set -euo pipefail
 cache=${PHONEWAVE_CACHE:-/mnt/development/phonewave-cache}
 out=$cache/image/out
 work=${XDG_CACHE_HOME:-$HOME/.cache}/phonewave/image/release
-usage='usage: image/publish HOST [CODENAME=BOOT_IMAGE...]'
+usage='usage: image/publish HOST [--boot-only] [CODENAME=BOOT_IMAGE...]'
 host=${1:?$usage}
 shift
+boot_only=
+[ "${1:-}" = --boot-only ] && { boot_only=1; shift; [ $# -gt 0 ] || { echo "$usage" >&2; exit 2; }; }
 remote=/srv/packages/images
 
-[ -f "$out/userdata.img" ] || { echo "no image in $out: run image/build" >&2; exit 1; }
-[ ! -e "$out/root/root/.ssh/authorized_keys" ] ||
-  { echo "this image was built with --dev-access" >&2; exit 1; }
-size=$(od -An -tu4 -j12 -N4 "$out/init_boot.img" | tr -d ' ')
-! tail -c +4097 "$out/init_boot.img" | head -c "$size" | lz4 -dc 2>/dev/null |
-  cpio -t 2>/dev/null | grep -q authorized_keys ||
-  { echo "this init_boot was built with --dev-access" >&2; exit 1; }
-
-version=$(date -r "$out/userdata.img" +%Y.%m.%d)
-name=denial-mobile-$version
 rm -rf "$work"
-mkdir -p "$work/$name"
-cp "$out/userdata.img" "$out/init_boot.img" "$out/flash.sh" "$work/$name/"
-(cd "$work/$name" && sha256sum userdata.img init_boot.img flash.sh > SHA256SUMS)
-(cd "$work" && zip -q -6 -r "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
-rm -r "$work/$name"
+mkdir -p "$work"
+if [ -z "$boot_only" ]; then
+  [ -f "$out/userdata.img" ] || { echo "no image in $out: run image/build" >&2; exit 1; }
+  [ ! -e "$out/root/root/.ssh/authorized_keys" ] ||
+    { echo "this image was built with --dev-access" >&2; exit 1; }
+  size=$(od -An -tu4 -j12 -N4 "$out/init_boot.img" | tr -d ' ')
+  ! tail -c +4097 "$out/init_boot.img" | head -c "$size" | lz4 -dc 2>/dev/null |
+    cpio -t 2>/dev/null | grep -q authorized_keys ||
+    { echo "this init_boot was built with --dev-access" >&2; exit 1; }
+
+  version=$(date -r "$out/userdata.img" +%Y.%m.%d)
+  name=denial-mobile-$version
+  mkdir -p "$work/$name"
+  cp "$out/userdata.img" "$out/init_boot.img" "$out/flash.sh" "$work/$name/"
+  (cd "$work/$name" && sha256sum userdata.img init_boot.img flash.sh > SHA256SUMS)
+  (cd "$work" && zip -q -6 -r "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
+  rm -r "$work/$name"
+fi
 
 for boot; do
   codename=${boot%%=*} image=${boot#*=}
@@ -77,4 +84,4 @@ ssh -o BatchMode=yes "$host" "
   sudo chown -R packages:packages $remote
   sudo restorecon -R $remote
   ls -la . boot/*"
-echo "published https://packages.denialwm.org/images/$name.zip"
+[ -n "$boot_only" ] || echo "published https://packages.denialwm.org/images/$name.zip"

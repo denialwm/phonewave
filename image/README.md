@@ -325,7 +325,9 @@ Users install from `https://packages.denialwm.org/images/`, as the manual's
 `image/publish HOST [CODENAME=BOOT_IMAGE...]` packs `out/` as
 `denial-mobile-DATE.zip` and each boot image as
 `boot/CODENAME/CODENAME-NAME.zip`, each with a `.sha256`, and uploads them;
-it refuses an image or init_boot built with `--dev-access`. The server keeps
+it refuses an image or init_boot built with `--dev-access`. For a phone that
+joins the image already published, `image/publish denial-repo --boot-only
+CODENAME=BOOT_IMAGE` sends its boot image alone. The server keeps
 the two newest images. Test the image on a phone first, then publish that
 same build. After publishing, bring the manual page up to date: the image's
 name in its links and commands, and the device table's boot image and
