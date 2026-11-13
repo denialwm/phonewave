@@ -71,7 +71,7 @@ last.
 
 | Feature | Status | Tested | Notes |
 | --- | --- | --- | --- |
-| Boot | works | devices-73 | `boot_b` |
+| Boot | works | 2026-11-13, devices-362, user | `boot_b`; the boot log and the rescue screen show on the panel since devices-362 |
 | Display | works | user | |
 | Brightness | works | 2026-10-28, devices-73, user | |
 | Wake from screen off | works | user | Power key; also double tap |
