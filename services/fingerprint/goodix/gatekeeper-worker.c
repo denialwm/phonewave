@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
-/* One private request per root child; PINs and tokens never use argv or logs. */
+/* One private request per root child; PINs and tokens never use argv or logs.
+ * The phone has one PIN: root remembers its secure ID and handle, refuses a
+ * second first enrollment, and takes only that handle. A PIN enrolled before
+ * root kept it is adopted when it first verifies. Removing the state file
+ * lets a new PIN be enrolled. */
 #define _GNU_SOURCE
 #include "gatekeeper.h"
 #include "qcomtee_object.h"
@@ -11,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -21,6 +26,9 @@
 #define HEADER_SIZE 48u
 #define REPLY_SIZE 40u
 #define BODY_MAX (GATEKEEPER_HANDLE_MAX + 2 * GATEKEEPER_PASSWORD_MAX)
+#define STATE_DIRECTORY "/var/lib/goodix-gatekeeper"
+#define STATE_MAGIC "NXGS1\0\0\0"
+#define STATE_HEADER 20u
 
 static uint32_t get32(const uint8_t *p)
 { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
@@ -164,6 +172,70 @@ static int validate_request(const uint8_t header[HEADER_SIZE])
     return 0;
 }
 
+/* The enrolled PIN as root keeps it: magic, secure ID, handle size, handle. */
+struct enrollment { uint64_t sid; uint32_t handle_size; uint8_t handle[GATEKEEPER_HANDLE_MAX]; };
+
+/* Held for the whole request; the socket accepts several at once. */
+static int state_lock(int directory)
+{
+    int fd = openat(directory, "lock", O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -errno;
+    if (flock(fd, LOCK_EX)) { int error = -errno; close(fd); return error; }
+    return fd;
+}
+
+/* 1 with the enrollment, 0 when root keeps none, else -errno. */
+static int state_load(int directory, struct enrollment *e)
+{
+    uint8_t bytes[STATE_HEADER + GATEKEEPER_HANDLE_MAX + 1];
+    int fd = openat(directory, "enrollment", O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return errno == ENOENT ? 0 : -errno;
+    size_t size = 0;
+    for (;;) {
+        ssize_t n = read(fd, bytes + size, sizeof(bytes) - size);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0) { int error = -errno; close(fd); return error; }
+        if (!n || (size += n) == sizeof(bytes)) break;
+    }
+    close(fd);
+    if (size < STATE_HEADER || memcmp(bytes, STATE_MAGIC, 8)) return -EBADMSG;
+    e->sid = get64(bytes + 8); e->handle_size = get32(bytes + 16);
+    if (!e->sid || !e->handle_size || e->handle_size > GATEKEEPER_HANDLE_MAX ||
+        size != STATE_HEADER + e->handle_size) return -EBADMSG;
+    memcpy(e->handle, bytes + STATE_HEADER, e->handle_size);
+    return 1;
+}
+
+/* Writes a sibling and renames it over the enrollment, so a crash keeps the old one. */
+static int state_save(int directory, uint64_t sid, const uint8_t *handle, size_t handle_size)
+{
+    if (!sid || !handle_size || handle_size > GATEKEEPER_HANDLE_MAX) return -EINVAL;
+    uint8_t bytes[STATE_HEADER + GATEKEEPER_HANDLE_MAX];
+    memcpy(bytes, STATE_MAGIC, 8); put64(bytes + 8, sid); put32(bytes + 16, (uint32_t)handle_size);
+    memcpy(bytes + STATE_HEADER, handle, handle_size);
+    unlinkat(directory, ".enrollment.new", 0);
+    int fd = openat(directory, ".enrollment.new", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -errno;
+    int ret = write_private(fd, bytes, STATE_HEADER + handle_size);
+    if (!ret && fsync(fd)) ret = -errno;
+    close(fd);
+    if (!ret && renameat(directory, ".enrollment.new", directory, "enrollment")) ret = -errno;
+    if (!ret && fsync(directory)) ret = -errno;
+    if (ret) unlinkat(directory, ".enrollment.new", 0);
+    return ret;
+}
+
+/* Whether a request may reach the TEE, given what root keeps. */
+static int state_admits(uint32_t op, int kept, const struct enrollment *e,
+    uint64_t sid, const uint8_t *handle, size_t handle_size)
+{
+    if (kept < 0) return kept;
+    if (op == 1) return kept ? -EEXIST : 0;
+    if (kept && (sid != e->sid || handle_size != e->handle_size ||
+        memcmp(handle, e->handle, handle_size))) return -ESTALE;
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     (void)argv;
@@ -182,6 +254,7 @@ int main(int argc, char **argv)
     struct {
         uint8_t body[BODY_MAX], token[GATEKEEPER_HAT_SIZE];
         struct gatekeeper_credential current, next;
+        struct enrollment kept;
     } *secrets = calloc(1, sizeof(*secrets));
     if (!secrets) { close(records); return 1; }
     struct transport t = {0}; struct gatekeeper_result result = {0};
@@ -194,6 +267,16 @@ int main(int argc, char **argv)
     uint64_t challenge = get64(header + 16);
     if (!ret) ret = validate_request(header);
     if (!ret) ret = read_private(secrets->body, (size_t)h + p + n, deadline);
+    int directory = -1, lock = -1, kept = 0;
+    if (!ret) {
+        directory = open(STATE_DIRECTORY, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        ret = directory < 0 ? -errno : 0;
+    }
+    if (!ret && (lock = state_lock(directory)) < 0) ret = lock;
+    if (!ret) {
+        kept = state_load(directory, &secrets->kept);
+        ret = state_admits(op, kept, &secrets->kept, get64(header + 24), secrets->body, h);
+    }
     if (!ret) ret = connect_keymaster(&t);
     if (!ret) {
         secrets->current.uid = GATEKEEPER_NATIVE_UID;
@@ -203,6 +286,8 @@ int main(int argc, char **argv)
         if (op == 3) {
             ret = gatekeeper_verify(exchange, t.app, &secrets->current, challenge,
                 secrets->body + h, p, secrets->token, &result);
+            if (!ret && !kept)
+                ret = state_save(directory, secrets->current.secure_user_id, secrets->current.handle, h);
             if (!ret) { payload = secrets->token; payload_size = GATEKEEPER_HAT_SIZE; sid = secrets->current.secure_user_id; }
         } else {
             ret = gatekeeper_enroll(exchange, t.app, GATEKEEPER_NATIVE_UID,
@@ -217,6 +302,8 @@ int main(int argc, char **argv)
                     ret, result.service_status, result.stage ? result.stage : "unknown");
                 gatekeeper_clear(secrets->token, sizeof(secrets->token));
             }
+            if (!ret)
+                ret = state_save(directory, secrets->next.secure_user_id, secrets->next.handle, secrets->next.handle_size);
             if (!ret) { payload = secrets->next.handle; payload_size = secrets->next.handle_size; sid = secrets->next.secure_user_id; }
         }
     }
@@ -224,6 +311,8 @@ int main(int argc, char **argv)
         op,ret,result.exchange_status,result.service_status,result.stage?result.stage:"startup",
         result.reply_size,result.parse_offset,result.parse_major);
     disconnect_keymaster(&t);
+    if (lock >= 0) close(lock);
+    if (directory >= 0) close(directory);
     memcpy(reply, "NXGR1\0\0\0", 8);
     put32(reply + 8, (uint32_t)ret); put32(reply + 12, (uint32_t)result.service_status);
     put32(reply + 16, result.retry_ms); put32(reply + 20, GATEKEEPER_NATIVE_UID);

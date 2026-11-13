@@ -47,6 +47,37 @@ int main(void)
     assert(!write_private(fds[1], h, sizeof(h))); uint8_t copy[HEADER_SIZE];
     assert(read(fds[0], copy, sizeof(copy)) == sizeof(copy)); assert(!memcmp(h, copy, sizeof(h)));
     signal(SIGPIPE, SIG_IGN); close(fds[0]); assert(write_private(fds[1], h, sizeof(h)) == -EPIPE); close(fds[1]);
-    puts("Gatekeeper worker: private framing, bounds, cancellation and broken-pipe cleanup passed");
+    char state[] = "/tmp/goodix-gatekeeper-state-XXXXXX";
+    assert(mkdtemp(state));
+    int directory = open(state, O_RDONLY | O_DIRECTORY);
+    assert(directory >= 0);
+    int lock = state_lock(directory); assert(lock >= 0);
+    static struct enrollment kept;
+    const uint8_t first[] = {1, 2, 3}, second[] = {4, 5, 6, 7};
+    assert(state_load(directory, &kept) == 0);
+    assert(!state_admits(1, 0, &kept, 0, NULL, 0));
+    assert(!state_admits(3, 0, &kept, 9, first, sizeof(first)));
+    assert(!state_save(directory, 9, first, sizeof(first)));
+    assert(state_load(directory, &kept) == 1);
+    assert(kept.sid == 9 && kept.handle_size == sizeof(first) && !memcmp(kept.handle, first, sizeof(first)));
+    assert(state_admits(1, 1, &kept, 0, NULL, 0) == -EEXIST);
+    assert(!state_admits(3, 1, &kept, 9, first, sizeof(first)));
+    assert(!state_admits(2, 1, &kept, 9, first, sizeof(first)));
+    assert(state_admits(3, 1, &kept, 8, first, sizeof(first)) == -ESTALE);
+    assert(state_admits(3, 1, &kept, 9, second, sizeof(second)) == -ESTALE);
+    assert(state_admits(2, 1, &kept, 9, second, 3) == -ESTALE);
+    assert(!state_save(directory, 9, second, sizeof(second)));
+    assert(state_load(directory, &kept) == 1 && kept.handle_size == sizeof(second));
+    assert(state_admits(3, 1, &kept, 9, first, sizeof(first)) == -ESTALE);
+    assert(state_save(directory, 0, second, sizeof(second)) == -EINVAL);
+    int fd = openat(directory, "enrollment", O_WRONLY | O_TRUNC);
+    assert(fd >= 0 && write(fd, "NXGS1", 5) == 5); close(fd);
+    assert(state_load(directory, &kept) == -EBADMSG);
+    assert(state_admits(3, -EBADMSG, &kept, 9, second, sizeof(second)) == -EBADMSG);
+    close(lock);
+    assert(!unlinkat(directory, "enrollment", 0) && !unlinkat(directory, "lock", 0));
+    close(directory); assert(!rmdir(state));
+
+    puts("Gatekeeper worker: private framing, bounds, cancellation, broken-pipe cleanup and the kept enrollment passed");
     return 0;
 }

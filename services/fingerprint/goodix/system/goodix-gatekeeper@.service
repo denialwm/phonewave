@@ -17,3 +17,6 @@ LimitMEMLOCK=1M
 NoNewPrivileges=yes
 ProtectHome=yes
 ProtectSystem=strict
+# The enrolled PIN's secure ID and handle; removing it allows a new PIN.
+StateDirectory=goodix-gatekeeper
+StateDirectoryMode=0700

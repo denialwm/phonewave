@@ -60,7 +60,11 @@ and fprintd's `70-goodix.conf` drop-in.
 - `goodix-gatekeeper.socket` at `/run/gatekeeper/worker.sock`, one
   `goodix-gatekeeper-worker` per connection. Denial uses the native PIN
   wherever this socket exists. Its record keeps the opaque handle and SID,
-  never the PIN.
+  never the PIN. The phone has one PIN: the worker keeps its SID and
+  handle in `/var/lib/goodix-gatekeeper`, refuses a second first
+  enrollment and any other handle, and adopts a PIN enrolled before it
+  kept one when that PIN first verifies. Only the current PIN changes it;
+  root removing `enrollment` there allows a new one.
 - The phone's user is in the `gatekeeper` group, which reaches the socket
   and may start Denial's PIN-gated fingerprint session for Settings
   (`/etc/sudoers.d/20-phone-fingerprint`).
