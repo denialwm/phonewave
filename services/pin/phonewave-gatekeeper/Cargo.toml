@@ -1,0 +1,22 @@
+[package]
+name = "phonewave-gatekeeper"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The lock PIN behind root, for phones without a hardware PIN provider"
+license = "MIT"
+
+[dependencies]
+argon2 = "0.5"
+hmac = "0.12"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+strip = true

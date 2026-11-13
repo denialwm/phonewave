@@ -1,0 +1,16 @@
+# Phonewave's PIN provider (services/pin/phonewave-gatekeeper) for the phones.
+# Build: image/pack phonewave-gatekeeper
+pkgname=phonewave-gatekeeper
+pkgdesc='The lock PIN behind root, for phones without a hardware PIN provider'
+license=(MIT)
+_src=$startdir/../../../services/pin/phonewave-gatekeeper
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

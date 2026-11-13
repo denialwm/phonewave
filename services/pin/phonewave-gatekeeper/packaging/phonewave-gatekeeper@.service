@@ -1,0 +1,27 @@
+[Unit]
+Description=One PIN request
+
+[Service]
+Type=exec
+User=root
+ExecStart=/usr/lib/phonewave-gatekeeper/phonewave-gatekeeper-worker
+StandardInput=socket
+StandardOutput=journal
+StandardError=journal
+StateDirectory=phonewave-gatekeeper
+StateDirectoryMode=0700
+TimeoutStartSec=35
+RuntimeMaxSec=35
+LimitCORE=0
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+UMask=0077
