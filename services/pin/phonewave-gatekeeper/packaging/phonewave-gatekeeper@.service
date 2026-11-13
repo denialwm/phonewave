@@ -16,6 +16,8 @@ LimitCORE=0
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
+# PAM counts wrong account passwords there, for a reset.
+ReadWritePaths=-/run/faillock
 PrivateTmp=yes
 PrivateNetwork=yes
 ProtectKernelTunables=yes

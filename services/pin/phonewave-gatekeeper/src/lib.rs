@@ -11,6 +11,11 @@
 //! it, and the secure ID stays. A root caller that checks a PIN against the
 //! handle in Denial's record therefore checks the PIN the person set, even
 //! though the record is the person's own file.
+//!
+//! The account password also sets the PIN, as it does on other phones, for
+//! a forgotten PIN or one turned back on: root checks the password with PAM
+//! for the user on the other end of the socket, then the PIN is replaced
+//! under the same secure ID.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -36,6 +41,8 @@ pub const TOKEN_SIZE: usize = 69;
 const ENROLL: u32 = 1;
 const CHANGE: u32 = 2;
 const VERIFY: u32 = 3;
+/// Sets the PIN once root has checked the caller's account password.
+pub const RESET: u32 = 4;
 
 const HANDLE_MAGIC: &[u8; 8] = b"PWGK1\0\0\0";
 const HANDLE_SIZE: usize = 8 + 8 + 8 + 32;
@@ -101,6 +108,7 @@ pub fn parse_header(header: &[u8; HEADER_SIZE]) -> Option<(u32, u64, u64, [usize
             ENROLL => h == 0 && p == 0 && n != 0 && challenge == 0 && sid == 0,
             CHANGE => h != 0 && p != 0 && n != 0 && challenge == 0 && sid != 0,
             VERIFY => h != 0 && p != 0 && n == 0 && sid != 0,
+            RESET => h == 0 && p != 0 && n != 0 && challenge == 0 && sid == 0,
             _ => false,
         };
     valid.then_some((op, challenge, sid, [h, p, n]))
@@ -312,34 +320,62 @@ impl Store {
         self.write("enrollment", &serde_json::to_vec(enrollment)?)
     }
 
+    /// Sets `desired` as the phone's PIN: under the current secure ID with a
+    /// new generation, or a new secure ID when there is none. Only for a
+    /// caller root has proven, such as by the account password.
+    pub fn reset(&self, request: &Request) -> io::Result<Outcome> {
+        if request.op != RESET {
+            return Ok(Outcome::Refused(libc::EINVAL));
+        }
+        let _lock = self.lock()?;
+        let key = self.key()?;
+        let enrollment = self.enrollment()?;
+        self.replace(&key, enrollment, &request.desired)
+    }
+
+    fn replace(
+        &self,
+        key: &[u8],
+        current: Option<Enrollment>,
+        desired: &[u8],
+    ) -> io::Result<Outcome> {
+        let (sid, generation) = match current {
+            Some(current) => (current.sid, current.generation + 1),
+            None => loop {
+                let sid = u64::from_le_bytes(random::<8>()?);
+                if sid != 0 {
+                    break (sid, 1);
+                }
+            },
+        };
+        let enrollment = Enrollment {
+            sid,
+            generation,
+            hash: hash(desired)?,
+            failures: 0,
+            failed_at_ms: 0,
+        };
+        self.save(&enrollment)?;
+        Ok(Outcome::Enrolled {
+            sid,
+            handle: handle(key, &enrollment),
+        })
+    }
+
     /// Answers one request. `now_ms` is wall-clock time, for the waits;
     /// `boot_ms` is the token's timestamp.
     pub fn handle(&self, request: &Request, now_ms: u64, boot_ms: u64) -> io::Result<Outcome> {
         let _lock = self.lock()?;
         let key = self.key()?;
         let enrollment = self.enrollment()?;
+        if request.op == RESET {
+            return Ok(Outcome::Refused(libc::EPERM));
+        }
         if request.op == ENROLL {
             if enrollment.is_some() {
                 return Ok(Outcome::Refused(libc::EEXIST));
             }
-            let sid = loop {
-                let sid = u64::from_le_bytes(random::<8>()?);
-                if sid != 0 {
-                    break sid;
-                }
-            };
-            let enrollment = Enrollment {
-                sid,
-                generation: 1,
-                hash: hash(&request.desired)?,
-                failures: 0,
-                failed_at_ms: 0,
-            };
-            self.save(&enrollment)?;
-            return Ok(Outcome::Enrolled {
-                sid,
-                handle: handle(&key, &enrollment),
-            });
+            return self.replace(&key, None, &request.desired);
         }
         let Some(mut enrollment) = enrollment else {
             return Ok(Outcome::Refused(libc::ENOENT));

@@ -163,3 +163,62 @@ fn headers_follow_the_hardware_providers() {
     assert_eq!(u32_at(&reply, 16), 7);
     assert_eq!(u32_at(&reply, 20), UID);
 }
+
+#[test]
+fn a_proven_reset_keeps_the_secure_id_and_ends_old_handles() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = Store::at(directory.path());
+    let reset = |pin: &[u8]| match store
+        .reset(&request(RESET, 0, &[], b"password", pin))
+        .unwrap()
+    {
+        Outcome::Enrolled { sid, handle } => (sid, handle),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        store
+            .handle(&request(RESET, 0, &[], b"password", b"111111"), 0, 0)
+            .unwrap(),
+        Outcome::Refused(libc::EPERM),
+        "only a caller root has proven resets"
+    );
+    let (sid, first) = reset(b"111111");
+    for _ in 0..5 {
+        store
+            .handle(&request(VERIFY, sid, &first, b"000000", &[]), 0, 0)
+            .unwrap();
+    }
+    let (same, second) = reset(b"222222");
+    assert_eq!(same, sid);
+    assert_eq!(
+        store
+            .handle(&request(VERIFY, sid, &first, b"111111", &[]), 0, 0)
+            .unwrap(),
+        Outcome::Refused(libc::ESTALE)
+    );
+    assert!(
+        matches!(
+            store
+                .handle(&request(VERIFY, sid, &second, b"222222", &[]), 0, 0)
+                .unwrap(),
+            Outcome::Verified { .. }
+        ),
+        "the reset also ends the wait for wrong PINs"
+    );
+}
+
+#[test]
+fn resets_carry_a_password_and_a_pin_only() {
+    let mut header = [0u8; HEADER_SIZE];
+    header[..8].copy_from_slice(b"NXGK1\0\0\0");
+    header[8..12].copy_from_slice(&RESET.to_le_bytes());
+    header[36..40].copy_from_slice(&8u32.to_le_bytes());
+    header[40..44].copy_from_slice(&6u32.to_le_bytes());
+    assert!(parse_header(&header).is_some());
+    let mut with_sid = header;
+    with_sid[24..32].copy_from_slice(&5u64.to_le_bytes());
+    assert!(parse_header(&with_sid).is_none());
+    let mut without_password = header;
+    without_password[36..40].copy_from_slice(&0u32.to_le_bytes());
+    assert!(parse_header(&without_password).is_none());
+}
