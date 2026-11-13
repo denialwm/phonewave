@@ -87,7 +87,7 @@ last.
 | Battery | works | 2026-10-24, probe | bq28z610 |
 | Wi-Fi | works | devices-73, probe | WCN7850, ath12k; power save only while every screen is dark |
 | Bluetooth | works | 2026-10-28, devices-73, user | |
-| Speakers | works | devices-42, user | 2x TFA9873, left and right checked |
+| Speakers | works | 2026-11-13, devices-359, probe | 2x TFA9873, left and right checked (user, devices-42). From the move to the image (2026-11-05) to devices-359 the sound card did not start: the boot image lacked the audio topology |
 | Microphones | works | 2026-11-03, devices-224, probe | Mic1 and Mic2 record through PipeWire; the stall is fixed in linux-perpetua 9ba37ef1db70 |
 | Headphone jack | none | | |
 | Mobile data | works | 2026-10-25, probe | dmail, carrier DNS through resolved |

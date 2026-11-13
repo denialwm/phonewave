@@ -3,7 +3,9 @@
 The phone runs Arch Linux on linux-perpetua from slot B, from the image every
 phone shares (`image/`). Slot A keeps stock Android and is never written.
 boot_b holds the kernel with its device tree built in, and after it the tail:
-modules, the GPU, Wi-Fi and Bluetooth firmware, the voice profile and boot/tail/.
+modules, the GPU, Wi-Fi and Bluetooth firmware, the audio topology
+(`qcom/sm8550/astonsnd-tplg.bin`, without which the sound card does not
+start), the voice profile and boot/tail/.
 init_boot_b holds the init_boot every phone shares (`image/init-boot`). The ADSP, CDSP, modem and IPA firmware come from the phone's
 own `modem_b` (`image/stock-firmware`); the GPU zap shader and the video
 firmware live in vendor, inside super, so the tail carries them. `ssh aston`
