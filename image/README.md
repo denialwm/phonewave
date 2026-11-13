@@ -246,8 +246,9 @@ its setup instead of the lock screen. No "configured" flag.
   `recipes/mesa-denial/patches/` holds patches for GPUs main does not run
   right yet; the recipe applies only those it lists.
 - No sleep: suspend and hibernation stay off until the kernels resume reliably.
-- slot-success marks the Linux slot successful once a boot has run a minute
-  with Denial and SSH up.
+- slot-success marks the slot the system booted from successful once a boot
+  has run a minute with Denial and SSH up, on whichever slot it was
+  installed.
 - hapticd finds a built-in vibrator by its bus; PipeWire adds a silent output
   while no sound card exists.
 - radio-addr gives a built-in Wi-Fi radio and a Bluetooth controller the

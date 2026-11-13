@@ -1,7 +1,7 @@
 # slot-success
 
-Marks the Linux slot of an A/B Qualcomm phone or tablet as booted
-successfully once the boot has proved itself.
+Marks the slot Linux booted from on an A/B Qualcomm phone or tablet as
+booted successfully once the boot has proved itself.
 
 The bootloader keeps a retry count and a successful flag for each slot, in
 the GPT attributes of its boot partition. Each boot of a slot that is not
@@ -17,17 +17,19 @@ kernel proves itself again.
 `slot-success.service` runs `slot-success mark` on every boot, after
 multi-user.target. mark:
 
-1. leaves the slots alone when the running slot is not the configured one,
-   or when the slot is already marked;
+1. finds the running slot, and leaves it alone when it is already marked;
 2. waits until the system has been up for the settle time and systemd
    reports it running: every unit started and none failed. It waits at most
    five more minutes;
 3. checks that each configured unit is active;
 4. marks the slot with qbootctl and reads the mark back from the GPT.
 
-The running slot is `androidboot.slot_suffix` from `/proc/bootconfig` or
+slot-success runs only in Linux, so the slot it runs from is Linux's,
+whichever one Linux was installed on; Android marks its own. The running
+slot is `androidboot.slot_suffix` from `/proc/bootconfig` or
 `/proc/cmdline`. A kernel that gets neither, such as one with a built-in
-command line, takes the active slot.
+command line, takes the active slot. When no source names exactly one slot,
+mark marks nothing.
 
 qbootctl is linux-msm's port of Qualcomm's boot control HAL, built static
 and unmodified from the commit in the Makefile. Marking sets the successful
@@ -43,8 +45,6 @@ boot costs no retry. `slot-success running` prints the running slot.
 `/etc/slot-success.conf`. Without it the service does not start.
 
 ```sh
-# Linux boots from slot b; slot a keeps Android and is never marked.
-slot=b
 # A boot counts once Denial and SSH run and the system is up a minute.
 units=denial.service sshd.service
 settle=60
@@ -52,9 +52,11 @@ settle=60
 
 | Key | Value |
 | --- | --- |
-| `slot` | `a` or `b`, the Linux slot |
 | `units` | units that must be active, separated by spaces |
 | `settle` | seconds of uptime before a boot can count, 60 if unset |
+
+The configuration names no slot. A `slot=` line from an older one is
+ignored.
 
 ## Build and install
 

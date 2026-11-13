@@ -1,6 +1,6 @@
 #!/bin/sh
-# Marks the Linux slot of an A/B Qualcomm device as booted successfully once
-# the boot has proved itself, so the bootloader stops spending its retries on
+# Marks the slot this Linux booted from as booted successfully once the boot
+# has proved itself, so the bootloader stops spending its retries on
 # it. Until then each boot uses one retry, and when they run out the bootloader
 # falls back to the other slot. The slot attributes are read from the GPT;
 # they are written only through qbootctl.
@@ -24,16 +24,13 @@ setting() {
     sed -n "s/^$1=//p" "$conf" | tail -n 1
 }
 
+# The configuration names no slot: slot-success runs only in Linux, so the slot
+# it runs from is Linux's. A slot= line from older configurations is ignored.
 read_conf() {
     [ -r "$conf" ] || fail "Cannot read $conf."
-    slot=$(setting slot)
     units=$(setting units)
     settle=$(setting settle)
     settle=${settle:-60}
-    case $slot in
-    a | b) ;;
-    *) fail "$conf: slot must be a or b, not '$slot'." ;;
-    esac
     case $settle in
     '' | *[!0-9]*) fail "$conf: settle must be seconds, not '$settle'." ;;
     esac
@@ -88,9 +85,16 @@ retries() {
     echo "$n"
 }
 
+# The running slot, or a failure when no source names exactly one.
+linux_slot() {
+    slot=$(running_slot)
+    [ -n "$slot" ] || fail "Cannot tell which slot is running."
+}
+
 # Exit 0 only when another boot of the slot costs no retry.
 status() {
     read_conf
+    linux_slot
     read_bits "$slot"
     if has_bit 55; then
         echo "Slot $slot: unbootable."
@@ -138,11 +142,7 @@ wait_settled() {
 
 mark() {
     read_conf
-    running=$(running_slot)
-    if [ "$running" != "$slot" ]; then
-        echo "Running from slot ${running:-unknown}, not Linux's slot $slot; leaving the slots alone."
-        return 0
-    fi
+    linux_slot
     read_bits "$slot"
     if has_bit 54; then
         echo "Slot $slot: already marked successful."
@@ -169,9 +169,8 @@ case ${1-} in
 status) status ;;
 mark) mark ;;
 running)
-    running=$(running_slot)
-    [ -n "$running" ] || fail "Cannot tell which slot is running."
-    echo "$running"
+    linux_slot
+    echo "$slot"
     ;;
 *)
     echo "usage: slot-success status|mark|running" >&2

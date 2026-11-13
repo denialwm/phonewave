@@ -29,8 +29,9 @@ from the tablet's own modem partition (`image/stock-firmware`).
 
 Only `boot_b`, `init_boot_b` and `denial` are written, one at a time. Never
 set_active, erase, format or EDL: tablet #1 was lost to empty xbl and abl
-partitions. The tail turns no slot marking on, so nothing writes the
-partition table.
+partitions. slot-success, from the shared image, marks slot B successful
+once a boot has run a minute with Denial and SSH up; it writes only those
+attribute bits of the partition table.
 
 `sda`, which holds no part of the boot chain, got its `denial` partition from
 the rescue: `e2fsck -f` and `resize2fs` on `userdata` (the rescue's clock

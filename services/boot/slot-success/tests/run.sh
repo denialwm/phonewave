@@ -34,11 +34,14 @@ cat >"$work/bin/sleep" <<FAKE
 #!/bin/sh
 echo "\$1" >>"$work/slept"
 FAKE
-# qbootctl records its arguments and, unless $FAKE_QBOOTCTL_NOOP, sets bit 54.
+# qbootctl records its arguments and, unless $FAKE_QBOOTCTL_NOOP, sets bit 54
+# on the slot it marks: -m 0 is a, -m 1 is b.
 cat >"$work/qbootctl" <<FAKE
 #!/bin/sh
 echo "\$*" >"$work/qbootctl-args"
-[ -n "\${FAKE_QBOOTCTL_NOOP-}" ] || sed -i 's/\$/,54/' "$work/bits"
+[ -z "\${FAKE_QBOOTCTL_NOOP-}" ] || exit 0
+if [ "\$2" = 0 ]; then bits="$work/bits-a"; else bits="$work/bits"; fi
+sed -i 's/\$/,54/' "\$bits"
 FAKE
 chmod +x "$work/bin/sfdisk" "$work/bin/lsblk" "$work/bin/systemctl" "$work/bin/sleep" "$work/qbootctl"
 
@@ -51,7 +54,7 @@ export SLOT_SUCCESS_UPTIME="$work/uptime"
 export SLOT_SUCCESS_PARTLABELS="$work/by-partlabel"
 export FAKE_STATE=running FAKE_ACTIVE="denial.service sshd.service"
 
-printf 'slot=b\nunits=denial.service sshd.service\nsettle=60\n' >"$work/slot-success.conf"
+printf 'units=denial.service sshd.service\nsettle=60\n' >"$work/slot-success.conf"
 echo 'androidboot.slot_suffix = "_b"' >"$work/bootconfig"
 echo 'console=tty0' >"$work/cmdline"
 echo '75.20 300.00' >"$work/uptime"
@@ -98,8 +101,18 @@ check "mark leaves a marked slot alone" "$status $(called)" "0 none"
 
 echo 48,49,50,51 >"$work/bits"
 echo 'androidboot.slot_suffix = "_a"' >"$work/bootconfig"
+echo 48,49,50,51 >"$work/bits-a"
+run status
+check "status reads the running slot" "$status $out" "1 Slot a: not marked successful, 1 boot try left."
 run mark
-check "mark never touches the other slot" "$status $(called)" "0 none"
+check "mark marks slot a when Linux runs from it" "$status $(called)" "0 -m 0"
+check "mark leaves the other slot alone" "$(cat "$work/bits") $(cat "$work/bits-a")" "48,49,50,51 48,49,50,51,54"
+printf 'slot=b\nunits=denial.service sshd.service\n' >"$work/slot-success.conf"
+echo 48,49,50,51 >"$work/bits-a"
+run mark
+check "mark ignores a slot line in the configuration" "$status $(called)" "0 -m 0"
+printf 'units=denial.service sshd.service\nsettle=60\n' >"$work/slot-success.conf"
+echo 49,51,52,53,54 >"$work/bits-a"
 : >"$work/bootconfig"
 echo 'console=tty0 androidboot.slot_suffix=_b' >"$work/cmdline"
 run mark
@@ -113,10 +126,12 @@ check "running names the active slot" "$out" b
 echo 48,49,50,51 >"$work/bits-a"
 echo 48,49,51 >"$work/bits"
 run mark
-check "mark leaves the slots alone when slot a is active" "$status $(called)" "0 none"
+check "mark takes slot a when it is the active one" "$status $(called)" "0 -m 0"
 echo 48,49,50,51 >"$work/bits"
 run running
 check "running gives up when both slots read active" "$status" 2
+run mark
+check "mark marks nothing when it cannot tell the slot" "$status $(called)" "2 none"
 echo 49,51,52,53,54 >"$work/bits-a"
 echo 'androidboot.slot_suffix = "_b"' >"$work/bootconfig"
 
@@ -136,9 +151,9 @@ check "mark gives up on a system that never finishes starting" "$status $(called
 FAKE_QBOOTCTL_NOOP=1 run mark
 check "mark fails when the mark does not read back" "$status" 1
 
-printf 'slot=c\n' >"$work/slot-success.conf"
+printf 'settle=soon\n' >"$work/slot-success.conf"
 run status
-check "a bad slot in the configuration exits 2" "$status" 2
+check "a bad settle time in the configuration exits 2" "$status" 2
 run bogus
 check "unknown command exits 2" "$status" 2
 
