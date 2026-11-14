@@ -58,6 +58,9 @@ impl From<u8> for Pin {
 pub struct App {
     pub kind: u8,
     pub state: u8,
+    /// Personalization (SIM lock): its state and the feature it checks.
+    pub perso_state: u8,
+    pub perso_feature: u8,
     pub aid: Vec<u8>,
     pub pin1: Pin,
     pub pin1_retries: u8,
@@ -114,6 +117,8 @@ pub fn parse_card_status(v: &[u8]) -> Result<Status, Error> {
             apps.push(App {
                 kind: app[0],
                 state: app[1],
+                perso_state: app[2],
+                perso_feature: app[3],
                 aid: app[7..pin].to_vec(),
                 pin1: Pin::from(app[pin + 1]),
                 pin1_retries: app[pin + 2],

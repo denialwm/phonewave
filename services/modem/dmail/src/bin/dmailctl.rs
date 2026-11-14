@@ -116,6 +116,26 @@ fn app_state(state: u8) -> &'static str {
     }
 }
 
+fn perso(usim: &sim::App) -> String {
+    let state = match usim.perso_state {
+        1 => "in progress",
+        2 => "ready",
+        3 => "code required",
+        4 => "PUK required",
+        5 => "blocked",
+        _ => "unknown",
+    };
+    let feature = match usim.perso_feature {
+        0 => "network",
+        1 => "network subset",
+        2 => "service provider",
+        3 => "corporate",
+        4 => "SIM",
+        _ => "other",
+    };
+    format!("{state} ({feature} {})", usim.perso_feature)
+}
+
 fn registration(state: u8) -> &'static str {
     match state {
         0 => "not registered",
@@ -149,8 +169,9 @@ async fn status() -> Result {
         let slot = i + 1;
         match (card.state, card.usim()) {
             (sim::CARD_PRESENT, Some(usim)) => println!(
-                "sim {slot}: usim {}, PIN {:?} ({} tries, PUK {})",
+                "sim {slot}: usim {}, personalization {}, PIN {:?} ({} tries, PUK {})",
                 app_state(usim.state),
+                perso(usim),
                 usim.pin1,
                 usim.pin1_retries,
                 usim.puk1_retries
