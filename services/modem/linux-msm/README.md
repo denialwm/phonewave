@@ -12,6 +12,26 @@ modem needs on the host, packaged for the phones by
 | `rmtfs` | `rmtfs.service`: the modem's file system from the phone's own `modemst1`, `modemst2`, `fsg` and `fsc`, read-only; the modem's writes stay in memory until it stops |
 | `tqftpserv` | `tqftpserv.service`: the files the modem asks for over QRTR, its state in `/var/lib/tqftpserv` |
 
+## rmtfs on OnePlus phones
+
+`rmtfs-oneplus-nv-backup.patch` applies to rmtfs:
+
+- The OEM NV backups (`/oem/nvbk/static`, `/oem/nvbk/dynamic`) also open
+  under the names newer OnePlus phones use, `oplusstanvbk` (slotted) and
+  `oplusdycnvbk`.
+- Without `-S`, the slot is the one the bootloader started
+  (`androidboot.slot_suffix`).
+- The modem reads 512 bytes past the end of the static backup, a board block
+  stock Android's storage daemon builds. Answered with zeros, the modem
+  starts without its IMEIs and the network rejects the phone ("illegal ME").
+  Where the boot tail has `rmtfs/oplus-board` (`pcb=` and `rf=`, the stock
+  kernel's `get_PCB_Version` and `nRF` from its boot log), rmtfs serves the
+  block after the backup: magic, region `CE`, the start of soc0's serial
+  number, the project from `androidboot.prjname`, PCB and RF. The IMEIs stay
+  the modem's own, in the backup; rmtfs never writes or makes one.
+
+A phone without the file is served as upstream does.
+
 Neither unit starts at boot. dmail's `modem-setup` starts both when the
 device tree gives the modem rmtfs memory (`/dev/qcom_rmtfs_mem1`), then
 starts the modem. They are units of their own so they outlive dmail.

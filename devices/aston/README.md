@@ -72,7 +72,10 @@ reconnect the cable to let the PMIC classify the charger again.
 Modem: dmail (services/modem/dmail) owns it, as on every phone: its
 `modem-setup` starts rmtfs on the phone's own EFS partitions, read-only, and
 tqftpserv (services/modem/linux-msm). The tail turns dmail on and carries its
-device file, `boot/tail/dmail/device.toml`.
+device file, `boot/tail/dmail/device.toml`. The 12R's modem keeps its IMEIs
+in the OEM NV backup (`oplusstanvbk_<slot>`, `oplusdycnvbk`) and reads the
+board block after it; `boot/tail/rmtfs/oplus-board` holds the PCB version and
+RF the block needs (services/modem/linux-msm, "rmtfs on OnePlus phones").
 
 DNS: systemd-resolved, so that dmail can give it the carrier's servers for
 `rmnet_data0`; without it, cellular has no DNS, since NetworkManager's

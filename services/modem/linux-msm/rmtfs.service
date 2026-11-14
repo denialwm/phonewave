@@ -3,8 +3,9 @@ Description=Modem file system from the phone's own partitions, read-only (rmtfs)
 
 [Service]
 Type=exec
-# -P: modemst1, modemst2, fsg and fsc, Android's; -r: the modem's writes stay
-# in memory, so the partitions never change.
+# -P: modemst1, modemst2, fsg and fsc, Android's, with the OEM NV backups on
+# the booted slot; -r: the modem's writes stay in memory, so the partitions
+# never change.
 ExecStart=/usr/bin/rmtfs -r -P
 DevicePolicy=closed
 DeviceAllow=/dev/qcom_rmtfs_mem1 rw
@@ -13,5 +14,7 @@ ProtectSystem=strict
 ProtectHome=yes
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
-ProtectKernelModules=yes
+# Not ProtectKernelModules: it hides /usr/lib/modules, where the boot tail
+# keeps rmtfs/oplus-board.
+CapabilityBoundingSet=~CAP_SYS_MODULE
 PrivateTmp=yes
