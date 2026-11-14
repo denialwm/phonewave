@@ -136,7 +136,7 @@ last.
 | SMS | not started | | |
 | Calls | not started | | |
 | Call audio | not started | | |
-| VoLTE | not started | | |
+| VoLTE | partial | 2026-11-15, devices-370, probe | Registers on Iliad on 5G, mobile data up beside it; no call tried yet |
 | GNSS | ? | | |
 | NFC | ? | | |
 | Camera | not started | | No `/dev/video*` on perpetua |
