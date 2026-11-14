@@ -132,7 +132,7 @@ last.
 | Speakers | ? | | |
 | Microphones | ? | | |
 | Headphone jack | ? | | |
-| Mobile data | not started | | No dmail yet |
+| Mobile data | works | 2026-11-15, devices-370, probe | dmail on Iliad, 5G: DNS through the carrier, 10 MB at 22 Mbit/s |
 | SMS | not started | | |
 | Calls | not started | | |
 | Call audio | not started | | |
