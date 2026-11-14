@@ -99,9 +99,9 @@ last.
 | NFC | ? | | |
 | Camera | partial | 2026-10-28, devices74 | IMX890 main, IMX355 ultrawide, S5K3P9 front; Camera app (user, 2026-10-22). No 50 MP mode. On braun: an IMX890 photo with `braunctl shot`; either camera reopens at once, and the S5K3P9 opens right after the IMX890, 6 out of 6, and the IMX890 right after the IMX355 or the S5K3P9, 12 out of 12. Before devices74 a reopen within a second of a close timed out in RPMh and stopped the phone: camss dropped its camera NoC votes while the CCI kept TITAN_TOP powered |
 | Video decode | works | 2026-10-28, devices-73, probe | Iris: H.264, HEVC and VP9 at 1080p decode bit-exact against software, 12 to 18 times real time. VP9 logs decode errors without losing frames. AV1 is listed, not tried |
-| Rotation | not started | | steinerd needs the phone's stock sensor files |
-| Light and proximity | not started | | |
-| Compass and gyroscope | not started | | |
+| Rotation | none | 2026-11-14, devices-362, probe | The sensor core offers no accelerometer (REMINDERS.md) |
+| Light and proximity | partial | 2026-11-14, devices-362, probe | Proximity (tcs3720) through hexagonrpcd and steinerd; no ambient light |
+| Compass and gyroscope | none | 2026-11-14, devices-362, probe | The magnetometer (mmc56x3x) reads, but a heading needs the accelerometer; no gyroscope |
 | Fingerprint | works | 2026-11-05, devices-232, user | UFF driver through fprintd and fingerprint-phonewave like the other phones: Settings enrolls as the phone's user, behind the lock PIN, and it unlocks the phone, lit by the panel through `/dev/fp_illumination`. The boot image's tail names the sensor in fingerprint/sensor.conf. Needs Denial dev 0f47778 or later |
 | Suspend | not started | | |
 | Cooling | ? | | |

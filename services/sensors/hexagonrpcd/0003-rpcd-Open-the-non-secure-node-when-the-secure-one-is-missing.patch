@@ -1,0 +1,74 @@
+From 81a625c53e493c38c22d84152e00e9aad875339e Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Sat, 14 Nov 2026 21:18:22 +0100
+Subject: [PATCH] rpcd: Open the non-secure node when the secure one is missing
+
+A DSP has one FastRPC node, the non-secure one where the device tree marks
+the domain non-secure, as SM8550 does for the ADSP. Asked for
+/dev/fastrpc-adsp-secure where only /dev/fastrpc-adsp exists, open that, so
+one command line serves every phone.
+---
+ hexagonrpcd/rpcd.c | 33 +++++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/hexagonrpcd/rpcd.c b/hexagonrpcd/rpcd.c
+index 600237b..dc25292 100644
+--- a/hexagonrpcd/rpcd.c
++++ b/hexagonrpcd/rpcd.c
+@@ -30,6 +30,7 @@
+ #include <signal.h>
+ #include <stdbool.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include <string.h>
+ #include <sys/ioctl.h>
+ #include <sys/mman.h>
+@@ -344,6 +345,36 @@ free_compatible:
+ 	return ret;
+ }
+ 
++/*
++ * A DSP has one FastRPC node: the secure one, or the non-secure one where
++ * the device tree marks the domain non-secure. Asked for a secure node that
++ * is missing, open the other.
++ */
++static int open_non_secure(const char *node)
++{
++	static const char suffix[] = "-secure";
++	size_t len = strlen(node);
++	size_t n = sizeof(suffix) - 1;
++	char *path;
++	int fd;
++
++	if (len <= n || strcmp(node + len - n, suffix) != 0) {
++		errno = ENOENT;
++		return -1;
++	}
++
++	path = strndup(node, len - n);
++	if (!path)
++		return -1;
++
++	fd = open(path, O_RDWR);
++	if (fd >= 0)
++		printf("%s is missing; using %s\n", node, path);
++	free(path);
++
++	return fd;
++}
++
+ int main(int argc, char* argv[])
+ {
+ 	char *fastrpc_node = NULL;
+@@ -412,6 +443,8 @@ int main(int argc, char* argv[])
+ 	printf("Starting %s (%s) on %s\n", argv[0], attach_sns? "INIT_ATTACH_SNS": "INIT_ATTACH", fastrpc_node);
+ 
+ 	fd = open(fastrpc_node, O_RDWR);
++	if (fd < 0 && errno == ENOENT)
++		fd = open_non_secure(fastrpc_node);
+ 	if (fd < 0) {
+ 		fprintf(stderr, "Could not open FastRPC node (%s): %s\n", fastrpc_node, strerror(errno));
+ 		goto err_free_pids;
+-- 
+2.55.0
+

@@ -77,6 +77,11 @@ in the OEM NV backup (`oplusstanvbk_<slot>`, `oplusdycnvbk`) and reads the
 board block after it; `boot/tail/rmtfs/oplus-board` holds the PCB version and
 RF the block needs (services/modem/linux-msm, "rmtfs on OnePlus phones").
 
+Sensors: the ADSP runs them. The tail turns on hexagonrpcd
+(services/sensors/hexagonrpcd), which hands the ADSP the stock sensor
+configuration on its non-secure FastRPC node, the only one SM8550's ADSP has;
+steinerd reads the sensor core.
+
 DNS: systemd-resolved, so that dmail can give it the carrier's servers for
 `rmnet_data0`; without it, cellular has no DNS, since NetworkManager's
 resolv.conf holds Wi-Fi's servers only. The image links `/etc/resolv.conf`
