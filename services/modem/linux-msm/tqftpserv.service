@@ -1,5 +1,7 @@
 [Unit]
 Description=Modem file server (tqftpserv)
+Wants=tqftpserv-stock.service
+After=tqftpserv-stock.service
 
 [Service]
 Type=exec

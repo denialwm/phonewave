@@ -3,7 +3,7 @@
 #
 # Each is a handful of C files, compiled here straight with the cross
 # compiler: rmtfs and tqftpserv against the qrtr this recipe builds. The
-# rmtfs-*.patch files beside the units apply to rmtfs.
+# rmtfs-*.patch and tqftpserv-*.patch files beside the units apply to each.
 pkgbase=linux-msm
 pkgname=(qrtr rmtfs tqftpserv)
 _qrtr=29e36ae164389580a0f8ea7a7fdb728140ae978d
@@ -11,7 +11,7 @@ _rmtfs=b30a3eb38f9af283f18dbd3c7755653efc52c094
 _tqftpserv=eb4b9a04ff92d2753ededf32cc3b6ed287f6e29b
 # The date of the newest of the three commits.
 pkgver=2026.10.27
-pkgrel=3
+pkgrel=4
 arch=(aarch64)
 url="https://github.com/linux-msm"
 license=(BSD-3-Clause)
@@ -29,6 +29,9 @@ prepare() {
   local p
   for p in "$_units"/rmtfs-*.patch; do
     patch -d rmtfs-$_rmtfs -Np1 -s < "$p"
+  done
+  for p in "$_units"/tqftpserv-*.patch; do
+    patch -d tqftpserv-$_tqftpserv -Np1 -s < "$p"
   done
 }
 
@@ -73,9 +76,10 @@ package_rmtfs() {
 
 package_tqftpserv() {
   pkgdesc='Qualcomm modem file server over QRTR'
-  depends=(glibc qrtr xz zstd)
+  depends=(glibc qrtr xz zstd util-linux)
   cd "$srcdir/tqftpserv-$_tqftpserv"
   install -Dm755 tqftpserv -t "$pkgdir/usr/bin"
-  install -Dm644 "$_units/tqftpserv.service" -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm755 "$_units/tqftpserv-stock" -t "$pkgdir/usr/lib/tqftpserv"
+  install -Dm644 "$_units"/{tqftpserv,tqftpserv-stock}.service -t "$pkgdir/usr/lib/systemd/system"
   install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/tqftpserv"
 }

@@ -1,0 +1,79 @@
+From c3f4bc7ddf45cc6c24cce4d41683217d7c11039c Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Sun, 15 Nov 2026 00:46:58 +0100
+Subject: [PATCH] translate: Serve /readonly/vendor/fsg/ from the carrier
+ configuration
+
+Motorola's modems read the carrier configuration for the SIM's network and
+its digests, such as /readonly/vendor/fsg/iliad_ita.mbn, from the fsg
+partition Android mounts read-only at /vendor/fsg. Serve that prefix from
+/run/tqftpserv/fsg, where the host mounts the partition.
+---
+ translate.c | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/translate.c b/translate.c
+index 19fdd48..6ab8523 100644
+--- a/translate.c
++++ b/translate.c
+@@ -27,6 +27,8 @@
+ #define READONLY_MODEM_PATH	READONLY_FW_BASE "modem_pr"
+ #define READONLY_VENDOR_PATH		"/readonly/vendor/firmware/"
+ #define READONLY_VENDOR_MNT_PATH	"/readonly/vendor/firmware_mnt/image/"
++#define READONLY_VENDOR_FSG_PATH	"/readonly/vendor/fsg/"
++#define TQFTPSERV_FSG_DIR	"/run/tqftpserv/fsg"
+ 
+ #ifndef ANDROID
+ #define FIRMWARE_BASE	"/lib/firmware/"
+@@ -168,6 +170,31 @@ static int translate_readonly(const char *file)
+ 	return fd;
+ }
+ 
++/**
++ * translate_fsg() - open "file" from the carrier configuration
++ * @file:	relative path of the requested file, with /readonly/vendor/fsg/ stripped
++ *
++ * Android mounts the fsg partition read-only at /vendor/fsg on phones that
++ * keep the carrier configurations there, as Motorola's do; the host mounts
++ * it at TQFTPSERV_FSG_DIR.
++ *
++ * Return: opened fd on success, -1 otherwise
++ */
++static int translate_fsg(const char *file)
++{
++	int base;
++	int fd;
++
++	base = open(TQFTPSERV_FSG_DIR, O_RDONLY | O_DIRECTORY);
++	if (base < 0)
++		return -1;
++
++	fd = openat(base, file, O_RDONLY);
++	close(base);
++
++	return fd;
++}
++
+ /**
+  * translate_readwrite() - open "file" from the persistent readwrite directory
+  * @file:	relative path of the requested file, with /readwrite/ stripped
+@@ -250,6 +277,7 @@ int sanitize_path(const char *path)
+  * using the modem_pr relative path (e.g., maps to READONLY_FW_BASE/<fw_dir>/modem_pr/...).
+  * Strips /readonly/vendor/firmware/ and /readonly/vendor/firmware_mnt/image/
+  * and searches among remoteproc firmware.
++ * Replaces /readonly/vendor/fsg/ with the carrier configuration's mount.
+  * Replaces /readwrite/ with a persistent directory.
+  */
+ int translate_open(const char *path, int flags)
+@@ -270,6 +298,8 @@ int translate_open(const char *path, int flags)
+ 		return translate_readonly(path + strlen(READONLY_VENDOR_MNT_PATH));
+ 	else if (!strncmp(path, READONLY_VENDOR_PATH, strlen(READONLY_VENDOR_PATH)))
+ 		return translate_readonly(path + strlen(READONLY_VENDOR_PATH));
++	else if (!strncmp(path, READONLY_VENDOR_FSG_PATH, strlen(READONLY_VENDOR_FSG_PATH)))
++		return translate_fsg(path + strlen(READONLY_VENDOR_FSG_PATH));
+ 
+ 	fprintf(stderr, "invalid path %s, rejecting\n", path);
+ 	errno = ENOENT;
+-- 
+2.55.0
+

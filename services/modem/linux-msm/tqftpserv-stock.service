@@ -1,0 +1,7 @@
+[Unit]
+Description=Lay out the modem's carrier configuration and persist files for tqftpserv
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/tqftpserv/tqftpserv-stock /run/tqftpserv/fsg /var/lib/tqftpserv

@@ -1,0 +1,56 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Lay out what stock Android's tftp_server gives the modem.
+#
+#     tqftpserv-stock FSG READWRITE
+#
+# Runs as root before tqftpserv, which serves FSG as /readonly/vendor/fsg/
+# and READWRITE as /readwrite/.
+#
+# FSG: where the booted slot's fsg partition holds a filesystem, as on
+# Motorola's phones, it is mounted read-only there, as Android mounts it at
+# /vendor/fsg: the carrier configurations. A raw fsg, the modem's file system
+# backup that rmtfs serves, is left alone.
+#
+# READWRITE: what the modem keeps on persist under rfs/msm/mpss, such as
+# Motorola's option bits and SIM lock data, copied in once. A file the modem
+# already wrote here is kept; persist itself is only read.
+set -eu
+fsg=${1:?usage: tqftpserv-stock FSG READWRITE}
+readwrite=${2:?usage: tqftpserv-stock FSG READWRITE}
+
+slot=$(sed -n 's/.*androidboot\.slot_suffix *= *"\{0,1\}\(_[ab]\).*/\1/p' \
+	/proc/bootconfig /proc/cmdline 2>/dev/null | head -n 1)
+
+part=/dev/disk/by-partlabel/fsg$slot
+[ -e "$part" ] || part=/dev/disk/by-partlabel/fsg
+if [ -e "$part" ] && ! mountpoint -q "$fsg" &&
+	[ "$(blkid -p -o value -s TYPE "$part" || true)" = ext4 ]; then
+	mkdir -p "$fsg"
+	# noload: never replay the partition's journal.
+	mount -t ext4 -o ro,noload,nodev,nosuid,noexec "$part" "$fsg"
+	echo "tqftpserv-stock: ${part##*/} at $fsg"
+fi
+
+persist=/dev/disk/by-partlabel/persist
+[ -e "$persist" ] && [ ! -e "$readwrite/.from-persist" ] || exit 0
+# The kernel refuses a second, read-only mount of an ext4 filesystem that is
+# mounted read-write, as under the fingerprint secure storage: read it there.
+at=$(findmnt -n -o TARGET --source "$persist" | head -n 1)
+own=
+if [ -z "$at" ]; then
+	at=$(mktemp -d)
+	own=$at
+	mount -t ext4 -o ro,noload,nodev,nosuid,noexec "$persist" "$at"
+fi
+if [ -d "$at/rfs/msm/mpss" ]; then
+	mkdir -p -m 0700 "$readwrite"
+	cp -Rn "$at/rfs/msm/mpss/." "$readwrite/"
+	echo "tqftpserv-stock: persist's rfs/msm/mpss in $readwrite"
+fi
+if [ -n "$own" ]; then
+	umount "$own"
+	rmdir "$own"
+fi
+mkdir -p -m 0700 "$readwrite"
+touch "$readwrite/.from-persist"

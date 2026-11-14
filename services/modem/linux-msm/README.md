@@ -10,7 +10,7 @@ modem needs on the host, packaged for the phones by
 |---|---|
 | `qrtr` | `libqrtr`, `qrtr-lookup`, `qrtr-cfg` |
 | `rmtfs` | `rmtfs.service`: the modem's file system from the phone's own `modemst1`, `modemst2`, `fsg` and `fsc`, read-only; the modem's writes stay in memory until it stops |
-| `tqftpserv` | `tqftpserv.service`: the files the modem asks for over QRTR, its state in `/var/lib/tqftpserv` |
+| `tqftpserv` | `tqftpserv.service`: the files the modem asks for over QRTR, its state in `/var/lib/tqftpserv`. Before it starts, `tqftpserv-stock` lays out what stock Android's tftp_server gives the modem: the booted slot's `fsg` read-only at `/run/tqftpserv/fsg` where it holds a filesystem (Motorola's carrier configurations, `/readonly/vendor/fsg/`, through `tqftpserv-carrier-configuration.patch`), and persist's `rfs/msm/mpss` copied once into the state, never over a file the modem wrote (Motorola's option bits and SIM lock data, without which the SIM stays in personalization check) |
 
 ## rmtfs on OnePlus phones
 
