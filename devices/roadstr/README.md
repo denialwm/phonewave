@@ -37,3 +37,10 @@ names the JIIOV sensor and `denial/fingerprint.json` its mark and panel;
 gives `/dev/tee_fp` for the sensor and `/dev/fp_illumination` in the panel
 driver. Preserve persist's `jiiov/` factory calibration and keep it
 read-only.
+
+Sensors: the ADSP runs them. The tail turns on hexagonrpcd
+(services/sensors/hexagonrpcd), which hands the ADSP the stock sensor
+configuration from `vendor_b` and persist on its non-secure FastRPC node;
+steinerd reads the sensor core. The ADSP also asks for the panel name in
+`/chosen/mmi,panel_name`, which the bootloader writes only into the stock
+device tree.
