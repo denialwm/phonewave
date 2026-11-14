@@ -141,9 +141,9 @@ last.
 | NFC | ? | | |
 | Camera | not started | | No `/dev/video*` on perpetua |
 | Video decode | not started | | No `/dev/video*` on perpetua |
-| Rotation | ? | | |
-| Light and proximity | ? | | |
-| Compass and gyroscope | ? | | |
+| Rotation | ? | | The accelerometer reports (2026-11-15, devices-370, probe); rotation in Denial not tried |
+| Light and proximity | works | 2026-11-15, devices-370, probe | stk3bfx through the ADSP: proximity near and far; light reads, not yet checked against a known level |
+| Compass and gyroscope | works | 2026-11-15, devices-370, probe | icm456xx and qmc6308 through the ADSP, with gravity and rotation vectors |
 | Fingerprint | works | 2026-11-05, devices-230, user | JIIOV JV0307, optical, through fprintd and fingerprint-phonewave like the other phones: Settings adds a finger and it unlocks the phone, lit by the panel through `/dev/fp_illumination`. Needs Denial dev 0f47778 or later |
 | Suspend | ? | | |
 | Cooling | works | devices-12, probe | battmgr cooling device, checked with emulated temperatures |

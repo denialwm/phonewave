@@ -1,0 +1,45 @@
+From 0385f52c1a049fc8fe0ad4cb62bb4249d2c92011 Mon Sep 17 00:00:00 2001
+From: Doctor Logix <doctor.logix@gmail.com>
+Date: Sun, 15 Nov 2026 00:37:56 +0100
+Subject: [PATCH] rpcd: Answer a call it cannot take with its error
+
+Motorola's ADSP opens an apps-side sns_registry interface, which Android
+serves from a vendor library, and calls the handle even when the open
+fails. Each such call ended the listener and hexagonrpcd with it, so the
+sensor PD never finished starting. Answer the call with its error and no
+output buffers, as for any failed procedure, and keep serving.
+---
+ hexagonrpcd/listener.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/hexagonrpcd/listener.c b/hexagonrpcd/listener.c
+index 3414974..9c24fa7 100644
+--- a/hexagonrpcd/listener.c
++++ b/hexagonrpcd/listener.c
+@@ -592,12 +592,21 @@ int run_fastrpc_listener(int fd,
+ 		ret = invoke_requested_procedure(n_ifaces, ifaces,
+ 						 handle, sc, &result,
+ 						 decoded, &returned);
+-		if (ret)
+-			break;
+ 
+ 		if (decoded != NULL)
+ 			iobuf_free(REMOTE_SCALARS_INBUFS(sc), decoded);
+ 
++		/*
++		 * A call this server cannot take, such as one on an interface
++		 * it does not have, fails for the DSP alone: answer it with
++		 * its error and no output buffers, and keep serving.
++		 */
++		if (ret) {
++			returned = NULL;
++			sc = REMOTE_SCALARS_MAKE(0, 0, 0);
++			ret = 0;
++		}
++
+ 		n_outbufs = REMOTE_SCALARS_OUTBUFS(sc);
+ 	}
+ 
+-- 
+2.55.0
+
