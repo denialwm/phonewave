@@ -50,9 +50,13 @@ static const char *product, *serial, *reason;
 /* The slot the bootloader started, "_b", or empty when it names none. */
 static char slot[8];
 
-/* The screen: the framebuffer the bootloader left scanning out. */
+/* The screen: the framebuffer the bootloader left scanning out. Drawing
+ * goes to a copy, and its rows to the framebuffer through write(): a
+ * display that sends a frame only when asked, as a command-mode panel's
+ * does, sends one for what write() changed, and none for a mapping's. */
 static struct {
 	uint8_t *mem;
+	int fd;
 	struct fb_var_screeninfo var;
 	struct fb_fix_screeninfo fix;
 	unsigned scale;
@@ -78,6 +82,17 @@ static void fill(unsigned x0, unsigned y0, unsigned w, unsigned h, uint32_t valu
 	}
 }
 
+static void show(unsigned y0, unsigned h)
+{
+	if (y0 >= fb.var.yres)
+		return;
+	if (h > fb.var.yres - y0)
+		h = fb.var.yres - y0;
+	off_t at = (off_t)(y0 + fb.var.yoffset) * fb.fix.line_length;
+	if (pwrite(fb.fd, fb.mem + at, (size_t)h * fb.fix.line_length, at) < 0)
+		perror("fastboot: framebuffer");
+}
+
 static void text(unsigned line, unsigned scale, unsigned grey, const char *s)
 {
 	unsigned w = 16 * scale, h = 32 * scale;
@@ -94,6 +109,7 @@ static void text(unsigned line, unsigned scale, unsigned grey, const char *s)
 				     bits & (0x8000 >> c) ? on : off);
 		}
 	}
+	show(y0, h);
 }
 
 static void status(const char *fmt, ...)
@@ -121,12 +137,12 @@ static void screen(void)
 			close(fd);
 		return;
 	}
-	fb.mem = mmap(NULL, fb.fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (fb.mem == MAP_FAILED) {
-		fb.mem = NULL;
+	fb.mem = calloc(1, fb.fix.smem_len);
+	if (!fb.mem) {
 		close(fd);
 		return;
 	}
+	fb.fd = fd;
 	/* The text console would draw over the message. */
 	for (int i = 0; i < 8; i++) {
 		snprintf(path, sizeof path, "/sys/class/vtconsole/vtcon%d/name", i);
@@ -146,10 +162,10 @@ static void screen(void)
 	/* A framebuffer the display driver registers counts as blank until
 	 * someone unblanks it; the picture would stay dark. */
 	ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
-	close(fd);
 	/* The commands fit on one line: 38 characters across. */
 	fb.scale = fb.var.xres / (38 * 16) ? fb.var.xres / (38 * 16) : 1;
 	fill(0, 0, fb.var.xres, fb.var.yres, pixel(0));
+	show(0, fb.var.yres);
 	text(0, fb.scale + 1, 0xff, "Denial OS");
 	text(2, fb.scale, 0xff, product);
 	text(3, fb.scale, 0xff, reason);
