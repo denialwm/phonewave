@@ -24,13 +24,14 @@ modem needs on the host, packaged for the phones by
 - The modem reads 512 bytes past the end of the static backup, a board block
   stock Android's storage daemon builds. Answered with zeros, the modem
   starts without its IMEIs and the network rejects the phone ("illegal ME").
-  Where the boot tail has `rmtfs/oplus-board` (`pcb=` and `rf=`, the stock
-  kernel's `get_PCB_Version` and `nRF` from its boot log), rmtfs serves the
-  block after the backup: magic, region `CE`, the start of soc0's serial
-  number, the project from `androidboot.prjname`, PCB and RF. The IMEIs stay
-  the modem's own, in the backup; rmtfs never writes or makes one.
+  rmtfs serves the block after the backup where the kernel has the
+  bootloader's project information, linux-perpetua's `oneplus,project-info`
+  device (`/sys/devices/platform/project-info/`: `project`, `pcb`, `rf`, each
+  phone's own): magic, region `CE`, the start of soc0's serial number,
+  project, PCB and RF. The IMEIs stay the modem's own, in the backup; rmtfs
+  never writes or makes one.
 
-A phone without the file is served as upstream does.
+A phone without that device is served as upstream does.
 
 Neither unit starts at boot. dmail's `modem-setup` starts both when the
 device tree gives the modem rmtfs memory (`/dev/qcom_rmtfs_mem1`), then

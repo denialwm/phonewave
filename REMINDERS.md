@@ -60,18 +60,13 @@ not part of any device's configuration.
   - Retired with the move: `devices/aston/tools/`, `rootfs/`,
     `boot/package_kernel.py`, `boot/firstboot/`, callaudio's
     `build-aston.sh` and the old denial-session.target.
-- **12R (aston) sensors.** Since 2026-11-14 hexagonrpcd runs on the 12R
-  (the ADSP's non-secure FastRPC node) and the sensor core offers the
-  mmc56x3x magnetometer and the tcs3720 proximity; the BMI26x accelerometer
-  and gyroscope, ambient light and the bmp380 pressure sensor stay missing,
-  cause unknown. The ADSP rebuilds its registry from the odm JSON files at
-  every start and its writes (`registry/../temp.json`) are refused; serving
-  persist's `sensors/registry/sns_reg_version` and a stock-style
-  `/sys/devices/soc0` (`hw_platform` MTP, from debugfs `qcom_socinfo`) took
-  the read errors away but changed nothing. Not tried yet: letting the ADSP
-  write its registry copy, and the stock kernel's `oplus,sensor-devinfo`
-  SMEM entry 130 (its device tree lists only a virtual sensor). Compass
-  heading and orientation need the accelerometer.
+- **12R (aston) ambient light.** The sensor core offers no standard
+  `ambient_light`: the front tcs3720 reports OnePlus's `wise_rgb` (colour
+  temperature and channel counts) and the rear stk37600
+  `ambient_light_rear`. Stock Android turns them into lux in closed code,
+  compensating for the panel's own light with the brightness the kernel's
+  oplus_ssc_interact device reports. steinerd needs a lux it can trust
+  before Light is on.
 - **RedMagic (nx809j) onto the shared image.** Moved 2026-11-06: sda13,
   `linux` until then, is named `denial` and holds the image; Android keeps
   `userdata`. Before the move the old root was saved in the vault,

@@ -11,7 +11,7 @@ _rmtfs=b30a3eb38f9af283f18dbd3c7755653efc52c094
 _tqftpserv=eb4b9a04ff92d2753ededf32cc3b6ed287f6e29b
 # The date of the newest of the three commits.
 pkgver=2026.10.27
-pkgrel=2
+pkgrel=3
 arch=(aarch64)
 url="https://github.com/linux-msm"
 license=(BSD-3-Clause)

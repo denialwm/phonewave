@@ -1,5 +1,0 @@
-# The board rmtfs describes to the modem after the static NV backup
-# (services/modem/linux-msm). Stock kernel's project info on the 12R:
-# get_PCB_Version:40, nRF:1.
-pcb=40
-rf=1

@@ -74,13 +74,15 @@ Modem: dmail (services/modem/dmail) owns it, as on every phone: its
 tqftpserv (services/modem/linux-msm). The tail turns dmail on and carries its
 device file, `boot/tail/dmail/device.toml`. The 12R's modem keeps its IMEIs
 in the OEM NV backup (`oplusstanvbk_<slot>`, `oplusdycnvbk`) and reads the
-board block after it; `boot/tail/rmtfs/oplus-board` holds the PCB version and
-RF the block needs (services/modem/linux-msm, "rmtfs on OnePlus phones").
+board block after it, made from the project, PCB and RF the kernel reads
+from the bootloader (services/modem/linux-msm, "rmtfs on OnePlus phones").
 
 Sensors: the ADSP runs them. The tail turns on hexagonrpcd
 (services/sensors/hexagonrpcd), which hands the ADSP the stock sensor
 configuration on its non-secure FastRPC node, the only one SM8550's ADSP has;
-steinerd reads the sensor core.
+steinerd reads the sensor core. The BMI26x accelerometer and gyroscope sit on
+the sensor island's SPI pins (gpio192 to 195): Linux must never take them,
+or the ADSP finds no IMU until the next boot.
 
 DNS: systemd-resolved, so that dmail can give it the carrier's servers for
 `rmnet_data0`; without it, cellular has no DNS, since NetworkManager's

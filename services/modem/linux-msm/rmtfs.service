@@ -14,7 +14,5 @@ ProtectSystem=strict
 ProtectHome=yes
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
-# Not ProtectKernelModules: it hides /usr/lib/modules, where the boot tail
-# keeps rmtfs/oplus-board.
-CapabilityBoundingSet=~CAP_SYS_MODULE
+ProtectKernelModules=yes
 PrivateTmp=yes

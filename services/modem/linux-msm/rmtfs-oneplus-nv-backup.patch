@@ -34,31 +34,15 @@ diff -ru a/rmtfs.c b/rmtfs.c
  	action.sa_flags = 0;
 diff -ru a/storage.c b/storage.c
 --- a/storage.c	2026-06-23 01:15:46.000000000 +0200
-+++ b/storage.c	2026-11-14 21:15:35.011269008 +0100
-@@ -1,20 +1,21 @@
- #include <sys/stat.h>
++++ b/storage.c	2026-11-14 21:37:05.716723615 +0100
+@@ -2,6 +2,7 @@
  #include <sys/types.h>
-+#include <sys/utsname.h>
  #include <errno.h>
  #include <fcntl.h>
 +#include <stdint.h>
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
- #include <unistd.h>
- #include "rmtfs.h"
-+#include "util.h"
- 
- #define MAX_CALLERS 10
- #define STORAGE_MAX_SIZE (16 * 1024 * 1024)
- 
- #define BY_PARTLABEL_PATH "/dev/disk/by-partlabel"
- 
--#define MIN(x, y) ((x) < (y) ? (x) : (y))
--
- struct partition {
- 	const char *path;
- 	const char *actual;
 @@ -44,17 +45,25 @@
  	{ "/boot/modem_study", "modem_study", "study" },
  	{ "/boot/modem_tunning", "modem_tunning", "tunning" },
@@ -131,13 +115,13 @@ diff -ru a/storage.c b/storage.c
 +	for (ret = -1; ret && part->path; part++) {
 +		if (strcmp(part->path, path) != 0)
 +			continue;
-+
+ 
+-		snprintf(fspath, pathlen, "%s/%s%s", storage_dir, file, slot_suffix);
 +		if (storage_use_partitions)
 +			file = part->partlabel;
 +		else
 +			file = part->actual;
- 
--		snprintf(fspath, pathlen, "%s/%s%s", storage_dir, file, slot_suffix);
++
 +		pathlen = strlen(storage_dir) + strlen(file) + 2 + strnlen(slot_suffix, SLOT_SUFFIX_LEN);
 +		fspath = alloca(pathlen);
 +		snprintf(fspath, pathlen, "%s/%s", storage_dir, file);
@@ -149,76 +133,82 @@ diff -ru a/storage.c b/storage.c
 +			snprintf(fspath, pathlen, "%s/%s%s", storage_dir, file, slot_suffix);
 +			ret = fd_open(rmtfd, fspath, part);
 +		}
-+	}
+ 	}
 +	if (ret) {
 +		fprintf(stderr, "[storage] no partition for '%s'\n", path);
 +		return NULL;
- 	}
++	}
 +	part--;
  
  	rmtfd->node = node;
  	rmtfd->partition = part;
-@@ -319,3 +336,104 @@
+@@ -319,3 +336,110 @@
  
  	return ret;
  }
 +
 +/*
 + * Newer OnePlus modems read 512 bytes past the end of the static NV backup:
-+ * a board block that stock Android's rmt_storage builds from the phone's
-+ * project information. Answered with zeros, the modem starts without its
-+ * IMEIs. Where the boot image describes the board, in
-+ * /usr/lib/modules/RELEASE/rmtfs/oplus-board (pcb=N and rf=N, the stock
-+ * kernel's PCB version and nRF), the block follows the backup in the
-+ * read-only copy the modem reads. The project number comes from the
-+ * bootloader's androidboot.prjname; the four bytes after the region are
-+ * the start of soc0's serial number.
++ * a board record that stock Android's storage service builds. Answered with
++ * zeros, the modem starts without its IMEIs. Where the kernel has the
++ * bootloader's project information (oneplus,project-info), the record
++ * follows the backup in the read-only copy the modem reads: magic, region,
++ * the start of soc0's serial number, project, PCB and RF. The rest is what
++ * stock writes when Android's properties are missing.
 + */
 +#define OPLUS_BOARD_SIZE 512
++#define OPLUS_PROJECT_DIR "/sys/devices/platform/project-info/"
++
++static int oplus_project_value(const char *name, unsigned long long *value)
++{
++	char path[64];
++	char text[32];
++	char *end;
++	FILE *f;
++	size_t n;
++
++	snprintf(path, sizeof(path), OPLUS_PROJECT_DIR "%s", name);
++	f = fopen(path, "r");
++	if (!f)
++		return -1;
++	n = fread(text, 1, sizeof(text) - 1, f);
++	fclose(f);
++	text[n] = '\0';
++
++	*value = strtoull(text, &end, 10);
++	if (end == text || (*end && *end != '\n')) {
++		fprintf(stderr, "[storage] %s is not a number: %s\n", path, text);
++		return -1;
++	}
++
++	return 0;
++}
 +
 +static int oplus_board_block(uint8_t *block)
 +{
-+	char line[128];
-+	char project[32];
++	unsigned long long project;
++	unsigned long long pcb;
++	unsigned long long rf;
 +	char serial[4];
-+	char *end;
-+	struct utsname u;
-+	unsigned long long prj;
-+	long pcb = -1;
-+	long rf = -1;
 +	FILE *f;
 +	int i;
 +
-+	if (uname(&u))
++	if (access(OPLUS_PROJECT_DIR, F_OK))
 +		return -1;
-+	snprintf(line, sizeof(line), "/usr/lib/modules/%s/rmtfs/oplus-board", u.release);
-+	f = fopen(line, "r");
-+	if (!f)
++	if (oplus_project_value("project", &project) ||
++	    oplus_project_value("pcb", &pcb) ||
++	    oplus_project_value("rf", &rf)) {
++		fprintf(stderr, "[storage] no OnePlus project information\n");
 +		return -1;
-+	while (fgets(line, sizeof(line), f)) {
-+		if (strncmp(line, "pcb=", 4) == 0)
-+			pcb = strtol(line + 4, NULL, 0);
-+		else if (strncmp(line, "rf=", 3) == 0)
-+			rf = strtol(line + 3, NULL, 0);
 +	}
-+	fclose(f);
++	if (pcb > 255 || rf > 255) {
++		fprintf(stderr, "[storage] PCB %llu or RF %llu out of range\n", pcb, rf);
++		return -1;
++	}
 +
-+	if (pcb < 0 || pcb > 255 || rf < 0 || rf > 255) {
-+		fprintf(stderr, "[storage] oplus-board needs pcb and rf, 0 to 255\n");
-+		return -1;
-+	}
-+	if (boot_property("androidboot.prjname", project, sizeof(project))) {
-+		fprintf(stderr, "[storage] oplus-board: the bootloader names no project\n");
-+		return -1;
-+	}
-+	prj = strtoull(project, &end, 10);
-+	if (*end) {
-+		fprintf(stderr, "[storage] oplus-board: project '%s' is not a number\n", project);
-+		return -1;
-+	}
 +	f = fopen("/sys/devices/soc0/serial_number", "r");
 +	if (!f || fread(serial, 1, 4, f) != 4) {
-+		fprintf(stderr, "[storage] oplus-board: no SoC serial number\n");
++		fprintf(stderr, "[storage] no SoC serial number\n");
 +		if (f)
 +			fclose(f);
 +		return -1;
@@ -234,11 +224,11 @@ diff -ru a/storage.c b/storage.c
 +	/* Region: stock's default */
 +	memcpy(block + 391, "CE", 2);
 +	memcpy(block + 423, serial, 4);
-+	/* Stock's values where the phone has no SVN or RF cable property */
++	/* Stock's values where the phone has no SVN property */
 +	block[427] = 1;
 +	block[428] = 255;
 +	for (i = 0; i < 8; i++)
-+		block[431 + i] = prj >> (8 * i);
++		block[431 + i] = project >> (8 * i);
 +	block[439] = pcb;
 +	block[440] = rf;
 +
