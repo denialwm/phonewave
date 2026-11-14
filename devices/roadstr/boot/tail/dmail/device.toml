@@ -5,3 +5,10 @@ qmap = "v5"
 dl_datagrams = 16
 dl_datagram_size = 8192
 mtu_max = 1492
+
+[ims]
+manufacturer = "motorola"
+model = "motorola edge 70"
+build = "W1WR36.39-115"
+release = "16"
+sdk = "36"
