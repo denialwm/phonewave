@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Reboot a phone only when the reboot is safe: it runs from Linux's slot, the
-# slot is marked successful, so a reboot costs no boot try, and the boot
-# partition carries its kernel's modules.
+# Reboot a phone only when the reboot is safe: the slot Linux runs from is
+# marked successful, so a reboot costs no boot try, and its boot partition
+# carries its kernel's modules.
 #   phone-reboot HOST [--check|--reboot]
 set -euo pipefail
 host=${1:?usage: phone-reboot HOST [--check|--reboot]}
@@ -13,9 +13,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 \
     -o ServerAliveCountMax=3 "$host" sh -s -- "$action" <<'REMOTE'
 set -eu
 stop() { echo "STOP: $*. No reboot requested." >&2; exit 1; }
-slot=$(sed -n 's/^slot=//p' /etc/slot-success.conf | tail -n 1)
-running=$(slot-success running)
-[ "$running" = "$slot" ] || stop "running from slot $running, not Linux's slot $slot"
+slot=$(slot-success running)
+[ -n "$slot" ] || stop "the running slot is unknown"
 slot-success status >&2 || stop "slot $slot is not marked successful; a reboot would use a boot try"
 # The modules are an erofs filesystem at the page after the kernel. Read
 # what the partition holds now, which a kernel update may have replaced,
