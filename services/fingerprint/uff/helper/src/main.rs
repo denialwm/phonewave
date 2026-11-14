@@ -201,7 +201,9 @@ fn contact_area(profile: &Path) -> Result<String> {
         field("y")?
     ))
 }
-/// The phone's user's Denial, its runtime folder and its one Wayland socket.
+/// The Denial on the screen, its runtime folder and its one Wayland socket.
+/// It runs as whoever owns it: setup's account until setup restarts it as
+/// the account it made, though the service names that account already.
 /// The presentation client pins its peer to exactly this process.
 fn compositor() -> Result<(i32, u32, String, String)> {
     let out = Command::new("systemctl")
@@ -209,7 +211,6 @@ fn compositor() -> Result<(i32, u32, String, String)> {
             "show",
             "denial.service",
             "--property=MainPID",
-            "--property=User",
             "--property=ActiveState",
         ])
         .stdin(Stdio::null())
@@ -222,9 +223,8 @@ fn compositor() -> Result<(i32, u32, String, String)> {
         .get("MainPID")
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let user = fields.get("User").copied().unwrap_or("");
     require(
-        out.status.success() && main > 0 && !user.is_empty() && fields.get("ActiveState") == Some(&"active"),
+        out.status.success() && main > 0 && fields.get("ActiveState") == Some(&"active"),
         "Denial service unavailable",
     )?;
     let executable = |pid: i32| fs::read_link(format!("/proc/{pid}/exe")).ok();
@@ -243,14 +243,10 @@ fn compositor() -> Result<(i32, u32, String, String)> {
     };
     require(denial.len() == 1, "Denial process unavailable")?;
     let pid = denial[0];
-    let name = std::ffi::CString::new(user).map_err(|_| "invalid Denial user")?;
-    let entry = unsafe { libc::getpwnam(name.as_ptr()) };
-    require(!entry.is_null(), "unknown Denial user")?;
-    let uid = unsafe { (*entry).pw_uid };
-    let owner = fs::metadata(format!("/proc/{pid}"))
+    let uid = fs::metadata(format!("/proc/{pid}"))
         .map_err(|_| "Denial process unavailable")?
         .uid();
-    require(uid > 0 && owner == uid, "wrong compositor owner")?;
+    require(uid > 0, "Denial runs as root")?;
     let runtime = format!("/run/user/{uid}");
     // The listener is created after exec, so the process environment need
     // not name WAYLAND_DISPLAY: take the one live socket the user owns.
