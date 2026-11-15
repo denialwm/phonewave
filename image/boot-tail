@@ -20,6 +20,8 @@ output=${3:?usage: image/boot-tail RELEASE_DIR DEVICE_DIR OUTPUT}
 name=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["release"])' "$release/manifest.json")
 
 stage=$(mktemp -d)
+# mktemp makes it 0700, and the image root takes its mode: everyone reads it.
+chmod 755 "$stage"
 trap 'rm -rf "$stage"' EXIT
 cp -a "$release/modules-root/lib/modules/$name" "$stage/"
 rm -f "$stage/$name/build" "$stage/$name/source"
