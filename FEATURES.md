@@ -139,7 +139,7 @@ last.
 | VoLTE | partial | 2026-11-15, devices-370, probe | Registers on Iliad on 5G, mobile data up beside it; no call tried yet |
 | GNSS | ? | | |
 | NFC | ? | | |
-| Camera | not started | | No `/dev/video*` on perpetua |
+| Camera | partial | 2026-11-15, devices-375, user | Ultrawide and front S5KJNS in the Camera app through braun, untuned. The 50 MP main S5KGNJ has no driver yet |
 | Video decode | not started | | No `/dev/video*` on perpetua |
 | Rotation | works | 2026-11-15, devices-370, user | icm456xx accelerometer through the ADSP |
 | Light and proximity | works | 2026-11-15, devices-370, user | stk3bfx through the ADSP |
