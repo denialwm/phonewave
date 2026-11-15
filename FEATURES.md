@@ -127,7 +127,7 @@ last.
 | Video out (USB-C) | none | | |
 | Charging | works | devices-12, probe | Back-temperature throttling |
 | Battery | works | 2026-11-04, devices-35, probe | |
-| Wi-Fi | partial | 2026-11-15, devices-387, probe | Joins MieleWiFi on 5180 MHz at 160 MHz HE and reaches the gateway, but receives no broadcast or multicast: an ARP request from the LAN gets no answer and no IPv6 address arrives from the router's announcements |
+| Wi-Fi | works | 2026-11-15, devices-388, probe | WCN6750, ath11k. Joins at boot, 5180 MHz at 160 MHz HE and 2462 MHz; answers ARP and IPv6 from the LAN and takes its address from the router's announcements. Before devices-388 every broadcast and multicast frame was dropped: this firmware saves the MAC header without the security header behind it, so ath11k rebuilds that from MPDU start |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
 | Speakers | works | 2026-11-15, devices-374, user | Two TFA9864 on the island I2S, through the shared UCM profile; the topology converts the 16-bit streams to the I2S port's 32-bit slots |
 | Microphones | ? | 2026-11-15, devices-387, probe | PipeWire offers the bottom DMIC1 only; 4 s of room sound recorded with a peak of 1753 of 32767 |
