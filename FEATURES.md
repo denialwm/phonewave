@@ -127,10 +127,10 @@ last.
 | Video out (USB-C) | none | | |
 | Charging | works | devices-12, probe | Back-temperature throttling |
 | Battery | works | 2026-11-04, devices-35, probe | |
-| Wi-Fi | partial | 2026-10-19, probe | Receives no broadcast or multicast |
+| Wi-Fi | partial | 2026-11-15, devices-387, probe | Joins MieleWiFi on 5180 MHz at 160 MHz HE and reaches the gateway, but receives no broadcast or multicast: an ARP request from the LAN gets no answer and no IPv6 address arrives from the router's announcements |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
 | Speakers | works | 2026-11-15, devices-374, user | Two TFA9864 on the island I2S, through the shared UCM profile; the topology converts the 16-bit streams to the I2S port's 32-bit slots |
-| Microphones | ? | | |
+| Microphones | ? | 2026-11-15, devices-387, probe | PipeWire offers the bottom DMIC1 only; 4 s of room sound recorded with a peak of 1753 of 32767 |
 | Headphone jack | ? | | |
 | Mobile data | works | 2026-11-15, devices-370, probe | dmail on Iliad, 5G: DNS through the carrier, 10 MB at 22 Mbit/s |
 | SMS | works | 2026-11-15, devices-370, user | Received |
