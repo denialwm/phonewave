@@ -139,7 +139,7 @@ last.
 | VoLTE | partial | 2026-11-15, devices-370, probe | Registers on Iliad on 5G, mobile data up beside it; no call tried yet |
 | GNSS | ? | | |
 | NFC | ? | | |
-| Camera | partial | 2026-11-15, devices-386, user | Main S5KGNJ 4096x3072 over three C-PHY trios, ultrawide and front S5KJNS, all in the Camera app through braun, upright, untuned; the ultrawide is the 0.5x lens. The main camera focuses through its AK7377 (user); the motor answers only while the sensor is powered. The ultrawide's DW9800S is not driven |
+| Camera | partial | 2026-11-15, devices-387, user | Main S5KGNJ 4096x3072 over three C-PHY trios, ultrawide and front S5KJNS, all in the Camera app through braun, upright, untuned; the ultrawide is the 0.5x lens. The main camera focuses through its AK7377 (user, devices-386), the ultrawide through its DW9800S (user, devices-387); each motor answers only while its sensor is powered |
 | Video decode | not started | | No `/dev/video*` on perpetua |
 | Rotation | works | 2026-11-15, devices-370, user | icm456xx accelerometer through the ADSP |
 | Light and proximity | works | 2026-11-15, devices-370, user | stk3bfx through the ADSP |
