@@ -133,8 +133,8 @@ last.
 | Microphones | ? | | |
 | Headphone jack | ? | | |
 | Mobile data | works | 2026-11-15, devices-370, probe | dmail on Iliad, 5G: DNS through the carrier, 10 MB at 22 Mbit/s |
-| SMS | not started | | |
-| Calls | not started | | |
+| SMS | works | 2026-11-15, devices-370, user | Received |
+| Calls | partial | 2026-11-15, devices-370, user | An incoming call rings with VoLTE registered; answering not checked |
 | Call audio | not started | | |
 | VoLTE | partial | 2026-11-15, devices-370, probe | Registers on Iliad on 5G, mobile data up beside it; no call tried yet |
 | GNSS | ? | | |
