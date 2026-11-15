@@ -1,0 +1,3 @@
+# The Edge 70's main camera: the QTech S5KGNJ module, 24 mm equivalent.
+# Its AK7377 focus motor has no driver yet.
+role = "main"

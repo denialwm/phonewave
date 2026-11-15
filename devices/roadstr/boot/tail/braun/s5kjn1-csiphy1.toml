@@ -1,0 +1,4 @@
+# The Edge 70's ultrawide: the S5KJNS module, 12 mm equivalent against the
+# main camera's 24 mm.
+role = "ultrawide"
+zoom = 0.5

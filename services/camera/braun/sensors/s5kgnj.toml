@@ -1,0 +1,5 @@
+# Samsung S5KGNJ. Gain is code / 32; the black level is 64, as its dark
+# frames read.
+black = 64
+analogue_gain = { m0 = 1, c0 = 0, m1 = 0, c1 = 32 }
+max_gain = 16
