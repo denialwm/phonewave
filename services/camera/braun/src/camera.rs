@@ -305,7 +305,8 @@ pub fn discover() -> Discovery {
             }
         }
     }
-    // Two of the same sensor are told apart by their address.
+    // Two of the same sensor are told apart by their address, or by their
+    // receiver when they share it on two buses.
     let models: Vec<String> = cameras.iter().map(|camera| camera.model.clone()).collect();
     for camera in &mut cameras {
         if models
@@ -316,6 +317,13 @@ pub fn discover() -> Discovery {
         {
             let address = camera.entity.rsplit('-').next().unwrap_or_default();
             camera.id = format!("{}-{address}", camera.model);
+        }
+    }
+    let ids: Vec<String> = cameras.iter().map(|camera| camera.id.clone()).collect();
+    for camera in &mut cameras {
+        if ids.iter().filter(|id| **id == camera.id).count() > 1 {
+            let phy = camera.phy.strip_prefix("msm_").unwrap_or(&camera.phy);
+            camera.id = format!("{}-{phy}", camera.model);
         }
         match profile::calibration(&camera.id) {
             Ok(Some(calibration)) => calibrate(camera, &calibration),
