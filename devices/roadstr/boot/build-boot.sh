@@ -35,6 +35,14 @@ mkdir $T/device
 F=$V/firmware
 install -Dm644 -t $T/device/firmware/qcom $F/qcom/gen71700_sqe.fw $F/qcom/gen71700_gmu.bin
 install -Dm644 -t $T/device/firmware/qca $F/bt/*
+# The audio topology, built from ../audio/Motorola-Edge70.m4 with
+# infiniti-mainline's audioreach-topology macros; the sound card does not
+# start without it. alsatplg reports the DAI widgets the kernel adds as
+# undefined.
+L=$HOME/.cache/phonewave/src/infiniti-audioreach-topology
+(cd ${HERE:h}/audio && m4 -I $L Motorola-Edge70.m4) > $T/Motorola-Edge70.conf
+mkdir -p $T/device/firmware/qcom/eliza
+alsatplg -c $T/Motorola-Edge70.conf -o $T/device/firmware/qcom/eliza/Motorola-Edge70-tplg.bin 2>/dev/null
 mkdir -p $T/device/firmware/ath11k/WCN6750/hw1.0
 python3 $HERE/ath11k-board2 'bus=ahb,qmi-chip-id=1,qmi-board-id=255,variant=Motorola_roadstr' \
 	$F/ath11k/board.bin $F/ath11k/regdb.bin $T/device/firmware/ath11k/WCN6750/hw1.0/board-2.bin

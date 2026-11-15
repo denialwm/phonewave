@@ -8,6 +8,7 @@ its own.
 
 | Card | Phone |
 |---|---|
+| `eliza/Motorola-Edge70` | Motorola Edge 70 |
 | `sm8550/astonsnd` | OnePlus 12R |
 | `kaanapali/Nubia-NX809J` | RedMagic 11 Pro |
 | `kaanapali/OnePlus-Pad4` | OnePlus Pad 4 |

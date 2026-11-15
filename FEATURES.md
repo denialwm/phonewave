@@ -129,7 +129,7 @@ last.
 | Battery | works | 2026-11-04, devices-35, probe | |
 | Wi-Fi | partial | 2026-10-19, probe | Receives no broadcast or multicast |
 | Bluetooth | works | 2026-10-28, devices-14, user | |
-| Speakers | ? | | |
+| Speakers | works | 2026-11-15, devices-374, user | Two TFA9864 on the island I2S, through the shared UCM profile; the topology converts the 16-bit streams to the I2S port's 32-bit slots |
 | Microphones | ? | | |
 | Headphone jack | ? | | |
 | Mobile data | works | 2026-11-15, devices-370, probe | dmail on Iliad, 5G: DNS through the carrier, 10 MB at 22 Mbit/s |
