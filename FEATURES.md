@@ -116,7 +116,7 @@ last.
 | Boot | works | 2026-11-04, devices-35, probe | Stock firmware W1WR36.39-115 from `modem_b` |
 | Display | works | 2026-11-04, devices-34, user | 120 Hz; boot console, then Denial, without a reset |
 | Brightness | works | 2026-10-28, devices-14, user | |
-| Wake from screen off | works | user | Power key |
+| Wake from screen off | works | 2026-11-15, devices-378, user | Power key; also double tap. The panel powers off while blanked, as on stock, and the touch controller waits in gesture mode on its own supplies |
 | GPU | works | user | After a GPU hang, only a hard reboot recovers |
 | Touch | works | user | |
 | Keys | works | 2026-10-28, devices-14, user | |
