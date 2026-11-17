@@ -6,6 +6,10 @@ pkgname=("${_apps[@]/#/denial-app-}")
 license=(LicenseRef-Sustainable-Use-License)
 _src=$startdir/../../../../denial-apps
 . "$startdir/../recipe.sh"
+# The version follows denial-apps commits only. The apps also build against
+# gpui-touch main: raise this when a gpui-touch change should reach them, and
+# set it back to 1 with the next denial-apps commit.
+pkgrel=2
 depends=(glibc gcc-libs libxkbcommon wayland vulkan-icd-loader fontconfig)
 
 build() {
