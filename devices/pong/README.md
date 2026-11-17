@@ -64,9 +64,8 @@ calibration and radio data.
   in `qcom/sm8475/pong`.
 - Sensors run on the SLPI, whose FastRPC node is `fastrpc-sdsp`:
   `boot/tail/` starts hexagonrpcd on it with the stock configuration, which
-  `stock-sensors` takes from the slot that holds the phone's Android vendor,
-  and restarts the SLPI once (`libexec/slpi-sensors`). The screen's top is
-  the sensors' default `+y`.
+  `stock-sensors` takes from the slot that holds the phone's Android vendor.
+  The screen's top is the sensors' default `+y`.
 - dmail brings the modem up from `boot/tail/dmail/device.toml`. The `[data]`
   values are the OnePlus 12R's; mobile data needs the IPA, which is not
   described yet.
