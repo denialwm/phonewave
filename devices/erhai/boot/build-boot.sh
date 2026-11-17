@@ -7,8 +7,9 @@
 #   (release <version>-devicesN-erhai, built unless it exists; writes the
 #   vault's boot/boot-NAME.img, NAME defaulting to N)
 #
-# The Pad 3's kernel is the erhai/display branch of linux-perpetua, built
-# from a worktree of it into an object directory of its own. Where
+# The Pad 3's kernel is the erhai kernel of linux-perpetua (the erhai
+# commits against the perpetua release), built from a worktree of it
+# into an object directory of its own. Where
 # linux-perpetua-build has no tools/devices-build, the release is built here
 # in the same layout (linux-perpetua devices/README, "Build output").
 #   PERPETUA        the source tree (default: the workspace's wt/erhai-pw)

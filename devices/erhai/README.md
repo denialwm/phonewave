@@ -22,7 +22,7 @@ the same stock files); stock/ the stock images and this unit's EDL dump;
 backups/ partition copies.
 
 Packaging a kernel release N: `boot/build-boot.sh N [--name NAME]` builds
-linux-perpetua's erhai/display branch (a worktree, `PERPETUA`) in its own
+the erhai kernel of linux-perpetua (a worktree, `PERPETUA`) in its own
 object directory (`PERPETUA_OBJ`) unless the release exists, packs the tail
 with image/boot-tail and writes the vault's boot/boot-NAME.img over this
 unit's stock boot_a. The tail holds every module of the release. The ADSP
@@ -75,7 +75,7 @@ set of the vendor partition's /vendor/bt_firmware/image/, 67 files; the
 
 ## Audio
 
-The erhai/display kernel has the microphones and the speakers: the sound
+The erhai kernel has the microphones and the speakers: the sound
 card OnePlus-Pad3 with a capture link (WCD9395 on TX_CODEC_DMA_TX_3,
 analog microphones AMIC1 and AMIC5) and a speaker link (the six AW88261
 amplifiers on SECONDARY_TDM_RX_0, gpio121-124, the stock speaker back end
@@ -139,10 +139,14 @@ partition in super, which image/stock-firmware cannot mount.
 
 ## Charging
 
-The battery is read through the ADSP (qcom_battmgr, pmic_glink). The
-erhai/display kernel has no oplus_chg and no CPS8601 driver, so the pen
-charger's firmware (`wireless_pen/24976/cps8601_firmware.bin` in the vault)
-is not in the tail.
+The battery is read through the ADSP (qcom_battmgr, pmic_glink):
+the kernel's qcom_battmgr driver with the OnePlus SM8750 firmware
+support carries the stock charger firmware's data. The kernel drives
+the SuperVOOC stage itself (sc8547_svooc, the board's stock charge
+strategy from the device tree: the 80 W session and the top up after
+a full one) and the stylus charger (cps8601, from the pogo dock). The
+pen charger's firmware (`wireless_pen/24976/cps8601_firmware.bin` in
+the vault) is not in the tail.
 
 ## Sensors
 
