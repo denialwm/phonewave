@@ -47,6 +47,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | `aston` | OnePlus 12R | SM8550 |
 | `roadstr` | Motorola Edge 70 | Eliza |
 | `iceland` | OnePlus Pad 4 | Kaanapali (SM8850) |
+| `pong` | Nothing Phone (2) | SM8475 |
 
 ## Services
 

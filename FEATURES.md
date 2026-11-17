@@ -368,3 +368,45 @@ last.
 | Native apps | partial | 2026-11-16, oriole branch, user | Settings and Welcome open; laggy |
 | Android apps | ? | | |
 | CPU frequency | works | 2026-11-15, oriole branch, probe | cpufreq-dt, schedutil |
+
+## pong: Nothing Phone (2) (SM8475)
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-17, pong build 49, user | `boot_a`, the slot the bootloader starts; the shared image on `userdata` |
+| Display | works | 2026-11-17, pong build 49, user | Visionox NT37705, 1080x2412 at 60, 90 or 120 Hz. Linux's own panel reset leaves it black, so the driver keeps what the bootloader set up and screen off is the backlight at zero |
+| Brightness | works | 2026-11-17, pong build 49, user | |
+| Wake from screen off | ? | | |
+| GPU | works | 2026-11-17, pong build 49, user | Adreno 730 with the image's mesa-denial |
+| Touch | works | 2026-11-17, pong build 49, user | Goodix GT9916 |
+| Keys | works | 2026-11-17, pong build 49, user | |
+| Haptics | works | 2026-11-17, pong build 49, user | AW86927 on I2C18 |
+| Storage | works | 2026-11-17, pong build 49, probe | UFS |
+| USB device | works | 2026-11-17, pong build 49, probe | SSH over USB |
+| USB host | untested | | The Type-C connector, orientation and role switch are described; a host cable was not tried |
+| Video out (USB-C) | not started | | The QMP combo PHY is described; no DisplayPort path |
+| Charging | works | 2026-11-17, pong build 49, probe | Through the ADSP's pmic-glink |
+| Battery | works | 2026-11-17, pong build 49, probe | battmgr |
+| Wi-Fi | works | 2026-11-17, pong build 49, probe | QCA6490, ath11k |
+| Bluetooth | works | 2026-11-17, pong build 49, probe | WCN6855 firmware |
+| Speakers | works | 2026-11-17, pong build 49, user | Two TFA9873 amplifiers; the stream volume is capped at -6 dB, since they have no speaker protection |
+| Microphones | not started | 2026-11-17, pong build 49, probe | The WCD9385 is not in the device tree: its SoundWire slave re-attaches and capture fails |
+| Headphone jack | not started | | |
+| Mobile data | untested | | The IPA is not described, and the SIM tried had no data |
+| SMS | untested | | |
+| Calls | untested | | |
+| Call audio | not started | | |
+| VoLTE | untested | | |
+| GNSS | not started | | |
+| NFC | not started | | |
+| Camera | not started | | No CAMSS for SM8450 on perpetua |
+| Video decode | not started | | |
+| Rotation | works | 2026-11-17, pong build 49, probe | steinerd reports the accelerometer |
+| Light and proximity | works | 2026-11-17, pong build 49, probe | steinerd reports both |
+| Compass and gyroscope | works | 2026-11-17, pong build 49, probe | steinerd reports both |
+| Fingerprint | not started | | Goodix, not in the device tree |
+| Suspend | ? | | |
+| Cooling | ? | | |
+| Denial | works | 2026-11-17, pong build 49, user | |
+| Native apps | works | 2026-11-17, pong build 49, user | |
+| Android apps | works | 2026-11-17, pong build 49, user | Droidloom |
