@@ -1,0 +1,11 @@
+#!/bin/sh
+# The SLPI is up before anything can serve its sensor configuration, over a
+# FastRPC node that exists only while it runs, and its sensor drivers read that
+# configuration once, as they start. Restart it once the node is there and
+# hexagonrpcd, which keeps retrying until then, serves it. Both writes return
+# when the SLPI has stopped and started.
+set -eu
+r=$(dirname "$(grep -l '^slpi$' /sys/class/remoteproc/*/name | head -n 1)")
+udevadm wait --timeout=60 /dev/fastrpc-sdsp
+echo stop > "$r/state"
+echo start > "$r/state"
