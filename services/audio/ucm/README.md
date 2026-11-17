@@ -10,6 +10,7 @@ its own.
 |---|---|
 | `eliza/Motorola-Edge70` | Motorola Edge 70 |
 | `sm8550/astonsnd` | OnePlus 12R |
+| `sm8450/Nothing-Phone-2` | Nothing Phone (2) |
 | `kaanapali/Nubia-NX809J` | RedMagic 11 Pro |
 | `kaanapali/OnePlus-Pad4` | OnePlus Pad 4 |
 | `kaanapali/Xiaomi-17` | Xiaomi 17 |

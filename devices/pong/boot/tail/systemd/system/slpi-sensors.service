@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart the SLPI once its sensor configuration is served
+Wants=hexagonrpcd.service
+After=hexagonrpcd.service
+Before=steinerd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/modules/%v/libexec/slpi-sensors
