@@ -42,6 +42,10 @@ mkdir $T/device/firmware $T/device/firmware/peach
 	cpio -0 -pdm --quiet $T/device/firmware/peach)
 (cd $V/firmware/tail && find aw882xx_acf.bin 0x2XN242CN00 qca qcom wireless_pen \
 	-type f -print0 | cpio -0 -pdm --quiet $T/device/firmware)
+# The voice call profile, made from the stock ACDB as audio/voice.toml
+# says; the kernel's q6apm voice session loads it from the tail's firmware.
+python3 ${HERE:h:h:h}/services/audio/voicegen/voiceprofile.py $HERE/../audio/voice.toml \
+	$T/device/firmware/qcom/sm8750/OnePlus-Pad3-voice.bin
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
 cd $V/boot

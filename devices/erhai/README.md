@@ -72,12 +72,22 @@ names the driver asks for (ROM version 0x10).
 
 ## Audio
 
-The sun ASoC machine loads no topology or ACDB on the host: the sound
-configuration lives in the DSP-side factory firmware. The tail carries the
-speaker amplifier's tuning, `aw882xx_acf.bin`. If tuning the voice call
-profile is ever needed, the nx809j's pattern applies: generate it from the
-stock ACDB (in the stock vendor image under `/etc/acdbdata/sun_mtp/`) with
-`services/audio/voicegen/voiceprofile.py`.
+The stock audio tuning is captured from the unit's stock images and
+pinned in the vault under `erhai/reference/stock-audio/` (SHA256SUMS-pinned,
+with its README); the board ACDB
+(`vendor/etc/acdbdata/sun_mtp/MTP_acdb_cal.acdb`) among them. The tail
+carries the speaker amplifier's tuning, `aw882xx_acf.bin`. The voice
+call profile, `qcom/sm8750/OnePlus-Pad3-voice.bin`, is generated from
+that ACDB by `services/audio/voicegen/voiceprofile.py` with
+`audio/voice.toml` at build time (build-boot.sh) into the tail's
+firmware; the profile generated from the pinned capture is
+`91d231beee9d4a9e35fd38fe5b35a6e3dde4d5fa92d0ab331672a1b0efd9fe63`.
+The kernel's q6apm voice session loads the bin; the board table entry
+for it (`q6apm_voice_boards`, sound/soc/qcom/qdsp6/q6apm-voice-backend.h)
+is the maintainer's to add. The stock speaker backend is
+TDM-LPAIF-RX-SECONDARY (TDM1, MI2S-Secondary) at 48 kHz / 32 bit /
+8 slots; which slot drives which AW882xx amplifier is the first-boot
+measurement.
 
 ## Touch
 
