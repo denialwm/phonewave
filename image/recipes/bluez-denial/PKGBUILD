@@ -1,0 +1,83 @@
+# Arch's bluez (the daemon package only) with the patches the phones need. Build: image/pack bluez-denial
+#
+# The same release as Arch Linux ARM's bluez, configured like it, with
+# _patches from patches/ applied; patches/README.md says why each is there.
+# bluetoothd only: bluez-utils, bluez-libs and the rest stay Arch's. No MIDI
+# (the phones have no BLE MIDI use and the sysroot no alsa-lib), mesh, OBEX
+# or CUPS: none of them is in the bluez package.
+#
+# Its own name, providing and conflicting with Arch's bluez, like
+# mesa-denial. Retiring it, once Arch's bluez has the fixes: a last release,
+# empty, depending only on bluez at that version, with no provides or
+# conflicts.
+pkgname=bluez-denial
+_pkgname=bluez
+pkgver=5.88
+_patches=(hog-read-report-maps-longer-than-512.patch)
+pkgrel=1
+pkgdesc="Daemons for the bluetooth protocol stack"
+url="http://www.bluez.org/"
+arch=(aarch64)
+license=('GPL-2.0-only')
+options=(!strip !debug !lto)
+depends=(systemd-libs dbus glib2 glibc)
+provides=("bluez=$pkgver")
+conflicts=(bluez)
+backup=(etc/bluetooth/{main,input,network}.conf)
+source=("https://www.kernel.org/pub/linux/bluetooth/$_pkgname-$pkgver.tar.xz")
+sha256sums=('6952c39eb5f8b0ee712cc50ab3bcff03be17c410dd97ca640f4849d9a1653ba3')
+. "$startdir/../../cross.sh"
+
+prepare() {
+  local p
+  for p in "${_patches[@]}"; do
+    patch -d $_pkgname-$pkgver -Np1 < "$startdir/patches/$p"
+  done
+}
+
+build() {
+  cd $_pkgname-$pkgver
+  ./configure \
+    --host=aarch64-linux-gnu \
+    --prefix=/usr \
+    --mandir=/usr/share/man \
+    --sysconfdir=/etc \
+    --localstatedir=/var \
+    --libexecdir=/usr/lib \
+    --with-dbusconfdir=/usr/share \
+    --with-dbussystembusdir=/usr/share/dbus-1/system-services \
+    --with-dbussessionbusdir=/usr/share/dbus-1/services \
+    --with-udevdir=/usr/lib/udev \
+    --with-systemdsystemunitdir=/usr/lib/systemd/system \
+    --with-systemduserunitdir=/usr/lib/systemd/user \
+    --enable-sixaxis \
+    --enable-hid2hci \
+    --enable-experimental \
+    --enable-deprecated \
+    --disable-midi --disable-mesh --disable-obex --disable-cups \
+    --disable-manpages --disable-client --disable-tools --disable-monitor \
+    --disable-testing --disable-btpclient --disable-library \
+    CC="aarch64-linux-gnu-gcc --sysroot=$sysroot" \
+    LDFLAGS="-B$sysroot/usr/lib -Wl,-rpath-link,$sysroot/usr/lib"
+  # The generated headers first: the bluetoothd target alone does not order them.
+  make src/builtin.h lib/bluetooth/bluetooth.h
+  make src/bluetoothd
+}
+
+package() {
+  cd $_pkgname-$pkgver
+  install -Dm755 src/bluetoothd "$pkgdir"/usr/lib/bluetooth/bluetoothd
+  aarch64-linux-gnu-strip "$pkgdir"/usr/lib/bluetooth/bluetoothd
+  install -Dm644 src/main.conf "$pkgdir"/etc/bluetooth/main.conf
+  install -Dm644 profiles/input/input.conf "$pkgdir"/etc/bluetooth/input.conf
+  install -Dm644 profiles/network/network.conf "$pkgdir"/etc/bluetooth/network.conf
+  install -Dm644 src/bluetooth.service "$pkgdir"/usr/lib/systemd/system/bluetooth.service
+  install -Dm644 src/org.bluez.service "$pkgdir"/usr/share/dbus-1/system-services/org.bluez.service
+  install -Dm644 src/bluetooth.conf "$pkgdir"/usr/share/dbus-1/system.d/bluetooth.conf
+  # bluetooth.service wants ConfigurationDirectoryMode=0555
+  chmod 555 "$pkgdir"/etc/bluetooth
+  install -dm755 "$pkgdir"/usr/lib/modprobe.d "$pkgdir"/usr/lib/modules-load.d
+  echo 'options btusb reset=1' > "$pkgdir"/usr/lib/modprobe.d/bluetooth-usb.conf
+  # https://bugzilla.kernel.org/show_bug.cgi?id=196621
+  echo crypto_user > "$pkgdir"/usr/lib/modules-load.d/bluez.conf
+}

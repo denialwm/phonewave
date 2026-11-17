@@ -6,6 +6,7 @@ hapticd
 zram-swap
 rtc-offset
 radio-addr
+accessory-pair
 alsa-ucm-phonewave
 callaudio
 calls-manager
@@ -34,3 +35,6 @@ fingerprint-phonewave
 mesa-denial
 vulkan-freedreno-denial
 vulkan-mesa-implicit-layers-denial
+# BlueZ that reads HID Report Maps past 512 octets (the OnePlus Pad 3
+# Keyboard), in place of Arch's.
+bluez-denial

@@ -1,0 +1,162 @@
+From: Phonewave <phonewave@localhost>
+Subject: [PATCH BlueZ] shared/hog: Read Report Maps longer than 512 octets
+
+The HID over GATT profile leaves the Report Map's contents to the HID
+specification, which sets no length limit, and keyboards with a touchpad
+such as the OnePlus Pad 3 Keyboard (22d9:3869) serve one of 567 octets
+with Read Blob past offset 512. bt_gatt_client_read_long_value() stops
+at BT_ATT_MAX_VALUE_LEN, so the map was cut at 512 in the middle of an
+item and the kernel refused it:
+
+  hid-generic 0005:22D9:3869.0001: item fetching failed at offset 511/512
+
+Add bt_gatt_client_read_long_value_max() that reads up to a given length
+and read the Report Map with it, up to HID_MAX_DESCRIPTOR_SIZE (4096),
+the size UHID_CREATE2 accepts. Every other read keeps the 512 limit.
+---
+ src/shared/gatt-client.c | 27 ++++++++++++++++++++++++---
+ src/shared/gatt-client.h |  6 ++++++
+ src/shared/hog.c         | 22 +++++++++++++++++-----
+ 3 files changed, 47 insertions(+), 8 deletions(-)
+diff --git a/src/shared/gatt-client.c b/src/shared/gatt-client.c
+index 836a59a..03c6eec 100644
+--- a/src/shared/gatt-client.c
++++ b/src/shared/gatt-client.c
+@@ -3003,6 +3003,7 @@ struct read_long_op {
+ 	int ref_count;
+ 	uint16_t value_handle;
+ 	uint16_t offset;
++	uint16_t max_len;
+ 	struct iovec iov;
+ 	bt_gatt_client_read_callback_t callback;
+ 	void *user_data;
+@@ -3026,8 +3027,8 @@ static bool append_chunk(struct read_long_op *op, const uint8_t *data,
+ 	void *buf;
+ 
+ 	/* Truncate if the data would exceed maximum length */
+-	if (op->offset + len > BT_ATT_MAX_VALUE_LEN)
+-		len = BT_ATT_MAX_VALUE_LEN - op->offset;
++	if (op->offset + len > op->max_len)
++		len = op->max_len - op->offset;
+ 
+ 	buf = realloc(op->iov.iov_base, op->iov.iov_len + len);
+ 	if (!buf)
+@@ -3072,7 +3073,7 @@ static void read_long_cb(uint8_t opcode, const void *pdu,
+ 		goto done;
+ 	}
+ 
+-	if (op->offset >= BT_ATT_MAX_VALUE_LEN)
++	if (op->offset >= op->max_len)
+ 		goto success;
+ 
+ 	if (length >= bt_att_get_mtu(op->client->att) - 1) {
+@@ -3110,6 +3111,25 @@ unsigned int bt_gatt_client_read_long_value(struct bt_gatt_client *client,
+ 					bt_gatt_client_read_callback_t callback,
+ 					void *user_data,
+ 					bt_gatt_client_destroy_func_t destroy)
++{
++	return bt_gatt_client_read_long_value_max(client, value_handle, offset,
++						BT_ATT_MAX_VALUE_LEN, callback,
++						user_data, destroy);
++}
++
++/*
++ * Same as bt_gatt_client_read_long_value but reads up to max_len octets
++ * instead of BT_ATT_MAX_VALUE_LEN, for values that are allowed to be longer
++ * than the GATT limit, such as the HID Report Map: the HID over GATT profile
++ * points to the HID specification for its contents, which does not limit
++ * its length, and devices with a large one serve it with Read Blob past 512.
++ */
++unsigned int bt_gatt_client_read_long_value_max(struct bt_gatt_client *client,
++					uint16_t value_handle, uint16_t offset,
++					uint16_t max_len,
++					bt_gatt_client_read_callback_t callback,
++					void *user_data,
++					bt_gatt_client_destroy_func_t destroy)
+ {
+ 	struct request *req;
+ 	struct read_long_op *op;
+@@ -3131,6 +3151,7 @@ unsigned int bt_gatt_client_read_long_value(struct bt_gatt_client *client,
+ 	op->client = client;
+ 	op->value_handle = value_handle;
+ 	op->offset = offset;
++	op->max_len = max_len;
+ 	op->callback = callback;
+ 	op->user_data = user_data;
+ 	op->destroy = destroy;
+diff --git a/src/shared/gatt-client.h b/src/shared/gatt-client.h
+index 0c5d118..5474d64 100644
+--- a/src/shared/gatt-client.h
++++ b/src/shared/gatt-client.h
+@@ -80,6 +80,12 @@ unsigned int bt_gatt_client_read_long_value(struct bt_gatt_client *client,
+ 					bt_gatt_client_read_callback_t callback,
+ 					void *user_data,
+ 					bt_gatt_client_destroy_func_t destroy);
++unsigned int bt_gatt_client_read_long_value_max(struct bt_gatt_client *client,
++					uint16_t value_handle, uint16_t offset,
++					uint16_t max_len,
++					bt_gatt_client_read_callback_t callback,
++					void *user_data,
++					bt_gatt_client_destroy_func_t destroy);
+ unsigned int bt_gatt_client_read_multiple(struct bt_gatt_client *client,
+ 					uint16_t *handles, uint8_t num_handles,
+ 					bt_gatt_client_read_callback_t callback,
+diff --git a/src/shared/hog.c b/src/shared/hog.c
+index ca56083..0afa364 100644
+--- a/src/shared/hog.c
++++ b/src/shared/hog.c
+@@ -43,6 +43,8 @@
+ 
+ #define HOG_INFO_UUID		0x2A4A
+ #define HOG_REPORT_MAP_UUID	0x2A4B
++/* The UHID limit, HID_MAX_DESCRIPTOR_SIZE: the HID specification sets none */
++#define HOG_REPORT_MAP_MAX_LEN	4096
+ #define HOG_REPORT_UUID		0x2A4D
+ #define HOG_PROTO_MODE_UUID	0x2A4E
+ #define HOG_CP_UUID		0x2A4C
+@@ -151,7 +153,8 @@ static void db_value_cb(struct gatt_db_attribute *attr, int err,
+  * The requests are cancelled by cancelling all the requests of the client,
+  * which is a clone owned by hog, once detached.
+  */
+-static void read_char(struct bt_hog *hog, uint16_t handle, bool cache,
++static void read_char_max(struct bt_hog *hog, uint16_t handle, bool cache,
++				uint16_t max_len,
+ 				bt_gatt_client_read_callback_t func, void *data)
+ {
+ 	if (cache) {
+@@ -169,11 +172,17 @@ static void read_char(struct bt_hog *hog, uint16_t handle, bool cache,
+ 		}
+ 	}
+ 
+-	if (!bt_gatt_client_read_value(hog->client, handle, func, data,
+-								NULL))
++	if (!bt_gatt_client_read_long_value_max(hog->client, handle, 0, max_len,
++							func, data, NULL))
+ 		DBG(hog, "Could not read handle 0x%04x", handle);
+ }
+ 
++static void read_char(struct bt_hog *hog, uint16_t handle, bool cache,
++				bt_gatt_client_read_callback_t func, void *data)
++{
++	read_char_max(hog, handle, cache, BT_ATT_MAX_VALUE_LEN, func, data);
++}
++
+ /* Cache a static value in the gatt_db, see read_char */
+ static void cache_value(struct bt_hog *hog, uint16_t handle,
+ 				const uint8_t *value, uint16_t length)
+@@ -1092,10 +1101,13 @@ static void foreach_hog_chrc(struct gatt_db_attribute *attr, void *user_data)
+ 	bt_uuid16_create(&report_map_uuid, HOG_REPORT_MAP_UUID);
+ 	if (!bt_uuid_cmp(&report_map_uuid, &uuid)) {
+ 		/* The Report Map is usually longer than the MTU, which is
+-		 * handled by reading it with Read Blob, unless cached.
++		 * handled by reading it with Read Blob, unless cached. It can
++		 * also be longer than the 512 octets of a GATT value, e.g. on
++		 * keyboards with a touchpad, so read it up to the UHID limit.
+ 		 */
+ 		hog->report_map_handle = value_handle;
+-		read_char(hog, value_handle, true, report_map_read_cb, hog);
++		read_char_max(hog, value_handle, true, HOG_REPORT_MAP_MAX_LEN,
++						report_map_read_cb, hog);
+ 
+ 		gatt_db_service_foreach_desc(attr, foreach_hog_external, hog);
+ 		return;

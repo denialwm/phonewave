@@ -1,0 +1,4 @@
+# A dock driver reports a Bluetooth accessory that came or went
+# (ACCESSORY_BT_ADDRESS, ACCESSORY_PRESENT, ACCESSORY_TYPE): start the
+# service that pairs it, if it does not run yet. It reads the event itself.
+ACTION=="change", ENV{ACCESSORY_BT_ADDRESS}=="?*", ENV{ACCESSORY_PRESENT}=="1", RUN+="/usr/bin/systemctl --no-block start accessory-pair.service"

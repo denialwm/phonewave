@@ -7,6 +7,7 @@ tests, packaging and README.
 | Path | Purpose | Devices |
 |---|---|---|
 | [`haptics/hapticd`](haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
+| [`radio/accessory-pair`](radio/accessory-pair) | Pairs a docked stylus or keyboard over Bluetooth silently, from the address its dock driver reports | any with such a dock driver (`erhai`) |
 | [`clock/rtc-offset`](clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | [`memory/zram-swap`](memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
 | [`pin/phonewave-gatekeeper`](pin/phonewave-gatekeeper) | Keeps the lock PIN behind root where the hardware has no PIN provider | any |

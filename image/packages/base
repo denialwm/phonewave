@@ -7,7 +7,6 @@ networkmanager
 wpa_supplicant
 iw
 wireless-regdb
-bluez
 bluez-utils
 pipewire
 pipewire-pulse

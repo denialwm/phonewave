@@ -1,0 +1,19 @@
+[package]
+name = "accessory-pair"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+description = "Pairs docked Bluetooth accessories silently from the address the dock reports"
+license = "MIT"
+
+[dependencies]
+async-channel = "2.5"
+async-io = "2.6"
+async-signal = "0.2"
+futures-lite = "2.6"
+udev = "0.9"
+zbus = "5.18"
+
+[profile.release]
+lto = "thin"
+strip = true
