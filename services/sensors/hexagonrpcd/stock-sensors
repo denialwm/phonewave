@@ -5,7 +5,8 @@
     stock-sensors DIR
 
 Runs as root before hexagonrpcd, which serves DIR to the ADSP. Reads the
-booted slot's vendor and odm inside super and persist, all read-only, and
+booted slot's vendor and odm inside super (the other slot's when the booted
+one has no usable vendor or no sensor configuration) and persist, all read-only, and
 copies what the ADSP's sensor drivers read into DIR:
 
     sensors/config        vendor's etc/sensors/config
@@ -92,15 +93,12 @@ def mounted_at(device):
     return None
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.exit("usage: stock-sensors DIR")
-    out = sys.argv[1]
-    slot = booted_slot()
+def stage(out, slot, note=""):
+    """Copy slot's stock sensor files into out; False when it has none."""
     device = os.path.realpath(SUPER)
     tables = {name: linear_table(device, name + slot, slot) for name in ("vendor", "odm")}
     if tables["vendor"] is None:
-        sys.exit(f"stock-sensors: no vendor{slot} in super")
+        return False
     with tempfile.TemporaryDirectory() as work:
         mounted, mapped = [], []
         try:
@@ -112,8 +110,14 @@ def main():
                 subprocess.run(["dmsetup", "create", "--readonly", dm], input=table, text=True, check=True)
                 mapped.append(dm)
                 os.mkdir(os.path.join(work, name))
-                subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{dm}", os.path.join(work, name)], check=True)
+                # A vendor in the table but with no filesystem is a stale slot.
+                if subprocess.run(["mount", "-o", "ro", f"/dev/mapper/{dm}", os.path.join(work, name)],
+                                  check=name != "vendor").returncode:
+                    return False
                 mounted.append(os.path.join(work, name))
+            vendor = os.path.join(work, "vendor")
+            if not os.path.isdir(os.path.join(vendor, "etc/sensors/config")):
+                return False
             persist = mounted_at(PERSIST)
             if persist is None:
                 persist = os.path.join(work, "persist")
@@ -127,7 +131,6 @@ def main():
                 path = os.path.join(out, entry)
                 shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
             sensors = os.path.join(out, "sensors")
-            vendor = os.path.join(work, "vendor")
             shutil.copytree(os.path.join(vendor, "etc/sensors/config"), os.path.join(sensors, "config"))
             shutil.copyfile(os.path.join(vendor, "etc/sensors/sns_reg_config"),
                             os.path.join(sensors, "sns_reg.conf"))
@@ -145,7 +148,22 @@ def main():
             for dm in mapped:
                 subprocess.run(["dmsetup", "remove", dm], check=False)
     print(f"stock-sensors: vendor{slot}"
-          + (f", odm{slot}" if tables["odm"] else "") + " and persist")
+          + (f", odm{slot}" if tables["odm"] else "") + " and persist" + note)
+    return True
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("usage: stock-sensors DIR")
+    booted = booted_slot()
+    other = {"_a": "_b", "_b": "_a"}.get(booted)
+    if stage(sys.argv[1], booted):
+        return
+    # The stock system may live in the other slot than the one Linux booted
+    # from: a phone installed on the active slot, with Android kept in the other.
+    if other and stage(sys.argv[1], other, f" (the other slot: vendor{booted} has none)"):
+        return
+    sys.exit(f"stock-sensors: no vendor with etc/sensors/config in super (slot{booted or ' unknown'})")
 
 
 if __name__ == "__main__":
