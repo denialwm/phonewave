@@ -53,5 +53,6 @@ package() {
   install -m755 build/libhexagonrpc/libhexagonrpc.so.0.5 "$pkgdir/usr/lib/"
   install -Dm755 "$_src/stock-sensors" -t "$pkgdir/usr/lib/hexagonrpcd"
   install -Dm644 "$_src"/{hexagonrpcd,hexagonrpcd-stock-sensors}.service -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 "$_src/70-hexagonrpcd.rules" -t "$pkgdir/usr/lib/udev/rules.d"
   install -Dm644 hexagonrpc-$_commit/COPYING "$pkgdir/usr/share/licenses/hexagonrpcd/COPYING"
 }

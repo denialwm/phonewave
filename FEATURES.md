@@ -281,3 +281,47 @@ last.
 | Denial | works | 2026-11-01, user | |
 | Native apps | works | 2026-11-01, user | Settings joins Wi-Fi |
 | Android apps | ? | | |
+
+## erhai: OnePlus Pad 3 (SM8750)
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-17, devices-71, user, probe | The shared image on `userdata`; shared init_boot, whose rescue fastboot writes this slot's `boot` and `init_boot` |
+| Display | works | 2026-11-17, devices-71, user, probe | Bonded dual XN242, both DSI links, DSC 1.2, 144 Hz over the quad-pipe path; the stream taken over from the bootloader as it runs |
+| Brightness | works | 2026-11-17, devices-71, user | KTZ8868 backlight |
+| Wake from screen off | works | 2026-11-17, devices-71, user | Power key |
+| GPU | works | 2026-11-17, devices-71, user, probe | Adreno 830 (Turnip) |
+| Touch | works | 2026-11-17, devices-71, user | NT36536 on SPI4, the in-tree Novatek driver |
+| Keys | works | 2026-11-17, devices-71, user | |
+| Haptics | none | | No vibration motor: the PMIH0108's HAP530 is disabled in every erhai device tree |
+| Storage | works | 2026-11-17, devices-71, probe | UFS |
+| USB device | works | 2026-11-17, devices-71, probe | SSH over USB, 10.77.71.2. Data over Type-C while SuperVOOC holds D+/D- (the wcd939x mux): untested |
+| USB host | works | 2026-11-17, devices-71, probe | dwc3 role-switches to host on a UFP connect (a Wooting Two HE keyboard enumerates at full speed, its keyboard and mouse interfaces register as input devices) and back to device when a host is plugged in |
+| Video out (USB-C) | works | 2026-11-17, devices-71, user | DisplayPort over Type-C |
+| Charging | works | 2026-11-17, devices-71, user | 80 W SuperVOOC (sc8547_svooc, the stock charge strategy); the pogo dock's stylus charger (cps8601) |
+| Battery | works | 2026-11-17, devices-71, user, probe | qcom_battmgr over pmic_glink, the data from the stock charger firmware |
+| Wi-Fi | works | 2026-11-17, devices-71, user, probe | WCN7860, ath12k |
+| Bluetooth | works | 2026-11-17, devices-71, user | WCN7860, hci_qca; the docked accessories pair by accessory-pair |
+| Speakers | works | 2026-11-17, devices-71, user | Six AW88261 over the stock TDM back end; the ADSP's MFC mixes the channels |
+| Microphones | works | 2026-11-17, devices-71, user | WCD9395: the main mic, the DMIC endfire pair, the digital mic, the USB-C headset's mic |
+| Headphone jack | works | 2026-11-17, devices-71, user | USB-C analog (the WCD9395's HPH); no 3.5 mm |
+| Mobile data | none | | Wi-Fi model |
+| SMS | none | | |
+| Calls | none | | |
+| Call audio | none | | |
+| VoLTE | none | | |
+| GNSS | ? | | |
+| NFC | none | | |
+| Camera | works | 2026-11-17, devices-71, user, probe | Rear SmartSens C658 on CSIPHY4 (autofocus driven, GT9772) and front D154 on CSIPHY5, both turned upright |
+| Video decode | not started | | No Iris for SM8750 |
+| Rotation | works | 2026-11-17, devices-71, user | steinerd; the tail's `steinerd/top` `+x` (derived from the stock ORIENTATION_270), confirmed by rotating the tablet |
+| Light and proximity | works | 2026-11-17, devices-71, user | stk3b6x |
+| Compass and gyroscope | works | 2026-11-17, devices-71, user, probe | steinerd: bmi3x0, mxg4300, bu52053nvx hall |
+| Fingerprint | none | | |
+| Suspend | not working | 2026-11-17, devices-71, probe | s2idle and deep both take the screen black, but a short press of the power key does not wake this unit (wakeup is enabled on the pmic_pwrkey); the long press cold-reboots. No completed round trip yet |
+| Cooling | works | 2026-11-17, devices-71, user | The image's user-space thermal governor |
+| Denial | works | 2026-11-17, devices-71, user | The published image's `denial` package, on `userdata` |
+| Native apps | works | 2026-11-17, devices-71, user | |
+| Android apps | works | 2026-11-17, devices-71, user | Droidloom |
+| Pen | works | 2026-11-17, devices-71, user | The NT36536's pen; the 144 Hz pen mode is not in the panel's firmware |
+| Keyboard cover | works | 2026-11-17, devices-71, user | The pogo-pin keyboard; the top row mapped over Bluetooth |

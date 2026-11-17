@@ -1,0 +1,7 @@
+[Unit]
+Description=Give the UFS host its low-power states back once booted
+After=multi-user.target graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ufs-boot-lpm release

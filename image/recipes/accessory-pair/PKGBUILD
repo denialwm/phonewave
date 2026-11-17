@@ -1,0 +1,15 @@
+# Phonewave's accessory-pair (services/radio/accessory-pair) for the phones. Build: image/pack accessory-pair
+pkgname=accessory-pair
+pkgdesc='Pairs docked Bluetooth accessories silently from the address the dock reports'
+license=(MIT)
+_src=$startdir/../../../services/radio/accessory-pair
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs systemd-libs dbus bluez)
+
+build() {
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

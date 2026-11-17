@@ -13,6 +13,7 @@ its own.
 | `kaanapali/Nubia-NX809J` | RedMagic 11 Pro |
 | `kaanapali/OnePlus-Pad4` | OnePlus Pad 4 |
 | `kaanapali/Xiaomi-17` | Xiaomi 17 |
+| `sm8750/OnePlus-Pad3` | OnePlus Pad 3 |
 
 WirePlumber sets the phones' cards to software volume
 (`image/rootfs/usr/share/wireplumber/wireplumber.conf.d/51-phone-audio.conf`).

@@ -1,0 +1,5 @@
+# The ADSP's FastRPC nodes as systemd devices, so a phone can start
+# hexagonrpcd after its node exists: the unit's DeviceAllow= and BindPaths=
+# take the node as it is when the unit starts, and a node that comes later
+# is refused (EPERM) inside the unit.
+SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp-secure|fastrpc-adsp", TAG+="systemd"

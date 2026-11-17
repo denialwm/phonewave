@@ -1,0 +1,30 @@
+# OnePlus Pad 3 (OPD2415), SoC SM8750 ("sun").
+codename = "erhai"
+model = "OnePlus Pad 3"
+chassis = "tablet"
+soc = "sm8750"
+dtb = "qcom/sm8750-oneplus-erhai.dtb"
+
+[display]
+panel = "oneplus,erhai-xn242"
+# Bonded dual-DSI DSC mode of the XN242 panel pair; per-DSI each XN242 runs
+# 1696x2400.
+resolution = [3392, 2400]
+# Vendor's dfps list is 120/144/90/60/50/48/30; conservative until the mode
+# table is verified on hardware.
+refresh_hz = [60, 120]
+
+[touch]
+# NT36536 on SPI4 (QUPv3 SE4); the in-tree Novatek driver, the same one the
+# Pad 4 (iceland) runs.
+controller = "novatek,NVT-ts-spi"
+
+# No [haptics]: the tablet has no vibration motor. The PMIH0108 has the
+# HAP530 block, but every erhai device tree turns it off
+# (oplus-misc-24924.dtsi: &pmih010x_haptics status "disabled", the running
+# Lineage tree agrees), there is no Awinic/SiTech haptics chip, the sound
+# card says swr-haptics-unsupported and Lineage packages no vibrator HAL.
+
+# No [rtc] section: the device tree describes no RTC node (sm8750.dtsi,
+# the pmics tree and the erhai board agree), so there is no rtc-offset
+# to carry (the README's Clock section).

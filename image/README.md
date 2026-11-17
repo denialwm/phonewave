@@ -254,6 +254,9 @@ its setup instead of the lock screen. No "configured" flag.
 - radio-addr gives a built-in Wi-Fi radio and a Bluetooth controller the
   phone's own addresses, from the SoC serial, where the device tree gives
   none.
+- accessory-pair pairs a stylus or keyboard that a dock driver reports
+  (`ACCESSORY_BT_ADDRESS` uevents) without a prompt, and keeps a docked
+  keyboard off Bluetooth so its keys arrive once.
 - Always-on display: a phone whose panel can hold a picture while off says
   how in its tail, `denial/ambient-display.json`, which phonewave-system
   copies to `/etc/denial` at boot; the panel driver's `ambient` switch is the

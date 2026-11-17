@@ -7,10 +7,12 @@ tests, packaging and README.
 | Path | Purpose | Devices |
 |---|---|---|
 | [`haptics/hapticd`](haptics/hapticd) | D-Bus service for evdev force-feedback and sysfs vibrators | any |
+| [`radio/accessory-pair`](radio/accessory-pair) | Pairs a docked stylus or keyboard over Bluetooth silently, from the address its dock driver reports | any with such a dock driver (`erhai`) |
 | [`clock/rtc-offset`](clock/rtc-offset) | Keeps the system clock across reboots when the RTC cannot be set | any |
 | [`memory/zram-swap`](memory/zram-swap) | Compressed swap in RAM, sized from the installed memory | any |
 | [`pin/phonewave-gatekeeper`](pin/phonewave-gatekeeper) | Keeps the lock PIN behind root where the hardware has no PIN provider | any |
 | [`boot/slot-success`](boot/slot-success) | Marks the Linux slot booted successfully once the boot has proved itself, so the bootloader keeps booting it | any A/B Qualcomm |
+| [`boot/ufs-boot-lpm`](boot/ufs-boot-lpm) | Keeps the UFS host out of its low-power states while booting, as stock Android init does, and restores them once booted | any UFS phone |
 | [`wallpaper/wallpaper-depth`](wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
 | [`screen/screen-record`](screen/screen-record) | Records the screen; Denial's shade starts and stops it | any with GBM and EGL |
 | [`power/battery-stats`](power/battery-stats) | Books where the battery goes, per screen state, hour and build | any with a battery |

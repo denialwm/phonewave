@@ -1,0 +1,28 @@
+[Unit]
+Description=Pair docked Bluetooth accessories silently
+Wants=bluetooth.service
+After=bluetooth.service dbus.service
+
+[Service]
+ExecStart=/usr/bin/accessory-pair
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+# Root: BlueZ's bus policy and the dock drivers' sysfs attributes. No
+# capabilities are needed for either.
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+StateDirectory=accessory-pair
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=bluetooth.target

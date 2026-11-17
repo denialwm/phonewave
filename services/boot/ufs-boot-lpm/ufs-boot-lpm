@@ -1,0 +1,63 @@
+#!/bin/sh
+# Keeps the UFS host out of its low-power states while the system boots, as
+# the stock Qualcomm Android init does, and gives them back once it is up.
+#
+# hold:    for every UFS host, saves clkscale_enable, clkgate_enable and
+#          auto_hibern8, then writes 0 to them: the clocks stay ungated at
+#          their top rate and the link never enters hibern8 on its own.
+# release: writes the saved values back.
+#
+# The attributes are the kernel's (ufshcd); a host without one is skipped.
+set -eu
+
+sysfs=${UFS_BOOT_LPM_SYSFS:-/sys}
+state=${UFS_BOOT_LPM_STATE:-/run/ufs-boot-lpm}
+attrs="clkscale_enable clkgate_enable auto_hibern8"
+
+# The UFS hosts: the platform devices with the ufshcd attributes.
+hosts() {
+    for dir in "$sysfs"/bus/platform/devices/*; do
+        [ -f "$dir/auto_hibern8" ] && [ -f "$dir/clkgate_enable" ] && echo "$dir"
+    done
+}
+
+hold() {
+    if [ -e "$state" ]; then
+        echo "Already holding; release first." >&2
+        exit 0
+    fi
+    mkdir -p "$state"
+    for dir in $(hosts); do
+        name=${dir##*/}
+        mkdir -p "$state/$name"
+        for attr in $attrs; do
+            [ -w "$dir/$attr" ] || continue
+            cat "$dir/$attr" >"$state/$name/$attr"
+            echo 0 >"$dir/$attr" || echo "$name: cannot clear $attr" >&2
+        done
+    done
+}
+
+release() {
+    [ -d "$state" ] || exit 0
+    for saved in "$state"/*; do
+        [ -d "$saved" ] || continue
+        name=${saved##*/}
+        dir="$sysfs/bus/platform/devices/$name"
+        # Gating last, after scaling and hibern8 are back.
+        for attr in clkscale_enable auto_hibern8 clkgate_enable; do
+            [ -f "$saved/$attr" ] || continue
+            cat "$saved/$attr" >"$dir/$attr" || echo "$name: cannot restore $attr" >&2
+        done
+    done
+    rm -rf "$state"
+}
+
+case ${1:-} in
+hold) hold ;;
+release) release ;;
+*)
+    echo "usage: ufs-boot-lpm hold|release" >&2
+    exit 2
+    ;;
+esac
