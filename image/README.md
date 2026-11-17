@@ -10,6 +10,7 @@ partition, unpack and copy files by hand. Being tried on the Motorola Edge 70
 |---|---|---|
 | `boot.img` | one device | that device's perpetua kernel with its modules |
 | `init_boot.img` | every phone | the early userspace (`image/init-boot`) |
+| `ramdisk.lz4` | a phone with no `init_boot` partition | the same early userspace (`image/init-boot --ramdisk`), packed into `boot.img` after the kernel |
 | `userdata.img` | one selection | the root filesystem: Arch Linux ARM, Denial, the services |
 
 Only the active slot's `boot` and `init_boot`, and `userdata` or `denial`. Never the
@@ -119,15 +120,16 @@ phone.
 
 ## The kernel's modules
 
-`boot.img` holds the kernel and, at the page after it, a read-only erofs
+`boot.img` holds the kernel and, at the page after it (after the ramdisk,
+on a phone with no `init_boot`), a read-only erofs
 filesystem that `boot-tail` packs: the kernel's modules, the firmware that
 overrides linux-firmware's, the units that belong to the kernel, such as
 workarounds for its open issues, the services its hardware has, turned on by
 links in `systemd/system/<target>.wants/`, and what services read about the
 hardware, such as dmail's `dmail/device.toml`. The bootloader loads only the kernel the
 header lists. The early userspace mounts the rest in place, from the
-partition, at `/usr/lib/modules` (`fsoffset=` the kernel size, rounded up,
-plus the header page), points `firmware_class.path` at its `firmware/` and
+partition, at `/usr/lib/modules` (`fsoffset=` the kernel size and the ramdisk
+size, each rounded up, plus the header page), points `firmware_class.path` at its `firmware/` and
 hands its `systemd/system/` to systemd through `/run`. Nothing is copied;
 the image holds an empty `/usr/lib/modules`.
 
