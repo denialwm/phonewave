@@ -4,7 +4,7 @@ The phone runs Arch Linux on linux-perpetua from slot B, from the image every
 phone shares (`image/`), on a partition of its own named `denial`; Android
 keeps `userdata`. The kernel replaces the bootloader's device tree with its
 own (FDT handoff). boot_b holds the kernel and after it the tail: modules,
-the GPU, Wi-Fi, Bluetooth and fingerprint firmware and boot/tail/. init_boot_b
+the GPU, video, Wi-Fi, Bluetooth and fingerprint firmware and boot/tail/. init_boot_b
 holds the init_boot every phone shares (`image/init-boot`). `ssh nx809j`
 reaches the phone as root over USB at 10.77.71.2.
 
@@ -80,6 +80,16 @@ fastboot reboot
 
 Android's storage goes back with `phone-backup HOST --restore FILE` (or
 `droidloomctl restore` on the phone).
+
+## Video
+
+Iris decodes H.264, HEVC, VP9 and AV1 (linux-perpetua 00c73d575034,
+devices-393). It loads `qcom/kaanapali/nubia/nx809j-vendor/vpu40_2v.mbn`
+from the tail: vendor's `firmware/vpu40_2v.mbn`, the one the vendor driver
+picks on SoC revision 2. Nubia signs it, so another phone's file of that
+name does not load here. To refresh it, read it from the booted slot's
+`vendor` inside super, read-only, as `stock-sensors` does, into the vault's
+`firmware/tail/`.
 
 ## Audio
 

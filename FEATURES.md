@@ -54,7 +54,7 @@ last.
 | GNSS | not started | 2026-11-09, devices-310, probe | No GNSS device |
 | NFC | ? | | No NFC device on perpetua |
 | Camera | partial | 2026-10-28, devices-155, user | Raw frames through CAMSS at 30 fps; colour orders checked on a chart. braun finds all four cameras; the Camera app is its client, untuned. Main OV50E40 4096x3072 over three C-PHY trios, focus through its DW9785 (OIS off) (user); front OV16A1Q 2304x1728 binned (Quad Bayer) (user); ultrawide OV50D40 4096x3072, a lens chip in the app (user). Auxiliary OV02F10 1600x1200 streams, not in the app. Before devices-155 a switch from the ultrawide to the main camera gave no frame about half the time (user): the stopped CSIPHY stayed out of reset. Now 12 of 12 such switches open, and main to ultrawide 6 of 6 |
-| Video decode | not started | | No Iris for Kaanapali |
+| Video decode | works | 2026-11-18, devices-393, probe | Iris with the phone's own `vpu40_2v.mbn` in the tail: H.264, HEVC, VP9 and AV1 at 1080p, HEVC and AV1 at 4K, and 10-bit HEVC and AV1 decode bit-exact against software through GStreamer's v4l2 decoders, 8 to 19 times real time. Idle, the codec suspends |
 | Rotation | works | 2026-11-09, devices-310, probe | steinerd reports the accelerometer and gyroscope live |
 | Light and proximity | works | 2026-11-09, devices-310, probe | steinerd reports both live |
 | Compass and gyroscope | works | 2026-11-09, devices-310, probe | steinerd reports both live |
@@ -182,7 +182,7 @@ last.
 | GNSS | ? | | |
 | NFC | none | | |
 | Camera | partial | 2026-11-11, devices-344, user, probe | Rear SmartSens C658 4160x3120 on CSIPHY4 and front D154 3264x2448 on CSIPHY5, RAW10 over four lanes. braun finds both and opens each 10 of 10 times; the Camera app shows both, untuned (user). Photos are landscape as the panel. Both send BGGR: as RGGB, orange came out blue on the rear and blue red on the front (user). Rear: text comes out upright and unmirrored; gain steps 1.5x to 6x within 4 %. Front: orientation and mirroring right (user). Not checked: rear gains of 8x and above. No focus: the rear lens actuator is not driven |
-| Video decode | works | 2026-11-18, devices-391, probe | Iris (`/dev/video0`) with the tablet's own `vpu40_2v.mbn` in the tail: H.264, HEVC and VP9 at 1080p and HEVC at 4K decode bit-exact against software through ffmpeg's v4l2m2m and GStreamer's v4l2 decoders, 8 to 20 times real time; HEVC Main10 bit-exact through GStreamer (ffmpeg's v4l2m2m has no 10-bit output). AV1 is not offered yet, APV needs driver work. Idle, the codec suspends |
+| Video decode | works | 2026-11-18, devices-392, probe | Iris (`/dev/video0`) with the tablet's own `vpu40_2v.mbn` in the tail: H.264, HEVC, VP9 and AV1 at 1080p, HEVC and AV1 at 4K, and 10-bit HEVC and AV1 decode bit-exact against software through GStreamer's v4l2 decoders (H.264, HEVC and VP9 through ffmpeg's v4l2m2m too, which has no 10-bit output), 8 to 20 times real time. AV1 in MP4 through GStreamer loses its first frame: GStreamer hands the decoder the av1C box first; a raw OBU stream loses none. APV needs driver work. Idle, the codec suspends |
 | Rotation | works | 2026-11-11, devices-322, user | steinerd, with the tail's `steinerd/top` naming the sensor axis at the screen's top edge |
 | Light and proximity | works | 2026-11-11, devices-322, user | stk36c01; light tested by the user, proximity answers (probe) |
 | Compass and gyroscope | works | 2026-11-11, devices-322, probe | steinerd: bmi3x0 accelerometer and gyroscope, ak0991x magnetometer, bu52053nvx hall |

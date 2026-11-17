@@ -73,8 +73,9 @@ the bootloader's start at 120 a second: measured twice, no frame lost.
 
 ## Video
 
-Iris decodes H.264, HEVC and VP9 on `/dev/video0`; its encoder is
-`/dev/video1` (linux-perpetua d3d799549954, devices-391). It loads
+Iris decodes H.264, HEVC, VP9 and AV1 on `/dev/video0`; its encoder is
+`/dev/video1` (linux-perpetua d3d799549954, devices-391; AV1 28c56cc1ee7d,
+devices-392). It loads
 `qcom/kaanapali/iceland/vpu40_2v.mbn` from the tail: vendor's
 `firmware/vpu40_2v.mbn`, the one the vendor driver picks on SoC revision 2.
 OnePlus signs it, so another phone's file of that name does not load here.
