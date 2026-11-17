@@ -16,13 +16,15 @@ stop() { echo "STOP: $*. No reboot requested." >&2; exit 1; }
 slot=$(slot-success running)
 [ -n "$slot" ] || stop "the running slot is unknown"
 slot-success status >&2 || stop "slot $slot is not marked successful; a reboot would use a boot try"
-# The modules are an erofs filesystem at the page after the kernel. Read
+# The modules are an erofs filesystem at the page after the kernel and, where
+# the boot image carries one, the ramdisk. Read
 # what the partition holds now, which a kernel update may have replaced,
 # through a loop device: mounting the partition itself again would reuse the
 # filesystem the running kernel mounted at boot.
 boot=/dev/disk/by-partlabel/boot_$slot
 size=$(dd if="$boot" bs=4 skip=2 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
-loop=$(losetup -r -f --show -o $(( (size + 4095) / 4096 * 4096 + 4096 )) "$boot")
+rd=$(dd if="$boot" bs=4 skip=3 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+loop=$(losetup -r -f --show -o $(( (size + 4095) / 4096 * 4096 + (rd + 4095) / 4096 * 4096 + 4096 )) "$boot")
 look=$(mktemp -d)
 mount -t erofs -o ro "$loop" "$look" 2>/dev/null ||
   { rmdir "$look"; losetup -d "$loop"; stop "boot_$slot carries no modules after its kernel"; }

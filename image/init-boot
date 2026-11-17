@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # Pack the early userspace into the init_boot image every phone shares; no
 # device access.
-# Usage: image/init-boot OUTPUT [--dev-access] [--rescue]
+# Usage: image/init-boot OUTPUT [--dev-access] [--rescue] [--ramdisk]
 #
 #   --dev-access  root's SSH keys from every phone's vault let the rescue's
 #                 SSH in. Only for images that never leave this workstation.
 #                 Without it, fastboot and the USB serial shell are the way in.
 #   --rescue      always stops in rescue, with the root mounted read-only at
 #                 /newroot: a way into an installed phone that lets nobody in.
+#   --ramdisk     write only the legacy-lz4 ramdisk, for a phone without an
+#                 init_boot partition, whose boot image carries it after the
+#                 kernel.
+#
+# PHONEWAVE_VAULT names the vault (image/initramfs-bin/ and the keys);
+# PHONEWAVE_KERNEL the linux-perpetua source, for the rescue's font.
 #
 # The ramdisk is image/initramfs/, which reads what phone it runs on from the
 # device tree; busybox and dropbearmulti from the vault's
@@ -23,19 +29,20 @@
 # phone has so far.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-usage='usage: image/init-boot OUTPUT [--dev-access] [--rescue]'
+usage='usage: image/init-boot OUTPUT [--dev-access] [--rescue] [--ramdisk]'
 out=${1:?$usage}
 shift
-dev_access= rescue=
+dev_access= rescue= ramdisk=
 for arg; do
   case $arg in
     --dev-access) dev_access=1 ;;
     --rescue) rescue=1 ;;
+    --ramdisk) ramdisk=1 ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
 done
 vault=${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}
-font=/mnt/development/denial-os/linux-perpetua/lib/fonts/font_ter16x32.c
+font=${PHONEWAVE_KERNEL:-/mnt/development/denial-os/linux-perpetua}/lib/fonts/font_ter16x32.c
 partition_size=$((8 << 20))
 
 umask 022
@@ -61,6 +68,12 @@ aarch64-linux-gnu-gcc -static -O2 -Wall -Wextra -Werror \
   -o "$root/bin/key-held" "$here/fastboot/key-held.c"
 (cd "$root" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --reproducible --quiet) > "$work/ramdisk.cpio"
 lz4 -q -l -12 --favor-decSpeed "$work/ramdisk.cpio" "$work/ramdisk.cpio.lz4"
+if [ -n "$ramdisk" ]; then
+  mkdir -p "$(dirname "$out")"
+  mv "$work/ramdisk.cpio.lz4" "$out"
+  echo "built $out"
+  exit
+fi
 
 mkbootimg --header_version 4 --ramdisk "$work/ramdisk.cpio.lz4" --output "$work/init_boot.img"
 avbtool add_hash_footer --image "$work/init_boot.img" --partition_size $partition_size \
