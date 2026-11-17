@@ -3,7 +3,7 @@
 The tablet runs Arch Linux on linux-perpetua from slot B, from the image every
 phone shares (`image/`), on `denial`, an 80 GiB partition made on 2026-11-11
 after `userdata`, which shrank to make room and still holds the root of
-2026-11-06 with its Droidloom storage. boot_b holds the kernel and after it the tail: modules, the GPU, touch,
+2026-11-06 with its Droidloom storage. boot_b holds the kernel and after it the tail: modules, the GPU, video, touch,
 Wi-Fi and Bluetooth firmware, the audio topology and boot/tail/. init_boot_b
 holds the init_boot every phone shares (`image/init-boot`). `ssh iceland-usb`
 reaches the tablet as root over USB at 10.77.71.2, `ssh iceland` as logix
@@ -70,6 +70,16 @@ the second power domain the bootloader's pipeline runs on,
 The kernel log says `intf_1: bootloader's stream goes on at frame N` at the
 take-over. The frame counter, MDP `0x9801000` + INTF + `0xac`, counts on from
 the bootloader's start at 120 a second: measured twice, no frame lost.
+
+## Video
+
+Iris decodes H.264, HEVC and VP9 on `/dev/video0`; its encoder is
+`/dev/video1` (linux-perpetua d3d799549954, devices-391). It loads
+`qcom/kaanapali/iceland/vpu40_2v.mbn` from the tail: vendor's
+`firmware/vpu40_2v.mbn`, the one the vendor driver picks on SoC revision 2.
+OnePlus signs it, so another phone's file of that name does not load here.
+To refresh it, read it from the booted slot's `vendor` inside super,
+read-only, as `stock-sensors` does, into the vault's `firmware/tail/`.
 
 ## Audio
 
