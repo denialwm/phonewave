@@ -26,6 +26,7 @@ denial-app-messages
 denial-app-sensors
 denial-app-settings
 slot-success
+ufs-boot-lpm
 phonewave-gatekeeper
 # fprintd's library with the uff driver, in place of Arch's, and the phone
 # sensors' programs; a phone's tail names its sensor.

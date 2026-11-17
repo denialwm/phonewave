@@ -1,7 +1,7 @@
 use accessory_pair::{
-    ATTR_ADDRESS, ATTR_CAPACITY, Address, DockEvent, Step,
+    ATTR_ADDRESS, ATTR_CAPACITY, ATTR_PEN_TYPE, Address, DockEvent, Step,
     agent::{self, Agent, Allowed},
-    bluez, format_address_list, parse_address_list, plan,
+    bluez, format_address_list, parse_address_list, pen_sensing, pen_type_change, plan,
 };
 use async_io::{Async, Timer};
 use futures_lite::{FutureExt, StreamExt, future};
@@ -28,6 +28,8 @@ fn no_block() -> bool {
 enum Event {
     Dock(DockEvent, PathBuf),
     Battery(String, u8),
+    /// A device's Bluetooth link came up or dropped.
+    Connected(String),
     /// BlueZ (re)started or an adapter was powered: look at everything again.
     Bluez,
     Tick,
@@ -41,6 +43,9 @@ struct Accessory {
     docked: bool,
     /// Its input arrives over the dock while docked: keep it off Bluetooth then.
     wired_input: bool,
+    /// The stylus: the touch controller senses it only while it is docked
+    /// or connected.
+    stylus: bool,
     /// The reporting device, while docked.
     syspath: Option<PathBuf>,
     attempts: u32,
@@ -55,6 +60,10 @@ struct Daemon {
     blocked: BTreeSet<Address>,
     blocked_file: PathBuf,
     retries: Vec<(Instant, Address)>,
+    /// The stylus, by the address BlueZ knows it by, kept across restarts
+    /// so that its link is followed while it is away from the dock.
+    pen: Option<Address>,
+    pen_file: PathBuf,
 }
 
 fn log(msg: impl AsRef<str>) {
@@ -66,12 +75,88 @@ fn has_input_children(syspath: &Path) -> bool {
     fs::read_dir(syspath.join("input")).is_ok_and(|mut d| d.next().is_some())
 }
 
+/// A stylus is what its driver calls one or, found at start-up where the
+/// event's type is not known, an accessory the dock charges (it takes the
+/// accessory's battery level) without taking its input.
+fn is_stylus(ev: &DockEvent, syspath: &Path, wired: bool) -> bool {
+    ev.kind == "stylus" || (ev.present && !wired && syspath.join(ATTR_CAPACITY).exists())
+}
+
+/// Turns stylus sensing on or off on every touch controller that has it.
+fn set_pen_sensing(sense: bool) {
+    let Ok(mut e) = udev::Enumerator::new() else {
+        return;
+    };
+    if e.match_attribute(ATTR_PEN_TYPE, "*").is_err() {
+        return;
+    }
+    let Ok(devices) = e.scan_devices() else {
+        return;
+    };
+    for device in devices {
+        let attr = device.syspath().join(ATTR_PEN_TYPE);
+        let Some(current) = fs::read_to_string(&attr)
+            .ok()
+            .and_then(|t| t.trim().parse::<u8>().ok())
+        else {
+            continue;
+        };
+        let Some(value) = pen_type_change(current, sense) else {
+            continue;
+        };
+        match fs::write(&attr, format!("{value}\n")) {
+            Ok(()) => log(format!(
+                "stylus sensing {} -> {} = {value}",
+                if sense { "on" } else { "off" },
+                attr.display()
+            )),
+            Err(e) => log(format!("cannot write {}: {e}", attr.display())),
+        }
+    }
+}
+
 impl Daemon {
     fn save_blocked(&self) {
         let text = format_address_list(&self.blocked);
         let tmp = self.blocked_file.with_extension("new");
         if let Err(e) = fs::write(&tmp, text).and_then(|()| fs::rename(&tmp, &self.blocked_file)) {
             log(format!("cannot save {}: {e}", self.blocked_file.display()));
+        }
+    }
+
+    fn save_pen(&self) {
+        let text = format_address_list(&self.pen);
+        let tmp = self.pen_file.with_extension("new");
+        if let Err(e) = fs::write(&tmp, text).and_then(|()| fs::rename(&tmp, &self.pen_file)) {
+            log(format!("cannot save {}: {e}", self.pen_file.display()));
+        }
+    }
+
+    /// Senses the stylus while it is docked or its Bluetooth link is up.
+    async fn update_pen(&self) {
+        let Some(pen) = self.pen else {
+            return;
+        };
+        let docked = self.accessories.values().any(|a| a.stylus && a.docked);
+        let connected = match bluez::objects(&self.conn).await {
+            Ok(objects) => bluez::connected(&objects, pen),
+            Err(e) => {
+                log(format!("stylus {pen}: cannot ask BlueZ: {e}"));
+                false
+            }
+        };
+        set_pen_sensing(pen_sensing(docked, connected));
+    }
+
+    async fn connected(&self, device: &str) {
+        let Some(bt) = Address::from_object_path(device) else {
+            return;
+        };
+        if self
+            .pen
+            .is_some_and(|pen| pen == bt || pen.reversed() == bt)
+        {
+            self.update_pen().await;
         }
     }
 
@@ -83,14 +168,17 @@ impl Daemon {
             if ev.present { "docked" } else { "undocked" }
         ));
         let wired = ev.present && has_input_children(&syspath);
+        let stylus = is_stylus(&ev, &syspath, wired);
         let acc = self.accessories.entry(ev.address).or_insert(Accessory {
             kind: ev.kind.clone(),
             bt: ev.address,
             docked: false,
             wired_input: false,
+            stylus: false,
             syspath: None,
             attempts: 0,
         });
+        acc.stylus |= stylus;
         acc.kind = ev.kind;
         acc.docked = ev.present;
         if ev.present {
@@ -104,6 +192,13 @@ impl Daemon {
         self.allowed.allow(ev.address.reversed());
         self.retries.retain(|(_, a)| *a != ev.address);
         self.reconcile(ev.address).await;
+        if let Some(acc) = self.accessories.get(&ev.address).filter(|a| a.stylus) {
+            if self.pen != Some(acc.bt) {
+                self.pen = Some(acc.bt);
+                self.save_pen();
+            }
+            self.update_pen().await;
+        }
     }
 
     async fn reconcile(&mut self, key: Address) {
@@ -248,7 +343,11 @@ impl Daemon {
             match event {
                 Event::Dock(ev, syspath) => self.dock(ev, syspath).await,
                 Event::Battery(device, level) => self.battery(&device, level),
-                Event::Bluez => self.reconcile_all().await,
+                Event::Connected(device) => self.connected(&device).await,
+                Event::Bluez => {
+                    self.reconcile_all().await;
+                    self.update_pen().await;
+                }
                 Event::Tick => {
                     let now = Instant::now();
                     let (due, later): (Vec<_>, Vec<_>) =
@@ -353,7 +452,9 @@ async fn watch_bluez(
         else {
             continue;
         };
-        if iface == bluez::BATTERY {
+        if iface == bluez::DEVICE && changed.contains_key("Connected") {
+            tx.send(Event::Connected(path)).await?;
+        } else if iface == bluez::BATTERY {
             if let Some(level) = changed.get("Percentage").and_then(|v| u8::try_from(v).ok()) {
                 tx.send(Event::Battery(path, level)).await?;
             }
@@ -444,6 +545,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| "/var/lib/accessory-pair".into());
     let blocked_file = state.join("blocked");
+    let pen_file = state.join("stylus");
+    let pen = fs::read_to_string(&pen_file)
+        .ok()
+        .and_then(|t| parse_address_list(&t).into_iter().next());
     let blocked: BTreeSet<Address> = fs::read_to_string(&blocked_file)
         .map(|t| parse_address_list(&t).into_iter().collect())
         .unwrap_or_default();
@@ -469,6 +574,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             blocked,
             blocked_file,
             retries: Vec::new(),
+            pen,
+            pen_file,
         };
         log("ready");
         let work = async {
@@ -491,12 +598,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                         bt,
                         docked: false,
                         wired_input: true,
+                        stylus: false,
                         syspath: None,
                         attempts: 0,
                     },
                 );
                 daemon.reconcile(bt).await;
             }
+            // the stylus away from the dock since an earlier session
+            daemon.update_pen().await;
             daemon.run(rx).await;
             Ok(())
         };

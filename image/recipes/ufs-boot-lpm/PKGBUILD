@@ -1,0 +1,11 @@
+# Phonewave's ufs-boot-lpm (services/boot/ufs-boot-lpm) for the phones. Build: image/pack ufs-boot-lpm
+pkgname=ufs-boot-lpm
+pkgdesc='Keeps the UFS host out of its low-power states while booting'
+license=(MIT)
+_src=$startdir/../../../services/boot/ufs-boot-lpm
+. "$startdir/../recipe.sh"
+arch=(any)
+
+package() {
+  make -C "$_src" install DESTDIR="$pkgdir"
+}

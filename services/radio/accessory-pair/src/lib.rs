@@ -15,6 +15,11 @@ pub const ENV_TYPE: &str = "ACCESSORY_TYPE";
 /// accessory, and where its Bluetooth battery level goes while it is docked.
 pub const ATTR_ADDRESS: &str = "bt_address";
 pub const ATTR_CAPACITY: &str = "bt_capacity";
+/// The attribute of a touch controller that senses a stylus: the stylus
+/// type it looks for, 0 for none.
+pub const ATTR_PEN_TYPE: &str = "pen_type";
+/// The stylus type a touch controller looks for when it senses one again.
+pub const PEN_TYPE_DEFAULT: u8 = 1;
 
 /// A Bluetooth device address, most significant byte first.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -175,6 +180,24 @@ pub fn plan(docked: bool, wired_input: bool, d: &DeviceView) -> Vec<Step> {
         }
     }
     steps
+}
+
+/// Whether the touch controller should look for the stylus: while it is
+/// docked (charging, maybe not connected yet) or connected over Bluetooth,
+/// as the stock Android turns pen sensing off when the stylus link drops.
+pub fn pen_sensing(docked: bool, connected: bool) -> bool {
+    docked || connected
+}
+
+/// What to write to `pen_type`, which reads `current`, so that the touch
+/// controller senses the stylus or not. A stylus type set by someone else
+/// stays as long as sensing stays on.
+pub fn pen_type_change(current: u8, sense: bool) -> Option<u8> {
+    match (current, sense) {
+        (0, true) => Some(PEN_TYPE_DEFAULT),
+        (1.., false) => Some(0),
+        _ => None,
+    }
 }
 
 /// The blocked-addresses file: one address per line.
@@ -338,6 +361,24 @@ mod tests {
         assert_eq!(plan(false, true, &BONDED), []);
         // could not be paired while docked: pair it now
         assert_eq!(plan(false, true, &NEW), [Discover, Pair, Trust, Connect]);
+    }
+
+    #[test]
+    fn pen_is_sensed_while_docked_or_connected() {
+        assert!(pen_sensing(true, false));
+        assert!(pen_sensing(true, true));
+        assert!(pen_sensing(false, true));
+        assert!(!pen_sensing(false, false));
+    }
+
+    #[test]
+    fn pen_type_written_only_on_a_change() {
+        assert_eq!(pen_type_change(0, true), Some(1));
+        assert_eq!(pen_type_change(1, true), None);
+        assert_eq!(pen_type_change(3, true), None);
+        assert_eq!(pen_type_change(1, false), Some(0));
+        assert_eq!(pen_type_change(3, false), Some(0));
+        assert_eq!(pen_type_change(0, false), None);
     }
 
     #[test]

@@ -118,6 +118,16 @@ pub fn find_device(
     })
 }
 
+/// Whether `address`, or its byte-reversed form, is connected to any adapter.
+pub fn connected(objects: &ManagedObjects, address: Address) -> bool {
+    objects.values().any(|ifaces| {
+        ifaces.get(DEVICE).is_some_and(|props| {
+            address_of(props).is_some_and(|a| a == address || a == address.reversed())
+                && flag(props, "Connected")
+        })
+    })
+}
+
 pub fn battery(objects: &ManagedObjects, device: &str) -> Option<u8> {
     let path = objects.keys().find(|p| p.as_str() == device)?;
     let v = objects.get(path)?.get(BATTERY)?.get("Percentage")?;

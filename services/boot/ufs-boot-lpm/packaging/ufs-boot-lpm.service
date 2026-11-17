@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep the UFS host out of its low-power states while booting
+DefaultDependencies=no
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
+Wants=ufs-boot-lpm-release.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/ufs-boot-lpm hold
+ExecStop=/usr/bin/ufs-boot-lpm release

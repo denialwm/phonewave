@@ -41,6 +41,17 @@ while docked (it does not advertise then) is paired when it is undocked.
 
 Any other accessory (the stylus) stays connected, docked or not.
 
+A touch controller that senses a stylus has a `pen_type` attribute (the
+OnePlus Pad 3's: `Documentation/ABI/testing/sysfs-driver-input-nt36536`).
+As the stock Android does, the service lets it look for the stylus only
+while the stylus is docked (charging) or connected over Bluetooth: it writes
+`0` when the stylus link drops away from the dock and `1` when the link
+comes back or the stylus docks, and leaves another non-zero stylus type
+that someone set alone while sensing stays on. It follows the stylus by
+the address its dock reported, kept in `/var/lib/accessory-pair/stylus`,
+so it does so across restarts; until a stylus has docked once, `pen_type`
+is left as the kernel set it.
+
 If the dock's address is not found but its byte-reversed form is, the
 service uses that and logs that the driver reports the address in the wrong
 order.
@@ -64,7 +75,7 @@ accessories are docked at boot also links the unit into
 `journalctl -u accessory-pair` shows each step: `stylus C0:87:06:07:FE:68
 docked`, the planned steps, `found as /org/bluez/hci0/dev_...`, `paired (Just
 Works, no prompt)`, `kept off Bluetooth while docked`, `battery 87% ->
-.../bt_capacity`.
+.../bt_capacity`, `stylus sensing off -> .../pen_type = 0`.
 
 ## Docked double-send test
 
