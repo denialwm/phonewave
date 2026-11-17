@@ -16,7 +16,7 @@ rootfs.
 Private inputs live in the vault, `${PHONEWAVE_VAULT:-device-vault}/erhai`
 (next to phonewave): boot/ the built images; firmware/tail/ the firmware the
 tail carries (SHA256SUMS-pinned, origins in ORIGIN-mainline.txt; the
-mainline paths ath12k/, novatek/, qcom/gen80000_* and qcom/sm8750/erhai/ are
+mainline paths ath12k/, novatek/, qca/gng*, qcom/gen80000_* and qcom/sm8750/erhai/ are
 what the tail takes, the flat files beside them are the downstream names of
 the same stock files); stock/ the stock images and this unit's EDL dump;
 backups/ partition copies.
@@ -67,25 +67,62 @@ WLAN.GNG.1.0-03342-...-1.81206.153.
 
 ## Bluetooth
 
-Not in the tail yet. The WCN7860's hci_qca driver takes its RAM patch and NVM from the tail's
-`qca/hmtbtfw10.tlv`, `qca/hmtnv10.b02` and `qca/hmtnv10.b03`, the stock
-bluetooth partition's `brhbtfw10.tlv` and `brhbtnv10.b02`/`.b03` under the
-names the driver asks for (ROM version 0x10).
+The WCN7860 (hci_qca on UART14, powered through the pwrseq of the PMU
+node) takes its RAM patch `qca/gngbtfw20.mbn` and NVM `qca/gngbtnv20.bin`
+(ROM version 0x200) from the tail. The tail carries the whole `qca/gng*`
+set of the vendor partition's /vendor/bt_firmware/image/, 67 files; the
+`qca/hmt*` files beside them in the vault are older and unused.
 
 ## Audio
+
+The erhai/display kernel has the microphones and the speakers: the sound
+card OnePlus-Pad3 with a capture link (WCD9395 on TX_CODEC_DMA_TX_3,
+analog microphones AMIC1 and AMIC5) and a speaker link (the six AW88261
+amplifiers on SECONDARY_TDM_RX_0, gpio121-124, the stock speaker back end
+TDM-LPAIF-RX-SECONDARY: 8 slots of 32 bits at 48 kHz, each amplifier on
+the slot of its channel 0-3, 5, 6), and the ADSP topology
+`qcom/sm8750/OnePlus-Pad3-tplg.bin`, built from
+`audio/topology/OnePlus-Pad3-tdm.m4`:
+
+```
+T=devices/erhai/audio/topology
+m4 -I $T $T/OnePlus-Pad3-tdm.m4 > OnePlus-Pad3.conf
+alsatplg -c OnePlus-Pad3.conf -o OnePlus-Pad3-tplg.bin
+```
+
+hw,0 is MultiMedia1 capture (microphones), hw,1 MultiMedia2 playback
+(speakers, stereo). The amplifiers load the stock tuning
+(`qcom/sm8750/erhai/aw88261_acf.bin`, the vendor's `aw882xx_acf.bin`).
+The speaker graph is the stock graph's without the vendor's Awinic
+modules: SAL limiter, MFC with the stock channel mixer table (left on the
+even slots, right on the odd ones), TDM sink on data lane SD1 (gpio124,
+the stock graph's lane mask 0x2). The stream gain is capped at 8192 (0
+dB). Speaker route: `SECONDARY_TDM_RX_0 Audio Mixer MultiMedia2` on;
+level `stream1.vol_ctrl1 MultiMedia2 Playback Volume` and the
+amplifiers' `Speaker ChN PCM Playback Volume` (driver default 270 = -22.5
+dB, the ACF Music level 350 = -2.5 dB). The frame sync is not in the
+stock calibration: the topology's default (frame-long, not inverted, no
+data delay) follows the amplifiers' tuning; `-D TDM_SYNC_MODE=`,
+`TDM_INVERT=`, `TDM_DELAY=` change it. `OnePlus-Pad3-i2s.m4` is the
+earlier plain stereo I2S topology for SECONDARY_MI2S_RX (data line SD1,
+gpio124; heard, but quiet and distorted). The microphone route
+(MultiMedia1 Mixer TX_CODEC_DMA_TX_3; TX DEC0 from SWR_MIC0, ADC1 from
+AMIC1; TX DEC1 from SWR_MIC3, ADC4 from AMIC5) has no UCM profile yet.
+`OnePlus-Pad3-mic.m4` is the earlier capture-only topology,
+`OnePlus-Pad3.m4` the earlier TDM speaker design (the Audio IF endpoint
+and the vendor's Awinic modules, which this ADSP does not offer).
 
 The stock audio tuning is captured from the unit's stock images and
 pinned in the vault under `erhai/reference/stock-audio/` (SHA256SUMS-pinned,
 with its README); the board ACDB
-(`vendor/etc/acdbdata/sun_mtp/MTP_acdb_cal.acdb`) among them. The speaker
-amplifier's tuning (`aw882xx_acf.bin`) and the voice call profile
-(`services/audio/voicegen/voiceprofile.py` with `audio/voice.toml`, from the
-pinned capture `91d231beee9d4a9e35fd38fe5b35a6e3dde4d5fa92d0ab331672a1b0efd9fe63`)
-are not in the tail: the erhai/display kernel has neither the amplifier
-driver nor a q6apm voice backend to load them. The stock speaker backend is
-TDM-LPAIF-RX-SECONDARY (TDM1, MI2S-Secondary) at 48 kHz / 32 bit /
-8 slots; which slot drives which AW882xx amplifier is the first-boot
-measurement.
+(`vendor/etc/acdbdata/sun_mtp/MTP_acdb_cal.acdb`) among them. The voice
+call profile (`services/audio/voicegen/voiceprofile.py` with
+`audio/voice.toml`, from the pinned capture
+`91d231beee9d4a9e35fd38fe5b35a6e3dde4d5fa92d0ab331672a1b0efd9fe63`) is
+not in the tail: the kernel has no q6apm voice backend to load it. The
+stock speaker backend is TDM-LPAIF-RX-SECONDARY (TDM1, MI2S-Secondary)
+at 48 kHz / 32 bit / 8 slots; each amplifier's ACF slot is its sound
+channel.
 
 ## Touch
 
@@ -114,4 +151,4 @@ there is no rtc-offset to carry.
 
 ## Needs the maintainer
 
-- Bluetooth (hci_qca patch and NVM in the tail) once the kernel has it.
+Nothing open.

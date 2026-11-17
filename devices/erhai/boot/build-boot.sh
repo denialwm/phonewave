@@ -67,19 +67,23 @@ T=$(mktemp -d)
 trap 'rm -rf $T' EXIT
 mkdir $T/device
 cp -a $HERE/tail/. $T/device/
-# The Wi-Fi firmware and board data of the WCN7860 (ath12k), the touch
-# panel's firmware, and the GPU microcode and the board's zap shader, laid
-# out as the tail's firmware/, at the names the kernel asks for. They are
+# The Wi-Fi firmware and board data of the WCN7860 (ath12k), its Bluetooth
+# RAM patch and NVM (hci_qca, qca/gng*), the touch panel's firmware, and
+# the GPU microcode and the board's zap shader, the speaker amplifiers'
+# tuning and the ADSP's audio topology, laid
+# out as the tail's firmware/, at the names the kernel asks for. The
+# topology is built from audio/topology/OnePlus-Pad3-tdm.m4; the rest are
 # copies of this unit's stock files (the vault's firmware/tail/
 # ORIGIN-mainline.txt): the Wi-Fi set from the modem partition's
-# image/peach/ under other names, the GPU's from the vendor partition in
-# super, so image/stock-firmware, which binds one folder of one partition
+# image/peach/ under other names, the Bluetooth and GPU files from the
+# vendor partition in super, so image/stock-firmware, which binds one folder of one partition
 # as it is, cannot provide them. The ADSP and CDSP firmware comes from the
 # tablet's own modem partition (tail/stock-firmware.conf).
 (cd $V/firmware/tail && sha256sum -c --quiet SHA256SUMS)
 mkdir $T/device/firmware
 (cd $V/firmware/tail && find ath12k/WCN7860/hw2.0 novatek/erhai qcom/sm8750/erhai \
-	qcom/gen80000_sqe.fw qcom/gen80000_gmu.bin qcom/gen80000_aqe.fw \
+	qcom/gen80000_sqe.fw qcom/gen80000_gmu.bin qcom/gen80000_aqe.fw qca/gng* \
+	qcom/sm8750/OnePlus-Pad3-tplg.bin \
 	-type f -print0 | cpio -0 -pdm --quiet $T/device/firmware)
 ${HERE:h:h:h}/image/boot-tail $OUT $T/device $T/tail.erofs
 
