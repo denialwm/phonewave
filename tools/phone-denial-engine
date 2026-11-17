@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Put a Flutter engine build over the engine the denial-flutter-engine package
+# installed, and restart Denial on it: for trying an engine change before it
+# is committed.
+#   phone-denial-engine HOST [BUILD]
+#   phone-denial-engine HOST --package
+# BUILD is an engine build's folder (tools/build start denial-engine DEVICE),
+# by default the device's latest. The package's engine is kept beside the new
+# one. It comes back by itself when Denial does not start on the new one, and
+# on request with --package; pacman -U or -Syu of the package also puts the
+# package's engine in place. The file is replaced by rename, never in place:
+# the running Denial keeps the library it has mapped.
+set -euo pipefail
+usage='usage: phone-denial-engine HOST [BUILD | --package]'
+host=${1:?$usage}
+device=${host%-wifi}
+device=${device%-usb}
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
+# The SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+upload=/tmp/denial-engine.so
+sha=
+if [[ ${2:-} == --package ]]; then
+  build=
+else
+  build=${2:-/mnt/development/denial-os/builds/$device/denial-engine/latest}
+  build=$(readlink -f "$build")
+  [[ -f $build/libflutter_engine.so && -s $build/engine.sha256 ]] ||
+    { echo "no engine build in $build" >&2; exit 2; }
+  sha=$(cat "$build/engine.sha256")
+  ssh "${ssh_options[@]}" "$host" "cat > $upload" <"$build/libflutter_engine.so"
+fi
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s -- "$sha" "$upload" <<'REMOTE'
+set -eu
+dir=/usr/lib/denial/flutter/lib
+live=$dir/libflutter_engine.so
+kept=$dir/libflutter_engine.so.package
+trap 'rm -f "$2" "$dir/.engine.new"' EXIT
+sum() { sha256sum "$1" | cut -d' ' -f1; }
+# True while the installed engine is the one the package owns, unaltered.
+package_engine() { pacman -Qkk denial-flutter-engine 2>/dev/null | grep -q ', 0 altered files'; }
+# Denial up, and still the same process a few seconds on.
+running() {
+  sleep 4
+  systemctl is-active --quiet denial.service || return 1
+  pid=$(pgrep -o -x deniald) || return 1
+  sleep 4
+  [ "$(pgrep -o -x deniald)" = "$pid" ]
+}
+restore() {
+  ln -f "$kept" "$dir/.engine.new"
+  mv -f "$dir/.engine.new" "$live"
+  rm -f "$kept"
+  sync
+  systemctl reset-failed denial.service 2>/dev/null || true
+  systemctl restart denial.service
+}
+
+if [ -z "$1" ]; then
+  if package_engine; then
+    rm -f "$kept"
+    echo "PASS: the package's engine $(sum "$live" | cut -c1-12) is in place."
+    exit 0
+  fi
+  [ -f "$kept" ] || { echo "STOP: no package engine kept on this phone; install the denial-flutter-engine package." >&2; exit 1; }
+  restore
+  running || { echo "STOP: denial.service is not running on the package's engine" >&2; exit 1; }
+  echo "PASS: the package's engine $(sum "$live" | cut -c1-12) is back, deniald $(pgrep -o -x deniald)."
+  exit 0
+fi
+
+[ "$(sum "$2")" = "$1" ] || { echo "STOP: the engine arrived damaged" >&2; exit 1; }
+if package_engine; then
+  # A second name for the package's file: the rename below leaves it whole.
+  ln -f "$live" "$kept"
+elif [ ! -f "$kept" ]; then
+  echo "STOP: the phone's engine is not the package's and none is kept beside it; install the denial-flutter-engine package first." >&2
+  exit 1
+fi
+install -m 755 "$2" "$dir/.engine.new"
+mv -f "$dir/.engine.new" "$live"
+sync
+systemctl restart denial.service
+if running; then
+  echo "PASS: engine $(echo "$1" | cut -c1-12) running, deniald $(pgrep -o -x deniald). The package's engine is kept as $kept."
+  exit 0
+fi
+echo "STOP: Denial does not start on engine $(echo "$1" | cut -c1-12):" >&2
+journalctl -u denial.service -n 12 --no-pager -o cat >&2 || true
+restore
+if running; then
+  echo "The package's engine is back and Denial runs on it." >&2
+else
+  echo "Denial does not run on the package's engine either." >&2
+fi
+exit 1
+REMOTE
+if [[ -n $build ]]; then
+  echo "Engine of $build on $host:"
+  sed 's/^/  /' "$build/forks" 2>/dev/null || true
+fi
