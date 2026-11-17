@@ -19,10 +19,11 @@ refresh_hz = [60, 120]
 # Pad 4 (iceland) runs.
 controller = "novatek,NVT-ts-spi"
 
-[haptics]
-# PMIH0108 HAP530 LRA, in-tree qcom-spmi-haptics driver plus hapticd.
-actuator = "PMIH0108 HAP530 LRA"
-input_name = "qcom-spmi-haptics"
+# No [haptics]: the tablet has no vibration motor. The PMIH0108 has the
+# HAP530 block, but every erhai device tree turns it off
+# (oplus-misc-24924.dtsi: &pmih010x_haptics status "disabled", the running
+# Lineage tree agrees), there is no Awinic/SiTech haptics chip, the sound
+# card says swr-haptics-unsupported and Lineage packages no vibrator HAL.
 
 # No [rtc] section yet: whether the PMIC RTC (pmk8550) is settable is
 # unverified. If it is not, the same rtc-offset pattern as iceland applies.

@@ -9,6 +9,10 @@ iw
 wireless-regdb
 bluez-utils
 pipewire
+# PipeWire's audio plugins, which pipewire-pulse pulls in too: ALSA, and
+# bluez5 with its codecs (SBC, AAC, aptX, LDAC, mSBC, LC3). Bluetooth audio
+# is BlueZ and this, over the controller's HCI: no kernel audio back end.
+pipewire-audio
 pipewire-pulse
 wireplumber
 alsa-utils

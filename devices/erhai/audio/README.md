@@ -19,15 +19,13 @@ the profiles sit under `Qualcomm/sm8750/` and `conf.d/sm8750/`) exposes:
 | Mic1 (HiFi) | `hw,2` 1ch | MM3 → TX_CODEC_DMA_TX_3, AMIC5 on decimator 0 |
 | Mic2 (HiFi) | `hw,2` 2ch | the DMIC endfire pair, DMIC2 + DMIC3 |
 | Mic3 (HiFi) | `hw,2` 1ch | a single DMIC, DMIC0 |
-| Voice (Speaker/Mic) | `hw,13` 2ch | the kernel's voice policy PCM, the q6apm voice graph |
 
 `hw,3` (MM4 → VA_CODEC_DMA_TX_0) is reserved for the VA capture link;
 no device claims it yet.
 
 The PCM device numbers come from the topology's MultiMedia order — the
 kernel's q6apm creates the FE links from the m4's `STREAM_SG_PCM_ADD`
-sequence (MM1..MM4 = devices 0..3) — plus the voice policy PCM, which
-the q6apm-voice driver pins at 13 (sound/soc/qcom/qdsp6/q6apm-voice-pcm.c).
+sequence (MM1..MM4 = devices 0..3).
 The m4 is `topology/OnePlus-Pad3.m4` (see "Topology"); **confirm the
 numbers on first boot** (`cat /proc/asound/cards`, then play/capture
 each device).
@@ -65,10 +63,13 @@ All stock values are from the vault-pinned stock capture (`erhai/reference/stock
   configuration: DMIC2 + DMIC3) and `dmic1` paths. Stock's 1-channel
   endfire *output* was its ACDB graph; the profile captures the raw
   stereo pair instead.
-- **Voice** — `voice.toml` (the `OnePlus-Pad3-voice.bin` generated from
-  the pinned board ACDB): RX on SECONDARY_MI2S_RX 48k/32/8, TX on
-  TX_CODEC_DMA_TX_3, decimator mask 0x1 (decimator 0 only), six volume
-  levels. The UL mic is the `handset-mic` first mic (AMIC5). The policy
+- **Voice** — not profiled: the Pad 3 has no modem, so a call is a VoIP
+  app's stream on the HiFi devices, and the card has no `Voice Call`
+  verb (the conf.d file says why). `voice.toml` stays only as the
+  record of the stock voice graph (the `OnePlus-Pad3-voice.bin` it
+  generates from the pinned board ACDB, which no image ships): RX on
+  SECONDARY_MI2S_RX 48k/32/8, TX on TX_CODEC_DMA_TX_3, decimator mask
+  0x1 (decimator 0 only), six volume levels. The UL mic is the `handset-mic` first mic (AMIC5). The policy
   PCM is 2-channel S16 while the graph carries one mic channel; the
   second capture channel is the graph's copy, not a second mic.
 
@@ -79,7 +80,7 @@ All stock values are from the vault-pinned stock capture (`erhai/reference/stock
 | 1 | Which TDM slot drives which physical speaker (the DT `sound-channel` is each PA's slot: aw_dev_0 = i2c9 0x34, aw_dev_1 = i2c4 0x35, aw_dev_2 = i2c9 0x35, aw_dev_3 = i2c4 0x34, aw_dev_5 = i2c4 0x36, aw_dev_6 = i2c9 0x36) | Play a known L/R/mono test through `hw,0`; read each PA's slot from `dmesg` at boot (the aw882xx probe logs its channel) and correlate with the speaker that moves |
 | 2 | The in-tree tx-macro's SWR input order — Mic1 assumes ADC4 rides the input named `ADC3` (its four `ADC0..3` inputs mapping to ADC1..ADC4) | `amixer -c <card> contents \| grep "TX SMIC MUX0"` for the control's range; record from `hw,2` and verify level in the test app; if the order differs, swap the `TX SMIC MUX0` value |
 | 3 | USB-C jack detection — whether the in-tree wcd939x MBHC detects the USB-C analog plug (`qcom,usbcss` in the stock DT) | Plug the jack, then `amixer -c <card> sget 'MBHC'` / watch `dmesg` for the MBHC events; without detection, `wireplumber` will not switch to the Headphones device on plug |
-| 4 | Bluetooth — the stock DT enables the LPASS BT SoundWire link, but the in-tree kernel has no lpass-bt-swr driver; the profiles omit all BT devices | `ls /proc/asound/` for a card exposing A2DP/SCO; until then BT audio is out of scope |
+| 4 | Bluetooth — not on this card, by design: A2DP and HFP are PipeWire's bluez5 devices over the WCN7860's HCI UART (SCO over HCI for HFP), not the stock LPASS BT SoundWire offload | See "Bluetooth audio" below |
 | 5 | Which physical mics DMIC0..3 are (the endfire pair is assumed to be DMIC2 + DMIC3, stock's) | Record from Mic2 with both mics; identify the pair in the stereo image, or measure per-mic in a quiet room |
 | 6 | The stock HPH/PA level mapping — that the ACF profile + audiox_param ceiling matches the stock loudness | Play the same file at the stock and phonewave maximum, SPL-meter the output, compare against the pinned `SPK_*`/`HP_*` level-set intent |
 
@@ -144,8 +145,8 @@ sound/soc/qcom/qdsp6/topology.c) loads the graph as built:
   with the same in-tree kernel, so the ADSP defaults suffice.
 
 The kcontrols the profiles set (the rest are the in-tree codec
-drivers' — the AW882xx's `aw_dev_*`, the WCD939X's RX/TX macro
-controls — and the q6apm-voice driver's `Voice Call *`):
+drivers' — the AW88261's `Speaker ChN *`, the WCD939X's RX/TX macro
+controls):
 
 | kcontrol | where |
 |---|---|
@@ -170,14 +171,38 @@ are inert until the R2 kernel work lands:
    `OnePlus-Pad3`): the machine driver with the four back ends
    (SECONDARY_TDM_RX_0, RX_CODEC_DMA_RX_0, TX_CODEC_DMA_TX_3,
    VA_CODEC_DMA_TX_0) and the `qcom,audioreach-firmware` path
-   `qcom/sm8750/OnePlus-Pad3-tplg.bin`; the voice policy PCM.
-2. **The q6apm voice board entry** (R2-C, `sound/soc/qcom/qdsp6/
-   q6apm-voice-backend.h`'s `q6apm_voice_boards[]`):
-   `oneplus,erhai`, firmware `qcom/sm8750/OnePlus-Pad3-voice.bin`,
-   `rx_port` = SECONDARY_MI2S_RX, `tx_port` = TX_CODEC_DMA_TX_3,
-   48000, **S32_LE** (the stock TDM framing is 32-bit; the NX809J's
-   entry is S16_LE), `tx_decimators` 0x1, six `volume_levels`.
+   `qcom/sm8750/OnePlus-Pad3-tplg.bin`.
+2. No voice board entry: without a modem the Pad 3 has no use for the
+   q6apm voice graph, and boot images ship no
+   `qcom/sm8750/OnePlus-Pad3-voice.bin`, so the q6apm-voice driver adds
+   neither its policy PCM nor its `Voice Call *` controls.
 
 The card name in the profiles is `OnePlus-Pad3`; if the R2 machine
 renames the model, the `conf.d/` file and the directory move together
 with it.
+
+## Bluetooth audio
+
+Bluetooth audio needs no sound card and no kernel audio back end. The
+WCN7860's Bluetooth is on its HCI UART (`hci_qca`), and both profiles
+ride it:
+
+- **A2DP** (headphones, speakers; the Pad 3 as a sink too) is ACL data:
+  BlueZ's built-in `a2dp`/`avrcp` plugins hand the transport to
+  PipeWire's bluez5 plugin (`pipewire-audio`), which encodes on the host
+  — SBC, AAC (libfdk-aac), aptX and aptX HD (libfreeaptx), LDAC
+  (libldac), FastStream, Opus. (LE Audio, LC3 over ISO, is not tried
+  yet.)
+- **HFP** (headsets, VoIP calls) is PipeWire's native HFP back end over
+  RFCOMM, with the speech on SCO over HCI: the kernel sets up the eSCO
+  link with HCI Enhanced Setup Synchronous Connection and asks for the
+  HCI data path (0) unless a socket opts into the controller's offload
+  path (1, the stock BTFM/SLIMbus route, which this port does not have).
+  CVSD, and mSBC/LC3-SWB wideband since `hci_qca` flags the WCN7860 as
+  wideband-capable. WirePlumber switches a headset to HFP when an app
+  opens its microphone.
+
+Keep BlueZ's `Experimental` off (`/etc/bluetooth/main.conf`): BlueZ
+5.88's own HFP hands-free plugin is experimental-only, and with it on it
+would take the HFP UUID from PipeWire.
+

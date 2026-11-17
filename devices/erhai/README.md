@@ -144,6 +144,36 @@ erhai/display kernel has no oplus_chg and no CPS8601 driver, so the pen
 charger's firmware (`wireless_pen/24976/cps8601_firmware.bin` in the vault)
 is not in the tail.
 
+## Sensors
+
+steinerd offers orientation, acceleration, rotation rate, compass heading,
+light and proximity from the ADSP's sensor core: bmi3x0 accelerometer and
+gyroscope, mxg4300 magnetometer, stk3b6x light and proximity, bu52053nvx
+hall, as odm's `etc/sensor/config` lists them (`json_list`). The tail
+turns on `hexagonrpcd.service` (services/sensors/hexagonrpcd), which
+serves the ADSP its configuration from the booted slot's stock vendor and
+odm and from persist (`sensors/registry/registry`), and attaches the
+sensors PD (stock: `sscrpcd sensorspd adsp`). The kernel side is
+mainline: the ADSP's FastRPC node with its compute banks is in sm8750.dtsi
+(`/dev/fastrpc-adsp-secure`, banks 3-8 on the stock SIDs), the in-kernel
+PD mapper lists `msm/adsp/sensor_pd` for SM8750, and the ADSP firmware is
+the stock one from the modem partition.
+
+The tail's `steinerd/top` says `+x`: the panel scans out landscape
+(3392x2400) while the stock tablet's natural orientation is portrait,
+`ro.surface_flinger.primary_display_orientation` ORIENTATION_270, so the
+scan-out top edge is the core's +x, as on the Pad 4. Derived, not yet
+read on the tablet: `steinerctl raw accel 25` with the tablet standing
+upright as the screen's own picture (unrotated, landscape) reads shows
+about +9.8 on the axis to put there.
+
+## Haptics
+
+None: the tablet has no vibration motor. Its PMIH0108's HAP530 block is
+turned off in every erhai device tree (`oplus-misc-24924.dtsi`, and the
+running Lineage tree), so the kernel describes no haptics and hapticd
+finds no device.
+
 ## Clock
 
 No RTC in the device tree: the kernel keeps time and timesyncd corrects it;
