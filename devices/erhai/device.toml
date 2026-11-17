@@ -25,5 +25,6 @@ controller = "novatek,NVT-ts-spi"
 # Lineage tree agrees), there is no Awinic/SiTech haptics chip, the sound
 # card says swr-haptics-unsupported and Lineage packages no vibrator HAL.
 
-# No [rtc] section yet: whether the PMIC RTC (pmk8550) is settable is
-# unverified. If it is not, the same rtc-offset pattern as iceland applies.
+# No [rtc] section: the device tree describes no RTC node (sm8750.dtsi,
+# the pmics tree and the erhai board agree), so there is no rtc-offset
+# to carry (the README's Clock section).

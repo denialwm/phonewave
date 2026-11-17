@@ -104,7 +104,7 @@ mod tests {
     fn only_allowed_devices() {
         let allowed = Allowed::default();
         allowed.allow("C0:87:06:07:FE:68".parse().unwrap());
-        let pen = ObjectPath::try_from("/org/bluez/hci0/dev_C0_87_06_07_FE_69").unwrap();
+        let pen = ObjectPath::try_from("/org/bluez/hci0/dev_C0_87_06_07_FE_68").unwrap();
         let other = ObjectPath::try_from("/org/bluez/hci0/dev_00_11_22_33_44_55").unwrap();
         let agent = Agent { allowed };
         assert!(agent.request_authorization(pen.clone()).is_ok());

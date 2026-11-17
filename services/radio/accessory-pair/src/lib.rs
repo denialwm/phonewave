@@ -43,7 +43,7 @@ impl Address {
         }
     }
 
-    /// The address of a BlueZ device object, `/org/bluez/hci0/dev_C0_87_06_07_FE_69`.
+    /// The address of a BlueZ device object, `/org/bluez/hci0/dev_C0_87_06_07_FE_68`.
     pub fn from_object_path(path: &str) -> Option<Address> {
         let name = path.rsplit('/').next()?.strip_prefix("dev_")?;
         name.replace('_', ":").parse().ok()
@@ -249,12 +249,12 @@ mod tests {
     #[test]
     fn address_from_object_path() {
         assert_eq!(
-            Address::from_object_path("/org/bluez/hci0/dev_C0_87_06_07_FE_69"),
+            Address::from_object_path("/org/bluez/hci0/dev_C0_87_06_07_FE_68"),
             Some(PEN)
         );
         assert_eq!(Address::from_object_path("/org/bluez/hci0"), None);
         assert_eq!(
-            Address::from_object_path("/org/bluez/hci0/dev_C0_87_06_07_FE_69/service0010"),
+            Address::from_object_path("/org/bluez/hci0/dev_C0_87_06_07_FE_68/service0010"),
             None
         );
     }

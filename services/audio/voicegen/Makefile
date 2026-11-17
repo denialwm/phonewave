@@ -24,7 +24,7 @@ $(ARGS)/gsl/.libs/libar-gsl.so:
 	rm -rf $(ARGS)
 	git clone --quiet $(ARGS_URL) $(ARGS)
 	git -C $(ARGS) checkout --quiet $(ARGS_COMMIT)
-	cd $(ARGS) && autoreconf -fi && ./configure --with-glib --with-dummy_diag --without-cutils --with-syslog \
+	cd $(ARGS) && autoreconf -fi && ./configure --with-dummy_diag --without-cutils --with-syslog \
 		--without-ats_transport_tcp_ip
 	$(MAKE) -C $(ARGS) -j$(JOBS) CFLAGS="-g -O2 -I$(CURDIR)/host -Wno-error"
 
