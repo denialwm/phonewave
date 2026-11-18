@@ -1,0 +1,153 @@
+# Arch Linux ARM's FFmpeg with the phones' video decoders for Firefox.
+# Build: image/pack ffmpeg-denial
+#
+# The same release, configuration and Chromium patch as the ffmpeg package
+# of Arch Linux ARM, with patches/v4l2-m2m-drm-prime-av1.patch: the V4L2
+# mem2mem decoders (Iris on the Kaanapali phones) hand out their frames as
+# dma-bufs (AV_PIX_FMT_DRM_PRIME), which is the only form Firefox takes from
+# them, and av1_v4l2m2m decodes AV1. The default get_format still picks
+# software frames, so other programs see no change.
+#
+# Its own name, providing and conflicting with Arch's ffmpeg: only a phone
+# that asks for it gets it (`pacman -S ffmpeg-denial` replaces ffmpeg), and
+# no Arch FFmpeg replaces it. Follow Arch's releases: pkgver and the
+# configure flags as its PKGBUILD has them, pkgrel back to 1. Retiring it,
+# once Arch's FFmpeg does both: a last release, empty, depending only on
+# ffmpeg at that version or later, with no provides or conflicts.
+pkgname=ffmpeg-denial
+pkgver=9.0.2
+pkgrel=1
+epoch=2
+pkgdesc='Complete solution to record, convert and stream audio and video'
+arch=(aarch64)
+url=https://ffmpeg.org
+license=(GPL-3.0-only)
+options=(!strip !debug !lto)
+depends=(
+  alsa-lib aom bzip2 cairo dav1d fontconfig freetype2 fribidi glib2 glibc
+  gmp gnutls gsm harfbuzz jack lame lcms2 libass libavc1394 libbluray
+  libbs2b libdrm libdvdnav libdvdread libgcc libgl libiec61883 libjxl
+  libmodplug libopenmpt libplacebo libpulse libraw1394 librsvg libsoxr
+  libssh libtheora libva libvdpau libvorbis libvpx libwebp libx11 libxcb
+  libxext libxml2 libxv ocl-icd opencore-amr openjpeg2 opus rubberband sdl2
+  snappy sndio speex srt v4l-utils vapoursynth vid.stab vulkan-icd-loader
+  x264 x265 xvidcore xz zeromq zimg zlib
+)
+optdepends=(
+  'avisynthplus: AviSynthPlus support'
+  'frei0r-plugins: Frei0r video effects support'
+  'ladspa: LADSPA filters'
+  'nvidia-utils: Nvidia NVDEC/NVENC support'
+)
+provides=("ffmpeg=$epoch:$pkgver" libavcodec.so libavdevice.so libavfilter.so
+          libavformat.so libavutil.so libswresample.so libswscale.so)
+conflicts=(ffmpeg)
+_patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patch)
+source=("https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz")
+sha256sums=('8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e')
+. "$startdir/../../cross.sh"
+
+prepare() {
+  local p
+  for p in "${_patches[@]}"; do
+    patch -d ffmpeg-$pkgver -Np1 -s < "$startdir/patches/$p"
+  done
+}
+
+build() {
+  cd ffmpeg-$pkgver
+  # Arch Linux ARM's flags; the first block makes it a cross build against
+  # the phones' sysroot. CUDA kernels go to PTX through this workstation's
+  # clang.
+  ./configure \
+    --enable-cross-compile \
+    --arch=aarch64 \
+    --target-os=linux \
+    --cross-prefix=aarch64-linux-gnu- \
+    --sysroot="$sysroot" \
+    --pkg-config=pkg-config \
+    --host-cc=gcc \
+    --extra-cflags="$CFLAGS" \
+    --extra-ldflags="-B$sysroot/usr/lib -Wl,-rpath-link,$sysroot/usr/lib" \
+    --prefix=/usr \
+    --disable-debug \
+    --disable-static \
+    --disable-stripping \
+    --enable-amf \
+    --enable-avisynth \
+    --enable-cuda-llvm \
+    --enable-fontconfig \
+    --enable-frei0r \
+    --enable-gmp \
+    --enable-gnutls \
+    --enable-gpl \
+    --enable-ladspa \
+    --enable-libaom \
+    --enable-libass \
+    --enable-libbluray \
+    --enable-libbs2b \
+    --enable-libdav1d \
+    --enable-libdrm \
+    --enable-libdvdnav \
+    --enable-libdvdread \
+    --enable-libfreetype \
+    --enable-lcms2 \
+    --enable-libfribidi \
+    --enable-libgsm \
+    --enable-libharfbuzz \
+    --enable-libiec61883 \
+    --enable-libjack \
+    --enable-libjxl \
+    --enable-libmodplug \
+    --enable-libmp3lame \
+    --enable-libopencore_amrnb \
+    --enable-libopencore_amrwb \
+    --enable-libopenjpeg \
+    --enable-libopenmpt \
+    --enable-libopus \
+    --enable-libplacebo \
+    --enable-libpulse \
+    --enable-librsvg \
+    --enable-librubberband \
+    --enable-libsnappy \
+    --enable-libsoxr \
+    --enable-libspeex \
+    --enable-libsrt \
+    --enable-libssh \
+    --enable-libtheora \
+    --enable-libv4l2 \
+    --enable-libvidstab \
+    --enable-libvorbis \
+    --enable-libvpx \
+    --enable-libwebp \
+    --enable-libx264 \
+    --enable-libx265 \
+    --enable-libxcb \
+    --enable-libxml2 \
+    --enable-libxvid \
+    --enable-libzimg \
+    --enable-libzmq \
+    --enable-nvdec \
+    --enable-nvenc \
+    --enable-opencl \
+    --enable-opengl \
+    --enable-shared \
+    --enable-vapoursynth \
+    --enable-version3 \
+    --enable-vulkan \
+    --disable-decoder=magicyuv
+  make -j "$(($(nproc) - 2))"
+  make tools/qt-faststart
+  make doc/ff{mpeg,play}.1
+}
+
+package() {
+  depends+=(
+    libass.so libbs2b.so libdav1d.so libfreetype.so libharfbuzz.so
+    libopenmpt.so librsvg-2.so librubberband.so libva.so libva-drm.so
+    libva-x11.so libvidstab.so libvorbisenc.so libvorbis.so libvpx.so
+    libx264.so libxvidcore.so libzimg.so libzmq.so
+  )
+  make DESTDIR="$pkgdir" -C ffmpeg-$pkgver install install-man
+  install -Dm755 ffmpeg-$pkgver/tools/qt-faststart "$pkgdir"/usr/bin/
+}
