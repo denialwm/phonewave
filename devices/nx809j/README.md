@@ -106,7 +106,9 @@ the volume in software.
 Three analog microphones sit on the WCD939x: AMIC1 (stock's handset and
 speakerphone mic, the default), AMIC4 (stock's game mic) and AMIC3. AMIC2
 and AMIC5 have none. The profile records one at a time through ADC1 or ADC3
-into MultiMedia3, at stock's gains (ADC 12, decimators 84). Capture needs
+into MultiMedia3 at stock's ADC gain (12). The decimators add 20 dB (104;
+84 is 0 dB): stock's level comes from ADSP calibration we do not run, and at
+0 dB a room recorded about 19 dB quieter than with it. Capture needs
 linux-perpetua 9ba37ef1db70 (devices-223).
 
 Calls: the ADSP carries call speech between the modem and the hardware once
