@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Put Settings, built from the denial-apps and gpui-touch checkouts as they
+# are on disk, over the Settings on a phone: for a change that Denial's
+# settings/SOURCE_LOCK.json does not name yet.
+#   phone-denial-settings HOST
+# Builds it for AArch64 the way Denial does (denial/tools/denial-settings),
+# with the test profile, and replaces /usr/lib/denial-apps/settings by
+# rename: a Settings that is open keeps running the old one until it is
+# closed. pacman -U or -Syu of the package that owns the file (denial, or
+# denial-app-settings where the phone still has that) puts its own back.
+set -euo pipefail
+host=${1:?usage: phone-denial-settings HOST}
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+export DENIAL_TARGET_ARCH=aarch64 DENIAL_ARM64_SYSROOT=$root/cross/alarm-sysroot
+# The build root of tools/build's Denial packages: one Cargo target for both.
+export DENIAL_PC_BUILD_ROOT=${XDG_CACHE_HOME:-$HOME/.cache}/denial/pc-build-aarch64
+export DENIAL_SETTINGS_SOURCE_ROOT=$root DENIAL_BUILD_JOBS=$(($(nproc) - 2))
+export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+"$root/denial/tools/denial-settings" build
+program=$("$root/denial/tools/denial-settings" path)
+sum=$(sha256sum "$program" | cut -d' ' -f1)
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
+# The SSH user is root on some phones and the owner on others.
+as_root='if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n "$@"; fi'
+copy=/tmp/denial-settings
+ssh "${ssh_options[@]}" "$host" "cat > $copy" <"$program"
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s -- "$sum" "$copy" <<'REMOTE'
+set -eu
+installed=/usr/lib/denial-apps/settings
+trap 'rm -f "$2"' EXIT
+[ "$(sha256sum "$2" | cut -d' ' -f1)" = "$1" ] ||
+  { echo "STOP: the copy on the phone is not the program that was built" >&2; exit 1; }
+[ -x "$installed" ] ||
+  { echo "STOP: this phone has no Settings to replace; install the packages" >&2; exit 1; }
+install -m 755 "$2" "$installed.new"
+mv -f "$installed.new" "$installed"
+sync
+echo "PASS: Settings $(sha256sum "$installed" | cut -c1-12) installed. Close Settings and open it again."
+REMOTE
