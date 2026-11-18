@@ -40,11 +40,11 @@ last.
 | USB host | ? | | |
 | Video out (USB-C) | works | 2026-11-09, devices-310, user | DisplayPort; the phone's screen goes off and on while the monitor stays lit |
 | Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
-| Battery | works | devices-130, probe | battmgr |
+| Battery | works | 2026-11-09, devices-317, probe | battmgr; reports what it holds when full (6670 of 7500 mAh), which Settings needs to show it |
 | Wi-Fi | works | 2026-11-09, devices-310, user | WCN7860, ath12k |
 | Bluetooth | works | 2026-11-09, devices-310, user | On the image radio-addr gives the controller its address |
 | Speakers | works | 2026-11-09, devices-310, user | Through the shared UCM profile; the amplifiers run 6 dB under stock, which has speaker protection in the audio DSP. Droidloom plays at full scale (fixed volume) |
-| Microphones | untested | 2026-11-06, devices-233, probe | On the image PipeWire shows the main microphone (AMIC1); not recorded yet |
+| Microphones | works | 2026-11-18, devices-393, Droidloom 0.1.0-44.1, user | The main microphone (AMIC1), in Linux and in Android apps; the decimators add 20 dB, since stock's level comes from ADSP calibration we do not run |
 | Headphone jack | not started | 2026-11-09, devices-310, probe | The codec reports the jack (Headphone Jack, Mic Jack, an input device); no playback or capture route in the UCM profile. Reixo0's patches 0068 and on |
 | Mobile data | works | 2026-11-09, devices-310, probe | 5G on Iliad, APN iliad; pings over the data bearer alone |
 | SMS | works | 2026-11-09, devices-310, user | dmail |
