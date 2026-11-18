@@ -18,6 +18,9 @@
     "applications": {},
     "default": {}
   },
+  "apps": {
+    "scale": 1.25
+  },
   "color": {
     "appGrades": {},
     "appLuts": {},
