@@ -10,6 +10,9 @@ edit the list, raise `pkgrel` and run `image/pack mesa-denial`.
   preemption ran without its CCU setup for GMEM: CCU write faults at IOVA 0x0
   to 0x1240 and corrupted tiles in GPUI apps. Main at 98a55f45 still
   glitches on the Edge 70 without it (2026-11-04).
+- `panfrost-add-the-Mali-G78.patch`: the Pixel 6's GPU (product ID 0x9202)
+  is not in panfrost's model table at 98a55f45, which has its smaller
+  sibling, the G68. One entry with the G68's values.
 
 ## Chasing GPU faults
 

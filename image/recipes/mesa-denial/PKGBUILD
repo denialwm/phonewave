@@ -1,9 +1,13 @@
 # Mesa main for the phones: the first Mesa with the Adreno 722. Build: image/pack mesa-denial
 #
 # Upstream main at _commit with only the drivers the phones use: freedreno
-# and Turnip. _patches lists the ones from patches/ to apply; empty, it is
-# main as it is. No llvmpipe, softpipe or zink: Denial never renders
-# in software.
+# and Turnip for the Adrenos, panfrost for the Malis. _patches lists the ones
+# from patches/ to apply; empty, it is main as it is. No llvmpipe, softpipe
+# or zink: Denial never renders in software.
+#
+# panfrost compiles its OpenCL C library with mesa_clc and vtn_bindgen2,
+# which run on this workstation and need its LLVM, libclc and
+# spirv-llvm-translator; the phone's Mesa still links no LLVM.
 #
 # Its own names, providing and conflicting with Arch's mesa, vulkan-freedreno
 # and vulkan-mesa-implicit-layers: only a phone that asks for it gets it, and
@@ -14,9 +18,10 @@
 pkgbase=mesa-denial
 pkgname=(mesa-denial vulkan-freedreno-denial vulkan-mesa-implicit-layers-denial)
 _commit=98a55f454dff645be1c88284634126a2c17fd416
-_patches=(turnip-no-BV-pipe-on-the-Adreno-722.patch)
+_patches=(turnip-no-BV-pipe-on-the-Adreno-722.patch
+          panfrost-add-the-Mali-G78.patch)
 pkgver=27.0.0_devel.20261103.${_commit:0:8}
-pkgrel=1
+pkgrel=2
 pkgdesc="Open-source OpenGL drivers"
 url="https://www.mesa3d.org/"
 arch=(aarch64)
@@ -81,6 +86,21 @@ build() {
     meson install -C scanner
   )
   sed -i "/^\[binaries\]/a wayland-scanner = '$srcdir/scanner-root/bin/wayland-scanner'" cross.ini
+  # The compilers of panfrost's OpenCL C library, from the same source:
+  # only these three programs of a build for this workstation.
+  (
+    unset CFLAGS CXXFLAGS LDFLAGS
+    meson setup mesa-$_commit clc --buildtype release \
+      -D gallium-drivers=panfrost -D panfrost-rust=false -D vulkan-drivers= \
+      -D platforms= -D glx=disabled -D egl=disabled -D gbm=disabled \
+      -D gles1=disabled -D gles2=disabled -D llvm=enabled \
+      -D valgrind=disabled -D libunwind=disabled \
+      -D mesa-clc=enabled -D precomp-compiler=enabled
+    meson compile -C clc mesa_clc vtn_bindgen2 panfrost_compile
+    install -Dm755 -t "$srcdir/clc-root/bin" clc/src/compiler/clc/mesa_clc \
+      clc/src/compiler/spirv/vtn_bindgen2 clc/src/panfrost/clc/panfrost_compile
+  )
+  PATH=$srcdir/clc-root/bin:$PATH
   local meson_options=(
     --cross-file cross.ini
     --prefix /usr
@@ -92,7 +112,7 @@ build() {
     -D android-libbacktrace=disabled
     -D platforms=x11,wayland
     -D freedreno-kmds=msm
-    -D gallium-drivers=freedreno
+    -D gallium-drivers=freedreno,panfrost
     -D gallium-extra-hud=true
     -D gallium-mediafoundation=disabled
     -D gallium-rusticl=false
@@ -103,6 +123,9 @@ build() {
     -D intel-rt=disabled
     -D libunwind=disabled
     -D llvm=disabled
+    -D mesa-clc=system
+    -D precomp-compiler=system
+    -D panfrost-rust=false
     -D lmsensors=disabled
     -D microsoft-clc=disabled
     -D teflon=false
