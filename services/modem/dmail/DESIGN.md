@@ -366,8 +366,10 @@ above. dmail uses it when the modem lists it and works without it.
   then an indication with the same id carrying the outcome. dmail sends those
   on a short-lived client of their own, so the session's client only carries
   reports. The modem ends a session whose client closes.
-- Registering for events needs TLV 0x11 (client type, 1) on the 12R, else
-  InvalidArgument. Starting a session with the engine locked fails with
+- Registering for events needs TLV 0x11, the client type, else
+  InvalidArgument. dmail registers as 3, privileged: the RedMagic 11 Pro
+  (SM8850) turns 1, the platform's framework, down with InvalidArgument; the
+  12R takes both. Starting a session with the engine locked fails with
   GeneralError.
 - dmail gives the engine the time when the kernel says the clock is
   synchronized, at the start and when the engine asks.

@@ -1999,21 +1999,25 @@ async fn start_gnss(
         .await
         .map_err(qmi_error("unlocking the engine"))?;
     let started = async {
-        let session = Rc::new(Client::new(addr).map_err(qmi::Error::Io)?);
-        location::register(&session).await?;
+        let session = Rc::new(Client::new(addr).map_err(|e| format!("QMI client: {e}"))?);
+        location::register(&session)
+            .await
+            .map_err(|e| format!("registering for reports: {e}"))?;
         match location::inject_time(&ctl).await {
             Ok(true) => log("location: gave the engine the time"),
             Ok(false) => log("location: the clock is not synchronized, no time for the engine"),
             Err(e) => log(format!("location: injecting time: {e}")),
         }
-        location::start(&session, GNSS_SESSION).await?;
-        Ok::<_, qmi::Error>(session)
+        location::start(&session, GNSS_SESSION)
+            .await
+            .map_err(|e| format!("starting the session: {e}"))?;
+        Ok::<_, String>(session)
     };
     let session = match started.await {
         Ok(session) => session,
         Err(e) => {
             lock_gnss(addr, false).await;
-            return Err(format!("starting the session: {e}"));
+            return Err(e);
         }
     };
     let task = forward_gnss(ex, session.clone(), tx);

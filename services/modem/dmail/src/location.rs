@@ -39,10 +39,11 @@ const EVENT_INJECT_TIME: u64 = 1 << 4;
 const EVENT_XTRA_WANTED: u64 = 1 << 5;
 const EVENT_ENGINE_STATE: u64 = 1 << 7;
 const EVENT_FIX_SESSION: u64 = 1 << 8;
-/// Without this client type the modem turns REGISTER_EVENTS down with
-/// InvalidArgument (tested on the 12R, 2026-11-16). 1: the platform's own
-/// location framework.
-const CLIENT_TYPE_PLATFORM: u32 = 1;
+/// Without a client type the modem turns REGISTER_EVENTS down with
+/// InvalidArgument. 3: a privileged client. The 12R (SM8550) takes 1, the
+/// platform's own framework, too; the RedMagic 11 Pro (SM8850) turns 1 down
+/// with InvalidArgument and takes only 3 (tested 2026-11-18).
+const CLIENT_TYPE: u32 = 3;
 
 /// Engine locks: who may start a session.
 pub const LOCK_NONE: u32 = 1;
@@ -149,7 +150,7 @@ pub async fn register(loc: &Client) -> Result<(), Error> {
         | EVENT_FIX_SESSION;
     let msg = Message::request(REGISTER_EVENTS)
         .with(0x01, mask.to_le_bytes())
-        .with(0x11, CLIENT_TYPE_PLATFORM.to_le_bytes());
+        .with(0x11, CLIENT_TYPE.to_le_bytes());
     loc.call(msg, TIMEOUT).await.map(drop)
 }
 
