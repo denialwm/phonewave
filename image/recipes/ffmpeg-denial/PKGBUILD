@@ -47,6 +47,9 @@ _patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patc
 source=("https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz")
 sha256sums=('8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e')
 . "$startdir/../../cross.sh"
+# The man pages need pod2man, Arch's perl's, in core_perl: on PATH only in a
+# login shell, which the package builder's is not.
+PATH=$PATH:/usr/bin/core_perl
 
 prepare() {
   local p
