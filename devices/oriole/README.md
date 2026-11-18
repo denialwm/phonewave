@@ -87,8 +87,8 @@ reset from Android's recovery does the same).
 ## Wi-Fi
 
 A BCM4389 on PCIe, on brcmfmac. The address is the bootloader's, handed off
-from its `/chosen/config`. WPA2 on 2.4 and 5 GHz works; WPA3 (SAE) does not
-yet.
+from its `/chosen/config`. WPA2 and WPA3-Personal work on 2.4 and 5 GHz;
+the firmware leaves SAE to wpa_supplicant.
 
 ## Denial
 

@@ -344,7 +344,7 @@ last.
 | Video out (USB-C) | ? | | |
 | Charging | partial | 2026-11-15, oriole branch, probe | Default USB 500 mA and USB-PD 9 V; the 9 V rate not measured |
 | Battery | works | 2026-11-15, oriole branch, probe | max17042 |
-| Wi-Fi | partial | 2026-11-17, oriole e34c1f87, probe | BCM4389 on brcmfmac: WPA2 on 2.4 and 5 GHz, 90 to 170 Mbit/s; no WPA3 |
+| Wi-Fi | partial | 2026-11-17, oriole 55bb88f0, probe | BCM4389 on brcmfmac: WPA2 and WPA3 on 2.4 and 5 GHz, 80 to 170 Mbit/s; US only so far, no 6 GHz |
 | Bluetooth | not started | | |
 | Speakers | not started | | |
 | Microphones | not started | | |
