@@ -5,7 +5,7 @@ use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::process::ExitCode;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use async_io::Timer;
 use async_signal::{Signal, Signals};
@@ -18,7 +18,7 @@ use dmail::qrtr::{self, Event, Lookup};
 use dmail::sim::{self, Pin};
 use dmail::sms::pdu;
 use dmail::sms::wms::{self, Incoming};
-use dmail::{modem, network};
+use dmail::{location as loc, modem, network};
 use futures_lite::{StreamExt, future};
 
 const USAGE: &str = "usage: dmailctl services
@@ -31,7 +31,9 @@ const USAGE: &str = "usage: dmailctl services
        dmailctl data up APN
        dmailctl watch
        dmailctl radio cycle
-       dmailctl volte on|off";
+       dmailctl volte on|off
+       dmailctl location [raw]
+       dmailctl xtra [FILE]";
 
 type Result<T = ()> = std::result::Result<T, Box<dyn Error>>;
 
@@ -52,6 +54,11 @@ fn main() -> ExitCode {
         ["sms", "routes"] => future::block_on(routes()),
         ["sms", "listen"] => future::block_on(listen()),
         ["sms", "send", number, text] => future::block_on(send(number, text)),
+        ["location"] | ["location", "raw"] => Signals::new([Signal::Term, Signal::Int])
+            .map_err(Into::into)
+            .and_then(|mut signals| future::block_on(location(&mut signals, args.len() == 2))),
+        ["xtra"] => future::block_on(xtra(None)),
+        ["xtra", file] => future::block_on(xtra(Some(file))),
         ["data", "up", apn] => Signals::new([Signal::Term, Signal::Int])
             .map_err(Into::into)
             .and_then(|mut signals| future::block_on(data_up(&mut signals, apn))),
@@ -617,4 +624,145 @@ async fn hold_session(
         println!("stop: {e}");
     }
     held
+}
+
+/// How long `location` runs at most.
+const LOCATION_LIMIT: Duration = Duration::from_secs(15 * 60);
+
+/// Unlocks the GNSS engine, follows a session until Ctrl-C or 15 minutes,
+/// then puts the engine lock back as it was. `raw` prints every indication's
+/// TLVs as well.
+async fn location(signals: &mut Signals, raw: bool) -> Result {
+    let ctl = client(service::LOC).await?;
+    let lock = loc::engine_lock(&ctl).await?;
+    let mode = match loc::operation_mode(&ctl).await {
+        Ok(mode) => loc::mode_name(mode),
+        Err(e) => {
+            eprintln!("operation mode: {e}");
+            "?"
+        }
+    };
+    println!("engine lock {}, mode {mode}", loc::lock_name(lock));
+    if lock != loc::LOCK_NONE {
+        loc::set_engine_lock(&ctl, loc::LOCK_NONE).await?;
+        println!("engine unlocked");
+    }
+    let followed = follow_location(signals, &ctl, raw).await;
+    if lock != loc::LOCK_NONE {
+        loc::set_engine_lock(&ctl, lock).await?;
+        println!("engine lock back to {}", loc::lock_name(lock));
+    }
+    followed
+}
+
+async fn follow_location(signals: &mut Signals, ctl: &qmi::Client, raw: bool) -> Result {
+    const SESSION: u8 = 1;
+    let session = client(service::LOC).await?;
+    loc::register(&session).await?;
+    match loc::inject_time(ctl).await {
+        Ok(true) => println!("time injected"),
+        Ok(false) => println!("system clock not synchronized: no time injected"),
+        Err(e) => eprintln!("injecting time: {e}"),
+    }
+    loc::start(&session, SESSION).await?;
+    let started = Instant::now();
+    println!("session started");
+    let reports = async {
+        let mut first_fix = None;
+        let mut tracked = (0, 0);
+        loop {
+            let msg = session.indication().await?;
+            let t = started.elapsed().as_secs_f32();
+            if raw {
+                print!("{t:7.1}s ind {:#06x}:", msg.id);
+                for (k, v) in msg.tlvs() {
+                    let head: String = v.iter().take(24).map(|b| format!("{b:02x}")).collect();
+                    print!(" [{k:#04x} {}B {head}]", v.len());
+                }
+                println!();
+            }
+            match msg.id {
+                loc::POSITION_REPORT => {
+                    let Some(r) = loc::parse_report(&msg) else {
+                        continue;
+                    };
+                    if r.is_fix() && first_fix.is_none() {
+                        first_fix = Some(t);
+                        println!("first fix after {t:.1} s");
+                    }
+                    let opt = |v: Option<f32>, unit: &str| {
+                        v.map_or("-".into(), |v| format!("{v:.1}{unit}"))
+                    };
+                    println!(
+                        "{t:7.1}s {:<9} {:.6} {:.6} ±{} alt {} speed {} used {} tracked {}/{}",
+                        loc::status_name(r.status),
+                        r.latitude.unwrap_or(f64::NAN),
+                        r.longitude.unwrap_or(f64::NAN),
+                        opt(r.accuracy, " m"),
+                        opt(r.altitude, " m"),
+                        opt(r.speed, " m/s"),
+                        r.used,
+                        tracked.1,
+                        tracked.0,
+                    );
+                }
+                loc::SATELLITES => {
+                    if let Some(seen) = loc::parse_satellites(&msg) {
+                        tracked = seen;
+                    }
+                }
+                loc::ENGINE_STATE | loc::FIX_SESSION_STATE => {
+                    let what = if msg.id == loc::ENGINE_STATE {
+                        "engine"
+                    } else {
+                        "fix session"
+                    };
+                    let state = msg.tlv(0x01).map(|v| v.first().copied().unwrap_or(0));
+                    println!("{t:7.1}s {what} state {state:?}");
+                }
+                loc::INJECT_TIME_WANTED => println!("{t:7.1}s the engine asks for the time"),
+                _ => {}
+            }
+        }
+    };
+    let ended = future::or(
+        future::or(reports, async {
+            signals.next().await;
+            Ok::<_, Box<dyn Error>>(())
+        }),
+        async {
+            Timer::after(LOCATION_LIMIT).await;
+            println!("{} minutes up", LOCATION_LIMIT.as_secs() / 60);
+            Ok(())
+        },
+    )
+    .await;
+    loc::stop(&session, SESSION).await?;
+    println!("session stopped");
+    ended
+}
+
+/// Prints the span the engine's predicted orbits cover; with a file, injects
+/// it first.
+async fn xtra(file: Option<&str>) -> Result {
+    let ctl = client(service::LOC).await?;
+    if let Some(file) = file {
+        let data = std::fs::read(file)?;
+        let start = Instant::now();
+        loc::inject_xtra(&ctl, &data).await?;
+        let took = start.elapsed().as_secs_f32();
+        println!("injected {} bytes in {took:.1} s", data.len());
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    match loc::xtra_validity(&ctl).await? {
+        Some((start, hours)) => {
+            let ago = now.saturating_sub(start) as f64 / 3600.0;
+            println!("predicted orbits: {hours} h from {ago:.1} h ago");
+        }
+        None => println!("predicted orbits: none"),
+    }
+    Ok(())
 }

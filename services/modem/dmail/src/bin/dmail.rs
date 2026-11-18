@@ -1,5 +1,6 @@
 //! dmail: the modem service. See DESIGN.md.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
@@ -47,6 +48,7 @@ fn run() -> Result<(), String> {
 
     let ex = LocalExecutor::new();
     future::block_on(ex.run(async {
+        let nmea = dmail::nmea::serve(&ex, commands_tx.clone());
         let bus = Bus::serve(&ex, commands_tx, store.clone(), settings)
             .await
             .map_err(|e| format!("D-Bus: {e}"))?;
@@ -60,6 +62,8 @@ fn run() -> Result<(), String> {
             commands,
             signals,
             settings,
+            location: BTreeSet::new(),
+            nmea,
         }
         .run()
         .await

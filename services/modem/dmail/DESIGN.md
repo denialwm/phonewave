@@ -351,6 +351,65 @@ waited drew no reject.
 A step that fails ends the run, and dmail starts again from step 1 a minute
 later.
 
+## Location
+
+The GNSS engine is in the modem: QMI LOC, service 16, beside the services
+above. dmail uses it when the modem lists it and works without it.
+
+- The engine stays locked (lock `all`) while nobody wants location, as stock
+  Android keeps it with location off. `Location1.Start` from the first client
+  unlocks it (lock `none`) and starts one session reporting every second;
+  `Stop` from the last client, or the last client leaving the bus, stops the
+  session and locks the engine again. A modem life that finds the engine
+  unlocked with no client locks it.
+- Most LOC requests answer twice: a response that the request was taken,
+  then an indication with the same id carrying the outcome. dmail sends those
+  on a short-lived client of their own, so the session's client only carries
+  reports. The modem ends a session whose client closes.
+- Registering for events needs TLV 0x11 (client type, 1) on the 12R, else
+  InvalidArgument. Starting a session with the engine locked fails with
+  GeneralError.
+- dmail gives the engine the time when the kernel says the clock is
+  synchronized, at the start and when the engine asks.
+- Predicted orbits (XTRA): Qualcomm's `xtra3grcej.bin` (GPS, GLONASS,
+  BeiDou, Galileo, QZSS) from `path1`–`path3.xtracloud.net`, the servers of
+  stock Android's xtra-daemon. When a session starts or the engine asks, and
+  the engine's data began more than a day ago, dmail injects
+  `/var/lib/dmail/xtra.bin` if it is younger than a day, else fetches it anew
+  with curl. A failed refresh waits 10 minutes. The 12R refuses the older
+  inject request (0x35, not supported) and takes the newer one (0xA7), 1 KiB
+  parts each acknowledged: 49 KB in 0.3 s, covering 168 h. With all other
+  assistance data wiped (DELETE_ASSIST_DATA, all), the first fix came after
+  191 s at ±10 m on 11 satellites; with stale data on 2026-11-16 it took
+  4.7 min at ±535 m. Nothing gives the engine a coarse position, which is
+  what still costs the minutes.
+- The session asks for low accuracy: every position the engine computes is
+  final and improves report by report. Asking for high accuracy kept every
+  report "in progress" for 8 minutes by a window (12R, 2026-11-18: 4
+  satellites, about ±180 m).
+- Location1 publishes final fixes only (report status 0). Reports while
+  searching carry a coarse prior, kilometres wide, which it leaves out.
+- Position report TLVs on the 12R: 0x10/0x11 latitude/longitude, 0x12
+  horizontal uncertainty, 0x18 speed, 0x1A altitude (ellipsoid), 0x20
+  heading, 0x25 UTC time in ms, 0x26 leap seconds, 0x2C satellites used.
+- Satellites: the 12R lists them in the expanded list (TLV 0x11, 29 bytes
+  each), not the classic one (0x10, 28 bytes). Status 3 means tracked.
+
+### NMEA for GeoClue
+
+The 12R's engine makes no NMEA (its NMEA type requests answer not
+supported), so dmail writes `$GPGGA` and `$GPRMC` from each fix to
+`/run/dmail/nmea.sock`, group `geoclue`, mode 0660. The socket exists only
+where group `geoclue` does: installed GeoClue turns it on. A connection is a
+location client like `Location1.Start` until it closes. dmail ships
+`/etc/geoclue/conf.d/90-dmail.conf` with `nmea-socket` pointing there.
+GeoClue reads it as an exact source and connects only while one of its
+clients wants location (12R, 2026-11-18: engine on with GeoClue's demo
+client, off 60 s later as it ended). GeoClue derives accuracy from HDOP in
+coarse steps, so it reports 1 m where Location1 says about 10 m. GeoClue
+serves no app until an agent of the app's user approves it: Denial's is in
+denial-portal.
+
 ## D-Bus API
 
 System bus, name `org.dmail`, object `/org/dmail`. States are strings.
@@ -416,6 +475,12 @@ Changes go out as PropertiesChanged.
 | | `DeleteLoggedCall(t id)` | `CallLogDeleted` follows |
 | | signal `CallLogged(t id)` | a call that ended went into the log |
 | | signal `CallLogDeleted(t id)` | |
+| `org.dmail.Location1` | `State` | `s`: off (nobody asks), searching, fixed, unavailable (no GNSS engine, or the modem failed) |
+| | `Position` | `(ddddddx)`: latitude, longitude (degrees), accuracy (m), altitude above the WGS 84 ellipsoid (m), speed (m/s), heading (degrees from true north), fix time (Unix ms). NaN for what the fix lacks; all NaN and 0 before the first fix of a session |
+| | `SatellitesUsed` | `u`: in the last fix |
+| | `SatellitesTracked` | `u`: heard now |
+| | `Start()` | the caller wants location until `Stop` or until it leaves the bus |
+| | `Stop()` | |
 
 A call log row is `(t id, s number, s direction, s outcome, x started, x
 connected, x ended)`: the number is empty when withheld, direction `in` or
@@ -508,3 +573,8 @@ removed on 2026-10-25.
    for the primary session is untested; only one SIM is at hand. Choosing a
    slot per message, as Android's picker does, would need clients bound to
    subscription 2 and a data subscription switch; not started.
+3. Location: no coarse position for the engine (the serving cell could give
+   one), so a cold first fix still takes minutes. `Location1` has no per-app
+   permission: anyone in group `dmail` can start the engine; GeoClue's apps
+   go through Denial's agent. Not started: the Android GNSS HAL in Droidloom
+   and app pages that read Location1.

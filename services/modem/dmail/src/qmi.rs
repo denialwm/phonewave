@@ -20,6 +20,7 @@ pub mod service {
     pub const WMS: u32 = 0x05;
     pub const VOICE: u32 = 0x09;
     pub const UIM: u32 = 0x0b;
+    pub const LOC: u32 = 0x10;
     pub const IMS: u32 = 0x12;
     pub const WDA: u32 = 0x1a;
     pub const IMSP: u32 = 0x1f;
@@ -35,6 +36,7 @@ pub mod service {
             WMS => "WMS",
             VOICE => "Voice",
             UIM => "UIM",
+            LOC => "LOC",
             IMS => "IMS",
             WDA => "WDA",
             IMSP => "IMSP",

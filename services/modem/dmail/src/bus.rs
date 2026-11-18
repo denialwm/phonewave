@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use async_channel::{Receiver, Sender};
 use async_executor::LocalExecutor;
+use futures_lite::StreamExt;
+use zbus::message::Header;
 use zbus::object_server::SignalEmitter;
 use zbus::{Connection, interface};
 
@@ -49,6 +51,11 @@ pub enum Command {
     Answer(u8, Reply),
     Hangup(u8, Reply),
     SendDtmf(u8, String, Reply),
+    /// This bus name wants location, until it stops or leaves the bus.
+    LocationStart(String, Reply),
+    LocationStop(String, Reply),
+    /// A bus name left the bus.
+    NameLost(String),
 }
 
 /// Sends a command to the core and waits for its answer. zbus keeps the
@@ -646,6 +653,120 @@ impl Voice {
     ) -> zbus::Result<()>;
 }
 
+/// A fix as Location1 publishes it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Fix {
+    pub latitude: f64,
+    pub longitude: f64,
+    /// Metres.
+    pub accuracy: f64,
+    /// Metres above the WGS 84 ellipsoid.
+    pub altitude: Option<f64>,
+    /// Metres a second.
+    pub speed: Option<f64>,
+    /// Degrees from true north.
+    pub heading: Option<f64>,
+    /// Unix milliseconds.
+    pub time: i64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocationProps {
+    /// off, searching, fixed, unavailable.
+    pub state: String,
+    pub fix: Option<Fix>,
+    pub satellites_used: u32,
+    pub satellites_tracked: u32,
+}
+
+impl LocationProps {
+    pub fn with_state(state: &str) -> Self {
+        Self {
+            state: state.into(),
+            fix: None,
+            satellites_used: 0,
+            satellites_tracked: 0,
+        }
+    }
+}
+
+pub type Position = (f64, f64, f64, f64, f64, f64, i64);
+
+pub struct Location {
+    props: LocationProps,
+    commands: Sender<Command>,
+}
+
+fn sender(header: &Header<'_>) -> Result<String, Error> {
+    header
+        .sender()
+        .map(|s| s.to_string())
+        .ok_or_else(|| Error::InvalidArgs("no sender".into()))
+}
+
+#[interface(name = "org.dmail.Location1")]
+impl Location {
+    /// off: nobody asks; searching: no fix yet; fixed: Position is current;
+    /// unavailable: the modem has no GNSS engine, or failed.
+    #[zbus(property)]
+    fn state(&self) -> String {
+        self.props.state.clone()
+    }
+
+    /// Latitude and longitude in degrees, accuracy in metres, altitude above
+    /// the WGS 84 ellipsoid in metres, speed in metres a second, heading in
+    /// degrees from true north, and the fix's Unix time in milliseconds.
+    /// NaN for what the fix lacks; all NaN and 0 before the first fix.
+    #[zbus(property)]
+    fn position(&self) -> Position {
+        let Some(f) = &self.props.fix else {
+            return (
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                0,
+            );
+        };
+        let or_nan = |v: Option<f64>| v.unwrap_or(f64::NAN);
+        (
+            f.latitude,
+            f.longitude,
+            f.accuracy,
+            or_nan(f.altitude),
+            or_nan(f.speed),
+            or_nan(f.heading),
+            f.time,
+        )
+    }
+
+    /// Satellites the last fix used.
+    #[zbus(property)]
+    fn satellites_used(&self) -> u32 {
+        self.props.satellites_used
+    }
+
+    /// Satellites the engine hears now; it searches for more while 0.
+    #[zbus(property)]
+    fn satellites_tracked(&self) -> u32 {
+        self.props.satellites_tracked
+    }
+
+    /// The caller wants location until Stop or until it leaves the bus. The
+    /// engine runs while anyone wants it.
+    async fn start(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
+        let name = sender(&header)?;
+        ask(&self.commands, |reply| Command::LocationStart(name, reply)).await
+    }
+
+    async fn stop(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
+        let name = sender(&header)?;
+        ask(&self.commands, |reply| Command::LocationStop(name, reply)).await
+    }
+}
+
 pub fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -662,6 +783,7 @@ enum Out {
     MessageChanged(u64, String),
     CallEnded(Call),
     CallLogged(u64),
+    Location(LocationProps),
 }
 
 /// The core's handle on the interfaces: serves them and publishes changes.
@@ -676,6 +798,7 @@ pub struct Bus {
     out: Sender<Out>,
     modem: Rc<RefCell<ModemProps>>,
     data: Rc<RefCell<DataProps>>,
+    location: Rc<RefCell<LocationProps>>,
 }
 
 impl Bus {
@@ -696,6 +819,7 @@ impl Bus {
             .into(),
             ..DataProps::default()
         };
+        let location = LocationProps::with_state("off");
         let conn = zbus::connection::Builder::system()?
             .serve_at(
                 PATH,
@@ -723,8 +847,15 @@ impl Bus {
                 PATH,
                 Voice {
                     calls: Vec::new(),
-                    commands,
+                    commands: commands.clone(),
                     store,
+                },
+            )?
+            .serve_at(
+                PATH,
+                Location {
+                    props: location.clone(),
+                    commands: commands.clone(),
                 },
             )?
             .name(NAME)?
@@ -732,11 +863,13 @@ impl Bus {
             .await?;
         let (out, changes) = async_channel::unbounded();
         ex.spawn(publish(conn.clone(), changes)).detach();
+        ex.spawn(follow_names(conn.clone(), commands)).detach();
         Ok(Self {
             conn,
             out,
             modem: Rc::new(RefCell::new(modem)),
             data: Rc::new(RefCell::new(data)),
+            location: Rc::new(RefCell::new(location)),
         })
     }
 
@@ -797,6 +930,43 @@ impl Bus {
 
     pub fn call_logged(&self, id: u64) {
         self.send(Out::CallLogged(id));
+    }
+
+    /// Changes the Location1 properties, announcing the ones that changed.
+    pub fn update_location(&self, change: impl FnOnce(&mut LocationProps)) {
+        let mut location = self.location.borrow_mut();
+        let old = location.clone();
+        change(&mut location);
+        if *location != old {
+            self.send(Out::Location(location.clone()));
+        }
+    }
+}
+
+/// Tells the core about every client that leaves the bus, so it can let go of
+/// what the client asked for.
+async fn follow_names(conn: Connection, commands: Sender<Command>) {
+    let stream = async {
+        let proxy = zbus::fdo::DBusProxy::new(&conn).await?;
+        proxy.receive_name_owner_changed().await
+    };
+    let mut changes = match stream.await {
+        Ok(changes) => changes,
+        Err(e) => {
+            eprintln!("dmail: following bus names: {e}");
+            return;
+        }
+    };
+    while let Some(change) = changes.next().await {
+        let Ok(args) = change.args() else {
+            continue;
+        };
+        if args.new_owner().is_none() && args.name().starts_with(':') {
+            let name = args.name().to_string();
+            if commands.send(Command::NameLost(name)).await.is_err() {
+                return;
+            }
+        }
     }
 }
 
@@ -918,6 +1088,24 @@ async fn apply(conn: &Connection, out: Out) -> zbus::Result<()> {
         Out::CallLogged(id) => {
             let e = SignalEmitter::new(conn, PATH)?;
             Voice::call_logged(&e, id).await?;
+        }
+        Out::Location(p) => {
+            let iface = server.interface::<_, Location>(PATH).await?;
+            let mut l = iface.get_mut().await;
+            let old = std::mem::replace(&mut l.props, p.clone());
+            let e = iface.signal_emitter();
+            if old.state != p.state {
+                l.state_changed(e).await?;
+            }
+            if old.fix != p.fix {
+                l.position_changed(e).await?;
+            }
+            if old.satellites_used != p.satellites_used {
+                l.satellites_used_changed(e).await?;
+            }
+            if old.satellites_tracked != p.satellites_tracked {
+                l.satellites_tracked_changed(e).await?;
+            }
         }
     }
     Ok(())

@@ -7,14 +7,16 @@ Named after D-Mail: in Steins;Gate, the Phonewave sends text messages.
 
 Status: on aston since 2026-10-21, as `dmail.service`: `Modem1`, `Data1` and
 `Messages1` on the system bus, with reconnect and the data toggle, delivery
-reports, archive, blocking, search and the SIM slot setting. Denial's
+reports, archive, blocking, search and the SIM slot setting; `Voice1`; and
+`Location1`, the modem's GNSS engine, since 2026-11-18. Denial's
 shell and the Messages app (denial-apps) read it. `dmailctl` talks QMI
 directly, for bring-up.
 
 ## Install
 
 `make install` (PREFIX=/usr) installs `dmail`, `dmailctl`, the unit,
-`modem-setup`, the bus policy, and a sysusers file for the `dmail` group. The unit starts it at
+`modem-setup`, the bus policy, a sysusers file for the `dmail` group, and a
+GeoClue drop-in that reads dmail's NMEA socket. The unit starts it at
 boot; the bus does not start it. The phone's boot image carries the device
 file in its tail, from `devices/<codename>/boot/tail/dmail/device.toml`, and
 `/etc/dmail/device.toml` overrides it. Without a device file dmail stays off

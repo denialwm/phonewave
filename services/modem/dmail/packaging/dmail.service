@@ -11,6 +11,9 @@ RestartSec=2
 TimeoutStopSec=15
 StateDirectory=dmail
 StateDirectoryMode=0700
+# The NMEA socket for GeoClue.
+RuntimeDirectory=dmail
+RuntimeDirectoryMode=0755
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -20,7 +23,9 @@ ProtectControlGroups=yes
 CapabilityBoundingSet=~CAP_SYS_MODULE
 SystemCallFilter=~@module
 ProtectKernelLogs=yes
-RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_QIPCRTR AF_INET6
+# AF_INET6: VoLTE's IMS. AF_INET and AF_INET6: curl fetches the GNSS engine's
+# predicted orbits.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_QIPCRTR AF_INET AF_INET6
 RestrictSUIDSGID=yes
 LockPersonality=yes
 UMask=0077

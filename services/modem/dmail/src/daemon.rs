@@ -2,7 +2,8 @@
 //! the data session and handles SMS. It runs on one thread; the D-Bus
 //! interfaces reach it through `Command`s. See DESIGN.md, Boot.
 
-use std::collections::{HashMap, VecDeque};
+use std::cell::Cell;
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::process::Stdio;
@@ -16,16 +17,16 @@ use async_io::Timer;
 use async_signal::Signals;
 use futures_lite::{StreamExt, future};
 
-use crate::bus::{self, Bus, Command, Error, ModemProps, Reply, now};
+use crate::bus::{self, Bus, Command, Error, LocationProps, ModemProps, Reply, now};
 use crate::config::{self, Device, Settings};
 use crate::ims::{self, Registration};
 use crate::netlink::{self, Netlink, RouteWatch};
 use crate::qmi::{self, Client, Message, service};
-use crate::qrtr::{Addr, Event as QrtrEvent, Lookup, Service};
+use crate::qrtr::{self, Addr, Event as QrtrEvent, Lookup, Service};
 use crate::sim::{self, Pin};
 use crate::sms::store::Store;
 use crate::sms::{pdu, wms};
-use crate::{apn, data, modem, network, resolved, voice};
+use crate::{apn, data, location, modem, network, nmea, resolved, voice, xtra};
 
 const SETUP: &str = "/usr/lib/dmail/modem-setup";
 const SETUP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -59,6 +60,10 @@ const FORMAT_GW_PP: u8 = 6;
 /// Reject causes after which the modem stops asking for packet service until
 /// the radio cycles: 3GPP TS 24.301, 7, 8 and 14.
 const PS_REFUSED: [u8; 3] = [7, 8, 14];
+/// dmail's one GNSS session id.
+const GNSS_SESSION: u8 = 1;
+/// After a failed XTRA download or injection, the next try waits this long.
+const XTRA_RETRY: Duration = Duration::from_secs(600);
 
 fn log(what: impl std::fmt::Display) {
     eprintln!("dmail: {what}");
@@ -77,6 +82,9 @@ pub struct Daemon<'a> {
     pub commands: Receiver<Command>,
     pub signals: Signals,
     pub settings: Settings,
+    /// The bus names that want location, and NMEA readers as `nmea:N`.
+    pub location: BTreeSet<String>,
+    pub nmea: nmea::Feed,
 }
 
 enum Event {
@@ -85,6 +93,7 @@ enum Event {
     Wds(Message),
     Wms(Message),
     Voice(Message),
+    Gnss(Message),
     Ims(Registration),
     /// The IPv4 routing table changed.
     Routes,
@@ -142,6 +151,8 @@ impl Daemon<'_> {
             };
             self.publish_modem(&props);
             self.publish_data("failed");
+            self.bus
+                .update_location(|p| *p = LocationProps::with_state("unavailable"));
             if !self.idle().await {
                 return Ok(());
             }
@@ -218,8 +229,16 @@ impl Daemon<'_> {
                 }
                 Command::Answer(_, reply)
                 | Command::Hangup(_, reply)
-                | Command::SendDtmf(_, _, reply) => {
+                | Command::SendDtmf(_, _, reply)
+                | Command::LocationStart(_, reply) => {
                     let _ = reply.try_send(Err(Error::NotReady("the modem failed".into())));
+                }
+                Command::LocationStop(name, reply) => {
+                    self.location.remove(&name);
+                    let _ = reply.try_send(Ok(()));
+                }
+                Command::NameLost(name) => {
+                    self.location.remove(&name);
                 }
             }
         }
@@ -320,6 +339,7 @@ impl Daemon<'_> {
             watch,
         ];
         let ims_tx = tx.clone();
+        let events = tx.clone();
         match RouteWatch::new() {
             Ok(routes) => tasks.push(watch_routes(self.ex, routes, tx)),
             Err(e) => log(format!("following routes: {e}")),
@@ -340,8 +360,11 @@ impl Daemon<'_> {
             dns_default: None,
             calls: Vec::new(),
             ims: Registration::Off,
+            gnss: None,
+            events,
             _tasks: tasks,
         };
+        life.find_gnss(self).await;
 
         // A SIM that cannot be opened yet is tried again on its next status
         // indication.
@@ -394,6 +417,7 @@ impl Daemon<'_> {
                 Event::Wds(msg) => life.on_wds(self, msg).await,
                 Event::Wms(msg) => life.on_wms(self, msg).await,
                 Event::Voice(msg) => life.on_voice(self, msg).await,
+                Event::Gnss(msg) => life.on_gnss(self, msg).await,
                 Event::Ims(r) => life.on_ims(self, &mut props, r).await,
                 Event::Routes => life.follow_routes(self).await,
                 Event::Command(Command::Restart(reply)) => {
@@ -413,6 +437,12 @@ impl Daemon<'_> {
                 Event::Stop => break End::Stop,
             }
         };
+        // A modem that went away took the session, and leaves nothing to lock.
+        if !matches!(end, End::ModemGone) {
+            life.stop_gnss().await;
+        }
+        self.bus
+            .update_location(|p| *p = LocationProps::with_state("unavailable"));
         life.end_session().await;
         // The modem's calls went with it.
         life.update_calls(self, Vec::new()).await;
@@ -747,7 +777,88 @@ struct Life {
     /// The modem's calls.
     calls: Vec<Tracked>,
     ims: Registration,
+    /// The modem's GNSS engine, if it has one.
+    gnss: Option<Gnss>,
+    events: Sender<Event>,
     _tasks: Vec<Task<()>>,
+}
+
+/// The modem's GNSS engine, and dmail's session on it while anyone wants
+/// location.
+struct Gnss {
+    addr: Addr,
+    /// The session's client, and the task that passes its reports on.
+    session: Option<(Rc<Client>, Task<()>)>,
+    /// The last report's status, to log changes only.
+    status: Option<u32>,
+    /// The running XTRA refresh, and when the last one failed.
+    xtra: Option<Task<()>>,
+    xtra_failed: Rc<Cell<Option<Instant>>>,
+}
+
+impl Gnss {
+    /// Gives the engine fresh predicted orbits unless it has them, a refresh
+    /// runs, or the last one failed less than `XTRA_RETRY` ago.
+    fn refresh_xtra(&mut self, d: &Daemon<'_>) {
+        if self.xtra.as_ref().is_some_and(|t| !t.is_finished()) {
+            return;
+        }
+        if self
+            .xtra_failed
+            .get()
+            .is_some_and(|at| at.elapsed() < XTRA_RETRY)
+        {
+            return;
+        }
+        let (addr, dir, failed) = (self.addr, d.state_dir.clone(), self.xtra_failed.clone());
+        self.xtra = Some(d.ex.spawn(async move {
+            match refresh_xtra(addr, dir).await {
+                Ok(Some(done)) => log(format!("location: predicted orbits {done}")),
+                Ok(None) => {}
+                Err(e) => {
+                    log(format!("location: predicted orbits: {e}"));
+                    failed.set(Some(Instant::now()));
+                }
+            }
+        }));
+    }
+}
+
+/// What a refresh did, or None when the engine's orbits were current.
+async fn refresh_xtra(addr: Addr, dir: PathBuf) -> Result<Option<String>, String> {
+    let ctl = Client::new(addr).map_err(|e| format!("QMI client: {e}"))?;
+    let validity = location::xtra_validity(&ctl)
+        .await
+        .map_err(qmi_error("validity"))?;
+    let now = now().max(0) as u64;
+    if let Some((start, hours)) = validity
+        && now.saturating_sub(start) < xtra::MAX_AGE.as_secs()
+        && start + u64::from(hours) * 3600 > now
+    {
+        return Ok(None);
+    }
+    let (data, source) = match xtra::fresh(&dir) {
+        Some(data) => (data, "kept"),
+        None => {
+            let downloaded = blocking::unblock(move || xtra::download(&dir)).await?;
+            (downloaded, "downloaded")
+        }
+    };
+    location::inject_xtra(&ctl, &data)
+        .await
+        .map_err(qmi_error("injecting"))?;
+    let covered = match location::xtra_validity(&ctl).await {
+        Ok(Some((start, hours))) => format!(
+            ", {hours} h from {} h ago",
+            now.saturating_sub(start) / 3600
+        ),
+        Ok(None) => ", but the engine reports none".into(),
+        Err(e) => format!(", validity: {e}"),
+    };
+    Ok(Some(format!(
+        "{source}, {} KiB{covered}",
+        data.len() / 1024
+    )))
 }
 
 impl Life {
@@ -1404,6 +1515,25 @@ impl Life {
                 }
                 let _ = reply.try_send(done.map_err(call_error));
             }
+            Command::LocationStart(name, reply) => {
+                let added = d.location.insert(name.clone());
+                let started = self.update_gnss(d).await;
+                if started.is_err() && added {
+                    d.location.remove(&name);
+                }
+                let _ = reply.try_send(started);
+            }
+            Command::LocationStop(name, reply) => {
+                d.location.remove(&name);
+                let _ = reply.try_send(self.update_gnss(d).await);
+            }
+            Command::NameLost(name) => {
+                if d.location.remove(&name)
+                    && let Err(e) = self.update_gnss(d).await
+                {
+                    log(format!("location: {e:?}"));
+                }
+            }
             Command::SendDtmf(id, digits, reply) => {
                 let client = self.m.voice.clone();
                 d.ex.spawn(async move {
@@ -1650,4 +1780,224 @@ async fn send_parts(
         }
     }
     Ok(())
+}
+
+impl Life {
+    /// Looks for the modem's GNSS engine. With nobody wanting location it
+    /// makes sure the engine is locked, as it would be after a stop.
+    async fn find_gnss(&mut self, d: &Daemon<'_>) {
+        let addr = match qrtr::find(service::LOC).await {
+            Ok(Some(s)) => s.addr,
+            Ok(None) => {
+                log("location: the modem has no GNSS engine");
+                d.bus
+                    .update_location(|p| *p = LocationProps::with_state("unavailable"));
+                return;
+            }
+            Err(e) => {
+                log(format!("location: QRTR lookup: {e}"));
+                return;
+            }
+        };
+        self.gnss = Some(Gnss {
+            addr,
+            session: None,
+            status: None,
+            xtra: None,
+            xtra_failed: Rc::default(),
+        });
+        d.bus
+            .update_location(|p| *p = LocationProps::with_state("off"));
+        if d.location.is_empty() {
+            lock_gnss(addr, true).await;
+        } else if let Err(e) = self.update_gnss(d).await {
+            log(format!("location: {e:?}"));
+        }
+    }
+
+    /// Runs the GNSS session while anyone wants location, and only then.
+    async fn update_gnss(&mut self, d: &Daemon<'_>) -> Result<(), Error> {
+        let wanted = !d.location.is_empty();
+        let Some(g) = &mut self.gnss else {
+            if wanted {
+                return Err(Error::NotSupported("the modem has no GNSS engine".into()));
+            }
+            return Ok(());
+        };
+        match (wanted, g.session.is_some()) {
+            (true, false) => {
+                let session = start_gnss(d.ex, g.addr, self.events.clone())
+                    .await
+                    .map_err(|e| {
+                        log(format!("location: {e}"));
+                        Error::Failed(e)
+                    })?;
+                g.session = Some(session);
+                g.status = None;
+                log("location: engine on");
+                g.refresh_xtra(d);
+                d.bus
+                    .update_location(|p| *p = LocationProps::with_state("searching"));
+            }
+            (false, true) => {
+                self.stop_gnss().await;
+                d.bus
+                    .update_location(|p| *p = LocationProps::with_state("off"));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Ends the session, if one runs, and locks the engine again.
+    async fn stop_gnss(&mut self) {
+        let Some(g) = &mut self.gnss else {
+            return;
+        };
+        let Some((session, task)) = g.session.take() else {
+            return;
+        };
+        drop(task);
+        if let Err(e) = location::stop(&session, GNSS_SESSION).await {
+            log(format!("location: stopping the session: {e}"));
+        }
+        // Closing the client ends whatever the stop left.
+        drop(session);
+        lock_gnss(g.addr, false).await;
+        log("location: engine off");
+    }
+
+    async fn on_gnss(&mut self, d: &Daemon<'_>, msg: Message) {
+        let Some(g) = &mut self.gnss else {
+            return;
+        };
+        match msg.id {
+            location::POSITION_REPORT => {
+                let Some(r) = location::parse_report(&msg) else {
+                    return;
+                };
+                if g.status != Some(r.status) {
+                    log(format!("location: {}", location::status_name(r.status)));
+                    g.status = Some(r.status);
+                }
+                d.nmea.send(&r);
+                if let Some(fix) = bus_fix(&r) {
+                    d.bus.update_location(|p| {
+                        p.state = "fixed".into();
+                        p.fix = Some(fix);
+                        p.satellites_used = r.used;
+                    });
+                }
+            }
+            location::SATELLITES => {
+                if let Some((_, tracked)) = location::parse_satellites(&msg) {
+                    d.bus.update_location(|p| p.satellites_tracked = tracked);
+                }
+            }
+            location::XTRA_WANTED => {
+                log("location: the engine asks for predicted orbits");
+                g.refresh_xtra(d);
+            }
+            location::INJECT_TIME_WANTED => {
+                let ctl = match Client::new(g.addr) {
+                    Ok(ctl) => ctl,
+                    Err(e) => return log(format!("location: QMI client: {e}")),
+                };
+                match location::inject_time(&ctl).await {
+                    Ok(true) => log("location: gave the engine the time it asked for"),
+                    Ok(false) => {}
+                    Err(e) => log(format!("location: injecting time: {e}")),
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// A position report as Location1 publishes it, if it is a fix.
+fn bus_fix(r: &location::Report) -> Option<bus::Fix> {
+    if !r.is_fix() {
+        return None;
+    }
+    let wide = |v: Option<f32>| v.map(f64::from);
+    Some(bus::Fix {
+        latitude: r.latitude?,
+        longitude: r.longitude?,
+        accuracy: wide(r.accuracy).unwrap_or(f64::NAN),
+        altitude: wide(r.altitude),
+        speed: wide(r.speed),
+        heading: wide(r.heading),
+        time: r.time_ms.map_or_else(|| now() * 1000, |t| t as i64),
+    })
+}
+
+/// Unlocks the engine and starts a session that reports every second. Its
+/// reports come as `Event::Gnss`.
+async fn start_gnss(
+    ex: &LocalExecutor<'static>,
+    addr: Addr,
+    tx: Sender<Event>,
+) -> Result<(Rc<Client>, Task<()>), String> {
+    let ctl = Client::new(addr).map_err(|e| format!("QMI client: {e}"))?;
+    location::set_engine_lock(&ctl, location::LOCK_NONE)
+        .await
+        .map_err(qmi_error("unlocking the engine"))?;
+    let started = async {
+        let session = Rc::new(Client::new(addr).map_err(qmi::Error::Io)?);
+        location::register(&session).await?;
+        match location::inject_time(&ctl).await {
+            Ok(true) => log("location: gave the engine the time"),
+            Ok(false) => log("location: the clock is not synchronized, no time for the engine"),
+            Err(e) => log(format!("location: injecting time: {e}")),
+        }
+        location::start(&session, GNSS_SESSION).await?;
+        Ok::<_, qmi::Error>(session)
+    };
+    let session = match started.await {
+        Ok(session) => session,
+        Err(e) => {
+            lock_gnss(addr, false).await;
+            return Err(format!("starting the session: {e}"));
+        }
+    };
+    let task = forward_gnss(ex, session.clone(), tx);
+    Ok((session, task))
+}
+
+/// Locks the engine: nobody may start a session. `if_needed` asks first and
+/// leaves an engine that is already locked alone.
+async fn lock_gnss(addr: Addr, if_needed: bool) {
+    let locked = async {
+        let ctl = Client::new(addr)?;
+        if if_needed && location::engine_lock(&ctl).await? == location::LOCK_ALL {
+            return Ok(false);
+        }
+        location::set_engine_lock(&ctl, location::LOCK_ALL).await?;
+        Ok::<_, qmi::Error>(true)
+    };
+    match locked.await {
+        Ok(true) if if_needed => log("location: locked the engine, which was left unlocked"),
+        Ok(_) => {}
+        Err(e) => log(format!("location: locking the engine: {e}")),
+    }
+}
+
+/// Passes the session's reports on. Its socket failing ends only the
+/// reports: the modem going away is noticed on the name service.
+fn forward_gnss(ex: &LocalExecutor<'static>, client: Rc<Client>, tx: Sender<Event>) -> Task<()> {
+    ex.spawn(async move {
+        loop {
+            match client.indication().await {
+                Ok(msg) => {
+                    if tx.send(Event::Gnss(msg)).await.is_err() {
+                        return;
+                    }
+                }
+                Err(e) => {
+                    log(format!("location: QMI socket: {e}"));
+                    return;
+                }
+            }
+        }
+    })
 }
