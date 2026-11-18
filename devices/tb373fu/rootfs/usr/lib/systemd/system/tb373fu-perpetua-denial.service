@@ -36,7 +36,6 @@ Environment=XDG_SESSION_CLASS=user
 Environment=XDG_SESSION_DESKTOP=Denial
 Environment=XDG_CURRENT_DESKTOP=Denial
 Environment=LIBSEAT_BACKEND=logind
-Environment=EGL_PLATFORM=gbm
 Environment=RUST_LOG=deniald=info,smithay=warn
 Environment=DENIA_SHELL_PROFILE=mobile
 # The Mesa in /usr/local drives the Mali-G615; the system Mesa does not.

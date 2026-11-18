@@ -29,7 +29,6 @@ Environment=XDG_SESSION_DESKTOP=Denial
 Environment=XDG_CURRENT_DESKTOP=Denial
 Environment=TERMINAL=kitty
 Environment=LIBSEAT_BACKEND=logind
-Environment=EGL_PLATFORM=gbm
 Environment=DENIAL_SHELL_PROFILE=mobile
 # The mobile shell's defaults, until the denial package has them itself.
 Environment=DENIAL_CPU_PLACEMENT=1
