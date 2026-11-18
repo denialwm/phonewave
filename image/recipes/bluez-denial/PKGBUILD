@@ -6,10 +6,11 @@
 # (the phones have no BLE MIDI use and the sysroot no alsa-lib), mesh, OBEX
 # or CUPS: none of them is in the bluez package.
 #
-# Its own name, providing and conflicting with Arch's bluez, like
-# mesa-denial. Retiring it, once Arch's bluez has the fixes: a last release,
-# empty, depending only on bluez at that version, with no provides or
-# conflicts.
+# Its own name, providing, conflicting with and replacing Arch's bluez:
+# pacman -Syu swaps it in on every phone (image/README.md, "Replacing an Arch
+# package"). Retiring it, once Arch's bluez has the fixes: a last release,
+# empty, depending only on bluez at that version, with no provides, conflicts
+# or replaces.
 pkgname=bluez-denial
 _pkgname=bluez
 pkgver=5.88
@@ -23,6 +24,7 @@ options=(!strip !debug !lto)
 depends=(systemd-libs dbus glib2 glibc)
 provides=("bluez=$pkgver")
 conflicts=(bluez)
+replaces=(bluez)
 backup=(etc/bluetooth/{main,input,network}.conf)
 source=("https://www.kernel.org/pub/linux/bluetooth/$_pkgname-$pkgver.tar.xz")
 sha256sums=('6952c39eb5f8b0ee712cc50ab3bcff03be17c410dd97ca640f4849d9a1653ba3')

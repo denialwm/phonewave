@@ -8,12 +8,12 @@
 # them, and av1_v4l2m2m decodes AV1. The default get_format still picks
 # software frames, so other programs see no change.
 #
-# Its own name, providing and conflicting with Arch's ffmpeg: only a phone
-# that asks for it gets it (`pacman -S ffmpeg-denial` replaces ffmpeg), and
-# no Arch FFmpeg replaces it. Follow Arch's releases: pkgver and the
-# configure flags as its PKGBUILD has them, pkgrel back to 1. Retiring it,
-# once Arch's FFmpeg does both: a last release, empty, depending only on
-# ffmpeg at that version or later, with no provides or conflicts.
+# Its own name, providing, conflicting with and replacing Arch's ffmpeg:
+# pacman -Syu swaps it in on every phone (image/README.md, "Replacing an Arch
+# package"). Follow Arch's releases: pkgver and the configure flags as its
+# PKGBUILD has them, pkgrel back to 1. Retiring it, once Arch's FFmpeg does
+# both: a last release, empty, depending only on ffmpeg at that version or
+# later, with no provides, conflicts or replaces.
 pkgname=ffmpeg-denial
 pkgver=9.0.2
 pkgrel=1
@@ -42,6 +42,7 @@ optdepends=(
 provides=("ffmpeg=$epoch:$pkgver" libavcodec.so libavdevice.so libavfilter.so
           libavformat.so libavutil.so libswresample.so libswscale.so)
 conflicts=(ffmpeg)
+replaces=(ffmpeg)
 _patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patch)
 source=("https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz")
 sha256sums=('8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e')

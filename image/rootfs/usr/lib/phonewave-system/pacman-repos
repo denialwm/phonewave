@@ -1,0 +1,46 @@
+#!/bin/bash
+# Lists Denial's repositories before Arch Linux ARM's: pacman.conf includes
+# /etc/pacman.d/denial.conf above its first repository. A phone made before
+# that had the two sections at the end of the file; they go, and the rest of
+# the file stays as it is. Runs from a pacman hook on each phonewave-system
+# install or upgrade, and from image/build; does nothing once the line is in.
+# pacman reads its configuration when it starts, so the new order counts from
+# the next pacman command.
+set -euo pipefail
+conf=${1:-/etc/pacman.conf}
+ours=/etc/pacman.d/denial.conf
+line="Include = $ours"
+
+grep -qxF "$line" "$conf" && exit 0
+[ -f "$ours" ] || { echo "pacman-repos: $ours is missing" >&2; exit 1; }
+
+new=$(mktemp "$conf.XXXXXX")
+trap 'rm -f "$new"' EXIT
+# Drop the [denial] and [denial-phone] headers and their SigLevel and Server
+# lines; anything else after them (Droidloom's Include) stays. The Include
+# goes right before the first repository section after [options].
+awk -v line="$line" '
+  /^[[:space:]]*\[/ {
+    name = $0; gsub(/[][[:space:]]/, "", name)
+    drop = (name == "denial" || name == "denial-phone")
+    if (drop) next
+    if (name != "options" && !done) { print "# Denial first: see " substr(line, 11) "."; print line; print ""; done = 1 }
+    print; next
+  }
+  drop && /^[[:space:]]*(SigLevel|Server)[[:space:]]*=/ { next }
+  { drop = 0; print }
+  END { if (!done) { print ""; print line } }
+' "$conf" > "$new"
+
+# The same repositories as before, ours first, or nothing changes.
+before=$(pacman-conf --config "$conf" --repo-list | grep -vxe denial -e denial-phone)
+after=$(pacman-conf --config "$new" --repo-list)
+expected=$(printf 'denial\ndenial-phone\n%s' "$before")
+[ "$after" = "$expected" ] ||
+  { printf 'pacman-repos: unexpected repositories:\n%s\n' "$after" >&2; exit 1; }
+
+chmod --reference="$conf" "$new"
+cp -p "$conf" "$conf.before-denial-first"
+mv "$new" "$conf"
+trap - EXIT
+echo "pacman-repos: Denial's repositories now come before Arch's (from the next pacman command)"

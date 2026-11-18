@@ -1,0 +1,12 @@
+# Lists Denial's repositories before Arch's, once, on a phone made before.
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/phonewave-system/pacman-repos
+Target = etc/pacman.d/denial.conf
+
+[Action]
+Description = Listing Denial's repositories first...
+When = PostTransaction
+Exec = /usr/lib/phonewave-system/pacman-repos

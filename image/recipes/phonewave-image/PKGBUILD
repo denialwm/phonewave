@@ -8,8 +8,17 @@ license=(MIT)
 _src=$startdir/../../packages
 . "$startdir/../recipe.sh"
 arch=(any)
+# A package of ours that replaces an Arch one is asked for by Arch's name,
+# which it provides: on a phone that has Arch's, the dependency holds and
+# pacman -Syu swaps it through replaces, with no conflict to answer; the
+# image installs ours from the lists.
+_name() {
+  local replaces
+  replaces=$(sed -n 's/^replaces=(\([^ )]*\))$/\1/p' "$startdir/../$1/PKGBUILD" 2>/dev/null)
+  echo "${replaces:-$1}"
+}
 depends=($(grep -hv '^\s*\(#\|$\)' "$_src/base" "$_src/phonewave" |
-  grep -vx -e "$pkgname" -e phonewave-system))
+  grep -vx -e "$pkgname" -e phonewave-system | while read -r p; do _name "$p"; done))
 
 package() {
   :

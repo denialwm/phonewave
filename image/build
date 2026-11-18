@@ -275,13 +275,13 @@ inside() {
   # userspace mounts them here.
   install -d "$root/usr/lib/modules"
 
-  # The phone's pacman.conf: Arch Linux ARM's, with the Denial repositories:
-  # Denial itself, and denial-phone with what image/pack builds.
+  # The phone's pacman.conf: Arch Linux ARM's, with the Denial repositories
+  # (phonewave-system's /etc/pacman.d/denial.conf: Denial itself, and
+  # denial-phone with what image/pack builds) before Arch's, as on a phone
+  # made before, which phonewave-system's hook moves.
   sed -i -e "/^#NoExtract/a NoExtract = $noextract" "$root/etc/pacman.conf"
-  printf '\n[denial]\nSigLevel = Required TrustedOnly\nServer = https://packages.denialwm.org/arch/$arch\n' \
-    >> "$root/etc/pacman.conf"
-  printf '\n[denial-phone]\nSigLevel = Required TrustedOnly\nServer = https://packages.denialwm.org/phone/$arch\n' \
-    >> "$root/etc/pacman.conf"
+  chroot "$root" /usr/lib/phonewave-system/pacman-repos > /dev/null
+  rm -f "$root/etc/pacman.conf.before-denial-first"
   # Droidloom's repository as its install.sh writes it, which then accepts it.
   if [ -n "$droidloom" ]; then
     droidloom_repo > "$root/etc/pacman.d/droidloom.conf"
