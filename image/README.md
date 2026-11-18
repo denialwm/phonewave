@@ -395,9 +395,15 @@ the initramfs rescue, and keeps the phone's SSH host keys.
 
 ## Until Denial catches up
 
-- `noextract` keeps Denial's desktop Settings and Welcome off the phone, and
-  `rootfs/etc/skel/.config/denial/welcome` keeps Welcome from autostarting.
-  Both go once Settings is a package of its own.
+- Settings is one program on the desktop and the phones, and Denial's `dev`
+  builds it into the `denial` package, which replaces our
+  `denial-app-settings`. The published Denial still carries its Flutter
+  Settings, so `packages/phonewave` keeps naming `denial-app-settings` and
+  `build` leaves it out when the `denial` it installs replaces it; `noextract`
+  keeps the Flutter Settings and Welcome off the phone. Welcome stays a
+  desktop tour: `noextract` drops its launcher entry and
+  `rootfs/etc/skel/.config/denial/welcome` keeps it from starting.
+  `REMINDERS.md` says what goes once a Denial release carries Settings.
 - `denial.service` sets `DENIAL_CPU_PLACEMENT=1`, `DENIAL_UI_CPU_MIN=512` and
   `DENIAL_RENDER_AHEAD=1`, the mobile shell's defaults in Denial's `dev`. They
   go once the denial package the image installs has them.

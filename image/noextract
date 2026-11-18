@@ -1,6 +1,11 @@
 # Files pacman never unpacks on a phone, at build and on every update.
-# Denial's desktop Settings and Welcome, until they are a package of their own.
-# Their autostart stays off through rootfs/etc/skel/.config/denial/welcome.
+# Welcome is the desktop's first-start tour: its launcher entry stays off the
+# phone, and rootfs/etc/skel/.config/denial/welcome keeps it from starting.
+usr/share/applications/org.denialwm.Welcome.desktop
+# The Flutter Settings and Welcome of the Denial releases before Settings
+# became the program the phones already had. They go once a release carries
+# that one. Its launcher entry names /usr/lib/denial-apps/settings, so the
+# first line costs it nothing.
 usr/bin/denial-settings
 usr/lib/denial/settings/*
 usr/share/applications/dev.denial.Settings.desktop

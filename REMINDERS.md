@@ -3,6 +3,16 @@
 Open work, kept until it is done. A reminder says where it was seen; it is
 not part of any device's configuration.
 
+- **Settings moved into the `denial` package.** Denial's `dev` builds the
+  GPUI Settings (denial-apps `apps/settings`) into the `denial` package,
+  which conflicts with and replaces `denial-app-settings`. Once a Denial
+  release carries it: take `settings` out of the `denial-apps` recipe and
+  `denial-app-settings` out of `image/packages/phonewave`, and drop the
+  Flutter lines from `image/noextract` and the check in `image/build`. Before
+  that, the Xiaomi 17 (pudding) has to run Denial from the package: it runs
+  it from a folder and its Settings is `denial-app-settings`. Until the
+  release, `pacman -U` of a `dev` denial package on a phone asks to remove
+  `denial-app-settings`; remove it first (`pacman -Rdd denial-app-settings`).
 - **USB charging current.** On the Motorola Edge 70 the ADSP starts a
   computer's USB port (SDP) at 100 mA, less than the phone draws. A udev rule
   used to raise it to the 500 mA USB 2.0 allows. Fix it in the kernel's
