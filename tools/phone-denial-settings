@@ -6,8 +6,7 @@
 # Builds it for AArch64 the way Denial does (denial/tools/denial-settings),
 # with the test profile, and replaces /usr/lib/denial-apps/settings by
 # rename: a Settings that is open keeps running the old one until it is
-# closed. pacman -U or -Syu of the package that owns the file (denial, or
-# denial-app-settings where the phone still has that) puts its own back.
+# closed. pacman -U or -Syu of the denial package puts its own back.
 set -euo pipefail
 host=${1:?usage: phone-denial-settings HOST}
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)

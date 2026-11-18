@@ -1,7 +1,8 @@
-# The denial-apps apps for the phones, one package each.
+# The denial-apps apps for the phones, one package each. Settings is not
+# among them: Denial builds it into its own package.
 # Build: image/pack denial-apps
 pkgbase=denial-apps
-_apps=(calls camera messages sensors settings)
+_apps=(calls camera messages sensors)
 pkgname=("${_apps[@]/#/denial-app-}")
 license=(GPL-3.0-or-later CC-BY-SA-4.0 Apache-2.0)
 _src=$startdir/../../../../denial-apps
@@ -15,9 +16,6 @@ depends=(glibc gcc-libs libxkbcommon wayland vulkan-icd-loader fontconfig)
 build() {
   cd "$_src"
   cargo build --release --locked --target $TARGET -p calls -p camera -p messages -p sensors
-  # Settings is a workspace of its own, which builds into the same target.
-  cd apps/settings
-  cargo build --release --locked --target $TARGET
 }
 
 _package_app() {  # APP DESKTOP-NAME
@@ -60,15 +58,4 @@ package_denial-app-messages() {
 package_denial-app-sensors() {
   pkgdesc='Sensor readings for Denial'
   _package_app sensors Sensors
-}
-
-package_denial-app-settings() {
-  pkgdesc='Phone settings for Denial'
-  # The Wi-Fi country: wireless-regdb's file, iw to apply it, pkexec to run
-  # the helper.
-  depends+=(polkit iw wireless-regdb)
-  _package_app settings Settings
-  install -Dm755 "$_src/target/$TARGET/release/wifi-country" "$pkgdir/usr/lib/denial-apps/wifi-country"
-  install -Dm644 "$_src/apps/settings/packaging/org.denialwm.settings.policy" \
-    "$pkgdir/usr/share/polkit-1/actions/org.denialwm.settings.policy"
 }

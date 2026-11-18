@@ -244,21 +244,6 @@ inside() {
   [ -n "$droidloom" ] && list+=(droidloom-runtime droidloom-image)
   [ -n "$droidloom" ] && compgen -G "$out/repo/droidloom-gapps-*" > /dev/null &&
     list+=(droidloom-gapps)
-  # A denial package that carries Settings replaces our denial-app-settings.
-  # The list keeps naming ours for the Denial that does not, and for phones
-  # that run Denial from a folder.
-  local in_root=(pacman -r "$root" --config "$out/pacman.conf" --gpgdir "$gnupg"
-    --cachedir "$shared/pkg" --logfile "$out/pacman.log")
-  "${in_root[@]}" -Sy > /dev/null
-  if LC_ALL=C "${in_root[@]}" -Si denial 2> /dev/null |
-    awk '/^Replaces/ { print; exit }' | grep -qw denial-app-settings; then
-    local kept=() name
-    for name in "${list[@]}"; do
-      [ "$name" = denial-app-settings ] || kept+=("$name")
-    done
-    list=("${kept[@]}")
-    echo "Settings comes with the denial package"
-  fi
   pacman -r "$root" --config "$out/pacman.conf" --gpgdir "$gnupg" --cachedir "$shared/pkg" \
     --hookdir "$root/etc/pacman.d/hooks" --logfile "$out/pacman.log" \
     -Sy --noconfirm "${list[@]}"
