@@ -85,7 +85,7 @@ read-only, as `stock-sensors` does, into the vault's `firmware/tail/`.
 Firefox decodes H.264 and HEVC on Iris with `ffmpeg-denial`
 (`image/recipes`) in place of Arch's ffmpeg: its V4L2 decoders hand
 Firefox dma-buf frames, the only kind Firefox takes from them.
-`pacman -S ffmpeg-denial` replaces ffmpeg.
+It replaces ffmpeg on `pacman -Syu`.
 
 ## Audio
 
