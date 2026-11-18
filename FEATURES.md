@@ -325,3 +325,46 @@ last.
 | Android apps | works | 2026-11-17, devices-71, user | Droidloom |
 | Pen | works | 2026-11-17, devices-71, user | The NT36536's pen; the 144 Hz pen mode is not in the panel's firmware |
 | Keyboard cover | works | 2026-11-17, devices-71, user | The pogo-pin keyboard; the top row mapped over Bluetooth |
+
+## oriole: Google Pixel 6 (gs101)
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-18, perpetua 54b11399ccc0, user, probe | The shared image on `userdata`; `boot_b` carries the shared early userspace as its ramdisk (no init_boot partition), the modules' tail after it |
+| Display | works | 2026-11-16, oriole branch, user | exynosdrm takes over from the bootloader, 1080x2400 at 60 and 90 Hz |
+| Brightness | works | 2026-11-16, oriole branch, probe | Panel backlight 0-2047 |
+| Wake from screen off | ? | | Blanking works; the power key not tried |
+| GPU | works | 2026-11-16, oriole branch, user | Panfrost; Mali-G78 entry in mesa-denial |
+| Touch | works | 2026-11-16, oriole branch, user | STM FTS5 on SPI |
+| Keys | untested | | gpio-keys registers |
+| Haptics | not started | | cs40l2x |
+| Storage | works | 2026-11-16, oriole branch, probe | UFS |
+| USB device | works | 2026-11-17, oriole branch, probe | ECM networking |
+| USB host | not started | | |
+| Video out (USB-C) | ? | | |
+| Charging | partial | 2026-11-15, oriole branch, probe | Default USB 500 mA and USB-PD 9 V; the 9 V rate not measured |
+| Battery | works | 2026-11-15, oriole branch, probe | max17042 |
+| Wi-Fi | partial | 2026-11-17, oriole e34c1f87, probe | BCM4389 on brcmfmac: WPA2 on 2.4 and 5 GHz, 90 to 170 Mbit/s; no WPA3 |
+| Bluetooth | not started | | |
+| Speakers | not started | | |
+| Microphones | not started | | |
+| Headphone jack | none | | |
+| Mobile data | not started | | |
+| SMS | not started | | |
+| Calls | not started | | |
+| Call audio | not started | | |
+| VoLTE | not started | | |
+| GNSS | not started | | |
+| NFC | not started | | |
+| Camera | not started | | |
+| Video decode | not started | | |
+| Rotation | not started | | |
+| Light and proximity | not started | | |
+| Compass and gyroscope | not started | | |
+| Fingerprint | not started | | |
+| Suspend | not started | | |
+| Cooling | works | 2026-11-16, oriole branch, probe | TMU zones for the CPU clusters and the GPU; throttling tried with emulated temperatures |
+| Denial | works | 2026-11-18, perpetua 54b11399ccc0, user | The image's setup, then the home screen; the CPUs at full speed with linux-perpetua#43 |
+| Native apps | partial | 2026-11-16, oriole branch, user | Settings and Welcome open; laggy |
+| Android apps | ? | | |
+| CPU frequency | works | 2026-11-15, oriole branch, probe | cpufreq-dt, schedutil |

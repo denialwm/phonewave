@@ -1,0 +1,19 @@
+# Google Pixel 6.
+codename = "oriole"
+model = "Google Pixel 6"
+chassis = "handset"
+soc = "gs101"
+dtb = "exynos/google/gs101-oriole.dtb"
+
+[display]
+panel = "samsung,s6e3fc3"
+resolution = [1080, 2400]
+refresh_hz = [60, 90]
+
+[touch]
+# STM FTS5 on SPI.
+controller = "st,stmfts5"
+
+[gpu]
+# Mali-G78 MP20, on panfrost.
+compatible = "google,gs101-mali"
