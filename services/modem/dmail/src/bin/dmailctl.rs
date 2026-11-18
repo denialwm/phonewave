@@ -631,7 +631,7 @@ const LOCATION_LIMIT: Duration = Duration::from_secs(15 * 60);
 
 /// Unlocks the GNSS engine, follows a session until Ctrl-C or 15 minutes,
 /// then puts the engine lock back as it was. `raw` prints every indication's
-/// TLVs as well.
+/// TLVs as well, whole.
 async fn location(signals: &mut Signals, raw: bool) -> Result {
     let ctl = client(service::LOC).await?;
     let lock = loc::engine_lock(&ctl).await?;
@@ -676,8 +676,8 @@ async fn follow_location(signals: &mut Signals, ctl: &qmi::Client, raw: bool) ->
             if raw {
                 print!("{t:7.1}s ind {:#06x}:", msg.id);
                 for (k, v) in msg.tlvs() {
-                    let head: String = v.iter().take(24).map(|b| format!("{b:02x}")).collect();
-                    print!(" [{k:#04x} {}B {head}]", v.len());
+                    let hex: String = v.iter().map(|b| format!("{b:02x}")).collect();
+                    print!(" [{k:#04x} {}B {hex}]", v.len());
                 }
                 println!();
             }
@@ -708,7 +708,7 @@ async fn follow_location(signals: &mut Signals, ctl: &qmi::Client, raw: bool) ->
                 }
                 loc::SATELLITES => {
                     if let Some(seen) = loc::parse_satellites(&msg) {
-                        tracked = seen;
+                        tracked = (seen.len() as u32, loc::tracked(&seen));
                     }
                 }
                 loc::ENGINE_STATE | loc::FIX_SESSION_STATE => {

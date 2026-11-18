@@ -658,8 +658,14 @@ impl Voice {
 pub struct Fix {
     pub latitude: f64,
     pub longitude: f64,
-    /// Metres.
+    /// Metres, radius of 68% confidence.
     pub accuracy: f64,
+    /// Metres, one standard deviation (68%), as all three below.
+    pub vertical_accuracy: Option<f64>,
+    /// Metres a second.
+    pub speed_accuracy: Option<f64>,
+    /// Degrees.
+    pub heading_accuracy: Option<f64>,
     /// Metres above the WGS 84 ellipsoid.
     pub altitude: Option<f64>,
     /// Metres a second.
@@ -670,6 +676,42 @@ pub struct Fix {
     pub time: i64,
 }
 
+/// One signal of a satellite, as `Satellites` lists it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Satellite {
+    /// gps, glonass, galileo, beidou, qzss, sbas, navic.
+    pub system: &'static str,
+    /// Its number within the constellation.
+    pub number: u16,
+    /// The band, such as L1 C/A or E5a; empty when unknown.
+    pub band: &'static str,
+    /// Carrier frequency, Hz.
+    pub frequency: Option<f64>,
+    /// dB-Hz, while heard.
+    pub cn0: Option<f64>,
+    /// Degrees.
+    pub elevation: Option<f64>,
+    pub azimuth: Option<f64>,
+    pub tracked: bool,
+    pub used: bool,
+    pub ephemeris: bool,
+    pub almanac: bool,
+}
+
+pub type SatelliteEntry = (
+    String,
+    u16,
+    String,
+    f64,
+    f64,
+    f64,
+    f64,
+    bool,
+    bool,
+    bool,
+    bool,
+);
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocationProps {
     /// off, searching, fixed, unavailable.
@@ -677,6 +719,7 @@ pub struct LocationProps {
     pub fix: Option<Fix>,
     pub satellites_used: u32,
     pub satellites_tracked: u32,
+    pub satellites: Vec<Satellite>,
 }
 
 impl LocationProps {
@@ -686,6 +729,7 @@ impl LocationProps {
             fix: None,
             satellites_used: 0,
             satellites_tracked: 0,
+            satellites: Vec::new(),
         }
     }
 }
@@ -740,6 +784,49 @@ impl Location {
             or_nan(f.heading),
             f.time,
         )
+    }
+
+    /// Vertical, speed and heading accuracy of the fix in Position: metres,
+    /// metres a second and degrees, one standard deviation. NaN for what
+    /// the fix lacks.
+    #[zbus(property)]
+    fn accuracies(&self) -> (f64, f64, f64) {
+        let fix = self.props.fix.as_ref();
+        let or_nan = |v: Option<f64>| v.unwrap_or(f64::NAN);
+        (
+            or_nan(fix.and_then(|f| f.vertical_accuracy)),
+            or_nan(fix.and_then(|f| f.speed_accuracy)),
+            or_nan(fix.and_then(|f| f.heading_accuracy)),
+        )
+    }
+
+    /// Every signal the engine lists, one entry for each satellite and
+    /// band: constellation, number within it, band, carrier frequency (Hz),
+    /// C/N0 (dB-Hz), elevation, azimuth (degrees), tracked, used in the last
+    /// fix, has ephemeris, has almanac. NaN for what is unknown; C/N0 NaN
+    /// while not heard.
+    #[zbus(property)]
+    fn satellites(&self) -> Vec<SatelliteEntry> {
+        let or_nan = |v: Option<f64>| v.unwrap_or(f64::NAN);
+        self.props
+            .satellites
+            .iter()
+            .map(|s| {
+                (
+                    s.system.to_owned(),
+                    s.number,
+                    s.band.to_owned(),
+                    or_nan(s.frequency),
+                    or_nan(s.cn0),
+                    or_nan(s.elevation),
+                    or_nan(s.azimuth),
+                    s.tracked,
+                    s.used,
+                    s.ephemeris,
+                    s.almanac,
+                )
+            })
+            .collect()
     }
 
     /// Satellites the last fix used.
@@ -1097,8 +1184,14 @@ async fn apply(conn: &Connection, out: Out) -> zbus::Result<()> {
             if old.state != p.state {
                 l.state_changed(e).await?;
             }
+            // Accuracies first: a client that keeps them has the fix's own
+            // when Position changes.
             if old.fix != p.fix {
+                l.accuracies_changed(e).await?;
                 l.position_changed(e).await?;
+            }
+            if old.satellites != p.satellites {
+                l.satellites_changed(e).await?;
             }
             if old.satellites_used != p.satellites_used {
                 l.satellites_used_changed(e).await?;

@@ -390,10 +390,22 @@ above. dmail uses it when the modem lists it and works without it.
 - Location1 publishes final fixes only (report status 0). Reports while
   searching carry a coarse prior, kilometres wide, which it leaves out.
 - Position report TLVs on the 12R: 0x10/0x11 latitude/longitude, 0x12
-  horizontal uncertainty, 0x18 speed, 0x1A altitude (ellipsoid), 0x20
-  heading, 0x25 UTC time in ms, 0x26 leap seconds, 0x2C satellites used.
+  horizontal uncertainty, 0x16 its confidence (39%), 0x18 speed, 0x19 speed
+  uncertainty, 0x1A altitude (ellipsoid), 0x1C vertical uncertainty, 0x20
+  heading, 0x21 heading uncertainty (absent while still), 0x25 UTC time in
+  ms, 0x26 leap seconds, 0x2C satellites used, 0x36 the same in the
+  expanded list, 0x37 the signals each used satellite gave the fix.
+- Location1 gives the horizontal radius at 68%, as Android and GeoClue mean
+  accuracy: the 12R's 39% radius times 1.52, for a circular normal error.
+  Vertical, speed and heading uncertainties are one standard deviation.
 - Satellites: the 12R lists them in the expanded list (TLV 0x11, 29 bytes
-  each), not the classic one (0x10, 28 bytes). Status 3 means tracked.
+  each), not the classic one (0x10, 28 bytes), with each entry's signal
+  beside it (0x12, a u64 mask each), so a satellite heard on two bands is
+  two entries (2026-11-18: 59 entries, 25 satellites). Status 3 means
+  tracked. GLONASS entries carry the orbital slot (1–24) as id, where the
+  used list says 65–96, and the frequency channel plus 8 in the last byte.
+  Location1 names each satellite as receivers and Android do: PRN within
+  its constellation, GLONASS by slot.
 
 ### NMEA for GeoClue
 
@@ -476,9 +488,11 @@ Changes go out as PropertiesChanged.
 | | signal `CallLogged(t id)` | a call that ended went into the log |
 | | signal `CallLogDeleted(t id)` | |
 | `org.dmail.Location1` | `State` | `s`: off (nobody asks), searching, fixed, unavailable (no GNSS engine, or the modem failed) |
-| | `Position` | `(ddddddx)`: latitude, longitude (degrees), accuracy (m), altitude above the WGS 84 ellipsoid (m), speed (m/s), heading (degrees from true north), fix time (Unix ms). NaN for what the fix lacks; all NaN and 0 before the first fix of a session |
+| | `Position` | `(ddddddx)`: latitude, longitude (degrees), accuracy (m, radius of 68%), altitude above the WGS 84 ellipsoid (m), speed (m/s), heading (degrees from true north), fix time (Unix ms). NaN for what the fix lacks; all NaN and 0 before the first fix of a session |
+| | `Accuracies` | `(ddd)`: vertical (m), speed (m/s) and heading (degrees) accuracy of `Position`, one standard deviation; NaN for what the fix lacks. Announced just before `Position` changes |
+| | `Satellites` | `a(sqsddddbbbb)`: every signal the engine lists, one entry per satellite and band: constellation (`gps`, `glonass`, `galileo`, `beidou`, `qzss`, `sbas`, `navic`), number within it, band (`L1 C/A`, `L5`, `G1`, `E1`, `E5a`, `B1I`, `B1C`, `B2a` …, empty if unknown), carrier frequency (Hz), C/N0 (dB-Hz, NaN while not heard), elevation, azimuth (degrees), tracked, used in the last fix, has ephemeris, has almanac |
 | | `SatellitesUsed` | `u`: in the last fix |
-| | `SatellitesTracked` | `u`: heard now |
+| | `SatellitesTracked` | `u`: heard now, each satellite once |
 | | `Start()` | the caller wants location until `Stop` or until it leaves the bus |
 | | `Stop()` | |
 

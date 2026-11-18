@@ -258,6 +258,7 @@ mod tests {
             // 1994-03-23 12:35:19 UTC.
             time_ms: Some(764_426_119_000),
             used: 8,
+            ..Report::default()
         }
     }
 

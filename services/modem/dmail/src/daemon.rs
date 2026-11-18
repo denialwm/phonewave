@@ -791,6 +791,9 @@ struct Gnss {
     session: Option<(Rc<Client>, Task<()>)>,
     /// The last report's status, to log changes only.
     status: Option<u32>,
+    /// The session's last satellite report, and the signals its last fix used.
+    satellites: Vec<location::Satellite>,
+    used: Vec<(u16, u64)>,
     /// The running XTRA refresh, and when the last one failed.
     xtra: Option<Task<()>>,
     xtra_failed: Rc<Cell<Option<Instant>>>,
@@ -1803,6 +1806,8 @@ impl Life {
             addr,
             session: None,
             status: None,
+            satellites: Vec::new(),
+            used: Vec::new(),
             xtra: None,
             xtra_failed: Rc::default(),
         });
@@ -1834,6 +1839,8 @@ impl Life {
                     })?;
                 g.session = Some(session);
                 g.status = None;
+                g.satellites.clear();
+                g.used.clear();
                 log("location: engine on");
                 g.refresh_xtra(d);
                 d.bus
@@ -1882,16 +1889,25 @@ impl Life {
                 }
                 d.nmea.send(&r);
                 if let Some(fix) = bus_fix(&r) {
+                    g.used = r.used_signals;
+                    let satellites = bus_satellites(&g.satellites, &g.used);
                     d.bus.update_location(|p| {
                         p.state = "fixed".into();
                         p.fix = Some(fix);
                         p.satellites_used = r.used;
+                        p.satellites = satellites;
                     });
                 }
             }
             location::SATELLITES => {
-                if let Some((_, tracked)) = location::parse_satellites(&msg) {
-                    d.bus.update_location(|p| p.satellites_tracked = tracked);
+                if let Some(satellites) = location::parse_satellites(&msg) {
+                    g.satellites = satellites;
+                    let tracked = location::tracked(&g.satellites);
+                    let satellites = bus_satellites(&g.satellites, &g.used);
+                    d.bus.update_location(|p| {
+                        p.satellites_tracked = tracked;
+                        p.satellites = satellites;
+                    });
                 }
             }
             location::XTRA_WANTED => {
@@ -1923,12 +1939,52 @@ fn bus_fix(r: &location::Report) -> Option<bus::Fix> {
     Some(bus::Fix {
         latitude: r.latitude?,
         longitude: r.longitude?,
-        accuracy: wide(r.accuracy).unwrap_or(f64::NAN),
+        accuracy: wide(r.accuracy).map_or(f64::NAN, |a| a * to_68(r.confidence)),
+        vertical_accuracy: wide(r.vertical_accuracy),
+        speed_accuracy: wide(r.speed_accuracy),
+        heading_accuracy: wide(r.heading_accuracy),
         altitude: wide(r.altitude),
         speed: wide(r.speed),
         heading: wide(r.heading),
         time: r.time_ms.map_or_else(|| now() * 1000, |t| t as i64),
     })
+}
+
+/// What turns a horizontal radius of `confidence` percent into the radius
+/// of 68%, for a circular normal error: r(p) grows as sqrt(-ln(1 - p)).
+fn to_68(confidence: Option<u8>) -> f64 {
+    confidence.map_or(1.0, |c| {
+        let c = f64::from(c) / 100.0;
+        ((1.0f64 - 0.68).ln() / (1.0 - c).ln()).sqrt()
+    })
+}
+
+/// The satellite report as Location1 lists it, each signal marked used
+/// when the last fix used it. A used list without signals marks every
+/// signal of the satellite.
+fn bus_satellites(list: &[location::Satellite], used: &[(u16, u64)]) -> Vec<bus::Satellite> {
+    list.iter()
+        .filter_map(|s| {
+            let system = location::system_name(s.system)?;
+            let band = location::signal(s);
+            let wide = |v: Option<f32>| v.map(f64::from);
+            Some(bus::Satellite {
+                system,
+                number: location::number(s)?,
+                band: band.map_or("", |b| b.0),
+                frequency: band.map(|b| b.1),
+                cn0: wide(s.cn0),
+                elevation: wide(s.elevation),
+                azimuth: wide(s.azimuth),
+                tracked: s.tracked,
+                used: used.iter().any(|&(id, signals)| {
+                    id == location::used_id(s) && (signals == 0 || signals & s.signal != 0)
+                }),
+                ephemeris: s.ephemeris,
+                almanac: s.almanac,
+            })
+        })
+        .collect()
 }
 
 /// Unlocks the engine and starts a session that reports every second. Its
@@ -2000,4 +2056,17 @@ fn forward_gnss(ex: &LocalExecutor<'static>, client: Rc<Client>, tx: Sender<Even
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn horizontal_accuracy_becomes_68_percent() {
+        // The 12R's 39%: one standard deviation of a circular error.
+        assert!((to_68(Some(39)) - 1.518).abs() < 1e-3);
+        assert!((to_68(Some(68)) - 1.0).abs() < 1e-9);
+        assert_eq!(to_68(None), 1.0);
+    }
 }
