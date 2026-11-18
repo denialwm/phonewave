@@ -141,7 +141,8 @@ key-held && rescue "Volume key held"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 
 # The boot partition with this kernel's modules: its filesystem starts at the
-# page after the kernel, whose size is in the header. Whichever slot holds
+# page after the kernel and, where the boot image carries one, the ramdisk;
+# their sizes are in the header. Whichever slot holds
 # a folder named after the running kernel is the one that booted.
 modules() {
 	release=$(uname -r)
@@ -150,7 +151,8 @@ modules() {
 		boot=/dev/${b##*/}
 		size=$(dd if=$boot bs=4 skip=2 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
 		[ -n "$size" ] || continue
-		mount -t erofs -o ro,fsoffset=$(( (size + 4095) / 4096 * 4096 + 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
+		rd=$(dd if=$boot bs=4 skip=3 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+		mount -t erofs -o ro,fsoffset=$(( (size + 4095) / 4096 * 4096 + (rd + 4095) / 4096 * 4096 + 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
 		[ -d /newroot/usr/lib/modules/$release ] &&
 			slot=$(sed -n 's/^PARTNAME=boot//p' $b/uevent) && return 0
 		umount /newroot/usr/lib/modules
