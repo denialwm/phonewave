@@ -14,7 +14,10 @@ depends=(glibc gcc-libs libxkbcommon wayland vulkan-icd-loader fontconfig)
 
 build() {
   cd "$_src"
-  cargo build --release --locked --target $TARGET "${_apps[@]/#/-p}"
+  cargo build --release --locked --target $TARGET -p calls -p camera -p messages -p sensors
+  # Settings is a workspace of its own, which builds into the same target.
+  cd apps/settings
+  cargo build --release --locked --target $TARGET
 }
 
 _package_app() {  # APP DESKTOP-NAME
