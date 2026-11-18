@@ -3,13 +3,13 @@
 pkgbase=denial-apps
 _apps=(calls camera messages sensors settings)
 pkgname=("${_apps[@]/#/denial-app-}")
-license=(LicenseRef-Sustainable-Use-License)
+license=(GPL-3.0-or-later CC-BY-SA-4.0 Apache-2.0)
 _src=$startdir/../../../../denial-apps
 . "$startdir/../recipe.sh"
 # The version follows denial-apps commits only. The apps also build against
 # gpui-touch main: raise this when a gpui-touch change should reach them, and
 # set it back to 1 with the next denial-apps commit.
-pkgrel=2
+pkgrel=1
 depends=(glibc gcc-libs libxkbcommon wayland vulkan-icd-loader fontconfig)
 
 build() {
@@ -23,7 +23,14 @@ _package_app() {  # APP DESKTOP-NAME
   install -Dm644 "$_src/apps/$1/org.denialwm.$2.desktop" "$pkgdir/usr/share/applications/org.denialwm.$2.desktop"
   sed -i "s|^Exec=.*/$1\b|Exec=/usr/lib/denial-apps/$1|" "$pkgdir/usr/share/applications/org.denialwm.$2.desktop"
   install -Dm644 "$_src/apps/$1/org.denialwm.$2.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/org.denialwm.$2.png"
-  install -Dm644 "$_src/LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.md"
+  local license_dir=$pkgdir/usr/share/licenses/$pkgname
+  install -Dm644 "$_src/LICENSE.md" "$license_dir/LICENSE.md"
+  install -Dm644 "$_src/README.md" "$license_dir/README.md"
+  install -dm755 "$license_dir/LICENSES"
+  install -m644 -t "$license_dir/LICENSES" \
+    "$_src/LICENSES/GPL-3.0-only.txt" \
+    "$_src/LICENSES/CC-BY-SA-4.0.txt" \
+    "$_src/LICENSES/Apache-2.0.txt"
 }
 
 package_denial-app-calls() {
