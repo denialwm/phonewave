@@ -123,6 +123,10 @@ turns on) switches the card to that verb while dmail has a call. Speech plays
 on both amplifiers; the earpiece alone needs per-amplifier switches in
 tfa987x. "Voice Call Volume" takes the ACDB's ten levels (9 loudest,
 the default); "TX_AIF1 Capture Switch" mutes the microphone.
+While `Voice Call UCM Switch` is on, the kernel refuses the HiFi PCMs.
+The card's controls are saved at shutdown and restored at boot, so a
+switch saved on would leave PipeWire only the Voice Call profile: the
+HiFi verb turns it off before anything else.
 
 Screen recording, Bluetooth and Settings' clock, time zone and language
 rule come with the image, as on every phone.
