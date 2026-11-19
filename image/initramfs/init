@@ -140,20 +140,33 @@ fi
 key-held && rescue "Volume key held"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 
-# The boot partition with this kernel's modules: its filesystem starts at the
-# page after the kernel and the ramdisk, whose sizes are in the header. The
-# ramdisk is empty where the early userspace is an init_boot of its own; a
-# phone without an init_boot partition carries it in boot, after the
-# kernel. Whichever slot holds a folder named after the running kernel is
-# the one that booted.
+# The boot partition with this kernel's modules: its filesystem starts at
+# the page after the payload the header lists. The ramdisk is empty where
+# the early userspace is an init_boot of its own; a phone without an
+# init_boot partition carries it in boot, after the kernel. Whichever slot
+# holds a folder named after the running kernel is the one that booted.
+tail_offset() {
+	# Header v3/v4: kernel and ramdisk sizes at 8 and 12, 4096-byte pages.
+	# Header v2: kernel 8, ramdisk 16, second 24, page size 36, recovery DTBO
+	# 1632, DTB 1648, each padded to a page; the tail follows the DTB.
+	set -- $(dd if=$1 bs=4 skip=2 count=9 2>/dev/null | od -An -tu4) \
+		$(dd if=$1 bs=4 skip=408 count=1 2>/dev/null | od -An -tu4) \
+		$(dd if=$1 bs=4 skip=412 count=1 2>/dev/null | od -An -tu4)
+	[ $# = 11 ] || return 1
+	if [ $9 -ge 3 ]; then
+		echo $(( 4096 + ($1 + 4095) / 4096 * 4096 + ($2 + 4095) / 4096 * 4096 ))
+	else
+		p=$8
+		echo $(( p + ($1 + p - 1) / p * p + ($3 + p - 1) / p * p + ($5 + p - 1) / p * p + (${10} + p - 1) / p * p + (${11} + p - 1) / p * p ))
+	fi
+}
 modules() {
 	release=$(uname -r)
 	for b in /sys/class/block/sd*; do
 		grep -qx 'PARTNAME=boot\(_[ab]\)\{0,1\}' $b/uevent 2>/dev/null || continue
 		boot=/dev/${b##*/}
-		set -- $(dd if=$boot bs=4 skip=2 count=2 2>/dev/null | od -An -tu4)
-		[ $# = 2 ] || continue
-		mount -t erofs -o ro,fsoffset=$(( 4096 + ($1 + 4095) / 4096 * 4096 + ($2 + 4095) / 4096 * 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
+		offset=$(tail_offset $boot) || continue
+		mount -t erofs -o ro,fsoffset=$offset $boot /newroot/usr/lib/modules 2>/dev/null || continue
 		[ -d /newroot/usr/lib/modules/$release ] &&
 			slot=$(sed -n 's/^PARTNAME=boot//p' $b/uevent) && return 0
 		umount /newroot/usr/lib/modules

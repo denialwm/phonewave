@@ -164,8 +164,11 @@ workarounds for its open issues, the services its hardware has, turned on by
 links in `systemd/system/<target>.wants/`, and what services read about the
 hardware, such as dmail's `dmail/device.toml`. The bootloader loads only the kernel the
 header lists. The early userspace mounts the rest in place, from the
-partition, at `/usr/lib/modules` (`fsoffset=` the kernel size and the ramdisk
-size, each rounded up, plus the header page), points `firmware_class.path` at its `firmware/` and
+partition, at `/usr/lib/modules` (`fsoffset=` the payload the header lists,
+each part rounded up to a page, plus the header page: on a version 3 or 4
+header that is the kernel and the ramdisk, on a version 2 header the
+kernel, the ramdisk, the second stage, the recovery DTBO and the DTB),
+points `firmware_class.path` at its `firmware/` and
 hands its `systemd/system/` to systemd through `/run`. Nothing is copied;
 the image holds an empty `/usr/lib/modules`.
 
