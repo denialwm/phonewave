@@ -368,3 +368,45 @@ last.
 | Native apps | partial | 2026-11-16, oriole branch, user | Settings and Welcome open; laggy |
 | Android apps | ? | | |
 | CPU frequency | works | 2026-11-15, oriole branch, probe | cpufreq-dt, schedutil |
+
+## barbet: Google Pixel 5a (SM7250)
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-17, 7.3.0+ #10, probe | `boot_b`; UFS root, systemd running with no failed units |
+| Display | works | 2026-11-17, 7.3.0+ #10, user | Samsung SOFEF01, 1080x2400 at 60 Hz; the panel lights on a power-button wake and Denial appears |
+| Brightness | ? | | |
+| Wake from screen off | works | 2026-11-17, 7.3.0+ #10, user | Power key; the panel blanks after the 30 s DPMS timeout |
+| GPU | works | 2026-11-17, 7.3.0+ #10, probe | Adreno 620; the GMU firmware loads |
+| Touch | works | 2026-11-17, 7.3.0+ #10, user | ST FTS over SPI |
+| Keys | works | 2026-11-17, 7.3.0+ #10, probe | Power and volume |
+| Haptics | untested | | TI DRV2624 |
+| Storage | works | 2026-11-17, 7.3.0+ #10, probe | UFS |
+| USB device | works | 2026-11-17, 7.3.0+ #10, probe | USB NCM networking, high speed |
+| USB host | ? | | |
+| Video out (USB-C) | ? | | |
+| Charging | works | 2026-11-17, 7.3.0+ #10, probe | USB powered; the battery reported full at 100 % |
+| Battery | partial | 2026-11-17, 7.3.0+ #10, probe | Voltage-derived estimate, 4.43 V; no coulomb counter |
+| Wi-Fi | works | 2026-11-17, 7.3.0+ #10, probe | WCN3990 behind the modem; `wlan0` DHCP and SSH |
+| Bluetooth | works | 2026-11-17, 7.3.0+ #10, probe | WCN3990; QCA setup completes and the controller scans |
+| Speakers | works | 2026-11-17, 7.3.0+ #10, user | TAS2562 pair on QUIN TDM RX; a 440 Hz tone is audible |
+| Microphones | partial | 2026-11-17, 7.3.0+ #10, probe | RT5514P 32 kHz mono capture; the samples carry a DC offset |
+| Headphone jack | ? | | |
+| Mobile data | not started | | Modem data not brought up |
+| SMS | not started | | |
+| Calls | not started | | |
+| Call audio | not started | | |
+| VoLTE | not started | | |
+| GNSS | not started | | Not brought up |
+| NFC | not started | | |
+| Camera | not started | | |
+| Video decode | ? | | |
+| Rotation | not started | | The sensor DSP path is not brought up |
+| Light and proximity | not started | | |
+| Compass and gyroscope | not started | | |
+| Fingerprint | not started | | |
+| Suspend | works | 2026-11-17, 7.3.0+ #10, probe | s2idle, one RTC-wake cycle; power savings unmeasured. Userspace has no idle policy yet |
+| Cooling | ? | | |
+| Denial | works | 2026-11-17, 7.3.0+ #10, user | |
+| Native apps | ? | | |
+| Android apps | ? | | |
