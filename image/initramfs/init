@@ -72,9 +72,28 @@ part() {
 	return 1
 }
 
+# The bootloader leaves its watchdog running. The installed system hands it to
+# systemd, so only the rescue, which never hands over, keeps it fed. Keep one
+# open descriptor: closing it stops the watchdog and the next open starts a
+# fresh timeout, so an open/close loop can lose a race with a short bark.
+watchdog_started=
+watchdog() {
+	[ -z "$watchdog_started" ] || return 0
+	[ -c /dev/watchdog ] || return 0
+	watchdog_started=1
+	(
+		exec 9>/dev/watchdog || exit 0
+		while :; do
+			echo 1 >&9 2>/dev/null || break
+			/bin/busybox sleep 1
+		done
+	) &
+}
+
 # The reason goes on the screen too: a line of at most 36 characters.
 rescue() {
 	mark "rescue: $*"
+	watchdog
 	touch /run/rescue
 	mkdir -p $g/functions/ffs.fastboot /dev/usb-ffs/fastboot
 	ln -s $g/functions/ffs.fastboot $g/configs/c.1/ffs.fastboot
