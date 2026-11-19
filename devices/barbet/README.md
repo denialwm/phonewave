@@ -45,12 +45,45 @@ fastboot flash boot_b boot-N.img
 The boot userspace is the shared rescue from `image/init-boot`, so it can
 also write the root image; `image/README.md` describes that step.
 
+## Firmware
+
+The phone keeps its firmware in two places. The modem's files are in the
+booted slot's `modem` partition (vfat, `image/`), the same files the modem
+itself runs. The ADSP and the WLAN firmware the modem boots are in `vendor_a`
+inside `super`, which no early mount reaches.
+
+`boot/tail/stock-firmware.conf` names the modem partition, its folder and
+the kernel's `.../modem/` target; `image/stock-firmware` mounts it read-only
+and binds it there. Its `stock-firmware.sha256` is the tested release's
+hashes. The rest comes from the vault at image build time, because those
+files have no partition the early userspace can mount. `build-boot.sh`
+checks the vault's `SHA256SUMS`, lays the files out where the kernel and
+tqftpserv look, and builds ath10k's board file from the phone's own
+calibration.
+
+| Files | Comes from | In the tail |
+| --- | --- | --- |
+| `modem.mdt`, `modem.b00`–`modem.b34` | the booted slot's `modem` partition, `image/` | `firmware/qcom/sm7250/google/barbet/modem/`, bound at boot |
+| `adsp.mdt`, `adsp.b00`–`adsp.b33` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/` |
+| `wlanmdsp.mbn`, `wlanmdsp.otaupdate`, `bdwlan.bin` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/`, where tqftpserv finds them beside the ADSP's files |
+| `bdwlan-barbet.bin` | `vendor_a/firmware/`, through the vault | ath10k's `board.bin` and the generated `board-2.bin` under `ath10k/WCN3990/hw1.0/` and `hw1.0/barbet/` |
+| `firmware-5.bin` | generated, the API-5 non-BMI descriptor | the same ath10k folders |
+
+The modem's `image/` folder is 99,411,980 bytes; the vendor set this PR's
+tail carries is 29,584,303 bytes (28.2 MiB) in 44 files. The modules and the
+tail units are added to that. The `boot_b` partition is 96 MiB (100,663,296
+bytes); `android-v2` refuses an image that does not fit.
+
+The ADSP stays offline at boot because the kernel's `qcom,sm7250-adsp-pas`
+resource sets `.auto_boot = false` (`drivers/remoteproc/qcom_q6v5_pas.c`),
+and no unit starts it yet. It must start only after the modem has booted the
+WLAN firmware, so the order belongs to the modem service; that is
+[issue #10](https://github.com/denialwm/phonewave/issues/10). The same issue
+covers Bluetooth, which answers only after the WLAN has powered the combo
+chip.
+
 ## Notes
 
-- The modem boots the WLAN firmware only while the ADSP is offline, and the
-  Bluetooth side answers only after the WLAN has powered the combo chip. The
-  order those need is tracked in [issue #10](https://github.com/denialwm/phonewave/issues/10),
-  where it will move into the modem service.
 - The battery gauge is voltage-derived: the percentage is an estimate, not a
   coulomb count.
 - The kernel suspends (s2idle) and wakes on the RTC. Nothing suspends the
