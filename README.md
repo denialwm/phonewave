@@ -45,6 +45,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | Codename | Device | SoC |
 |---|---|---|
 | `aston` | OnePlus 12R | SM8550 |
+| `barbet` | Google Pixel 5a | SM7250 |
 | `roadstr` | Motorola Edge 70 | Eliza |
 | `iceland` | OnePlus Pad 4 | Kaanapali (SM8850) |
 
