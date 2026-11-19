@@ -12,11 +12,11 @@ The kernel replaces the bootloader's device tree with its own (FDT
 handoff). Android boot header v4, and no init_boot partition: the
 bootloader loads the vendor_boot ramdisk and then boot's, so boot carries
 the shared early userspace. `boot/build-boot.sh` takes the ramdisk of the
-init_boot image `image/build` wrote (`image/init-boot`) and packs it with
-the kernel on the stock boot image's header (linux-perpetua's
-`devices/boot/android12-gki`), then puts the tail in the page after the
-ramdisk, where the early userspace looks for it, and the AVB footer after
-that.
+init_boot image `image/build` wrote (`image/init-boot`) and packs it on the
+stock boot image's header with linux-perpetua's `devices/boot/android-gki
+--lz4 --ramdisk --tail`: the kernel as legacy LZ4, as the stock image
+carries it, the ramdisk, the tail in the page after it, where the early
+userspace looks for it, and the AVB footer.
 
 Private inputs live in the vault,
 `${PHONEWAVE_VAULT:-/mnt/development/denial-os/device-vault}/oriole`:

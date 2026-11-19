@@ -50,24 +50,10 @@ mkdir -p $V/boot
 cd $V/boot
 [[ -e kernel-Image-$N ]] || cp $OUT/artifacts/Image kernel-Image-$N
 cmp -s kernel-Image-$N $OUT/artifacts/Image || { echo "kernel-Image-$N differs from release $N" >&2; exit 1 }
-$K/devices/boot/android12-gki $TEMPLATE kernel-Image-$N $T/init_boot/ramdisk $T/boot.img > /dev/null
-# android12-gki packs no tail. The tail goes in the page after the ramdisk,
-# where the early userspace looks for it, in front of a new hash footer with
-# the template's salt and properties, as android-gki --tail does.
-avbtool erase_footer --image $T/boot.img
-start=$(stat -c %s $T/boot.img)
-(( start % 4096 == 0 )) || { echo "the ramdisk does not end on a page" >&2; exit 1 }
-cat $T/tail.erofs >> $T/boot.img
-info=$(avbtool info_image --image $TEMPLATE)
-salt=$(sed -n 's/^ *Salt: *\([0-9a-f]*\)$/\1/p' <<< $info)
-props=()
-for prop in ${(f)"$(sed -n "s/^ *Prop: \([^ ]*\) -> '\(.*\)'$/\1:\2/p" <<< $info)"}; do
-	props+=(--prop $prop)
-done
-avbtool add_hash_footer --image $T/boot.img --partition_size $(stat -c %s $TEMPLATE) \
-	--partition_name boot --hash_algorithm sha256 --algorithm NONE --salt $salt $props
-cmp -s -n $(stat -c %s $T/tail.erofs) -i $start:0 $T/boot.img $T/tail.erofs ||
-	{ echo "the tail in boot-$NAME.img differs" >&2; exit 1 }
+# The kernel as legacy LZ4, as the stock image carries it, then the ramdisk
+# and the tail, in the page after it.
+$K/devices/boot/android-gki boot $TEMPLATE kernel-Image-$N $T/boot.img \
+	--lz4 --ramdisk $T/init_boot/ramdisk --tail $T/tail.erofs > /dev/null
 mv $T/boot.img boot-$NAME.img
 sha256sum boot-$NAME.img >> SHA256SUMS
 echo "built boot-$NAME.img ($REL)"
