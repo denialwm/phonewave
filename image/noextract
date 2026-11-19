@@ -1,4 +1,0 @@
-# Files pacman never unpacks on a phone, at build and on every update.
-# Welcome is the desktop's first-start tour: its launcher entry stays off the
-# phone, and rootfs/etc/skel/.config/denial/welcome keeps it from starting.
-usr/share/applications/org.denialwm.Welcome.desktop

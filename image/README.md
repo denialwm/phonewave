@@ -127,6 +127,16 @@ pacman takes a package from the first repository that has its name, and
 looks for replacements in that order too, so this order is what lets ours
 take an Arch package's place.
 
+The files a package carries for the desktop only stay off a phone: pacman
+never unpacks what `/etc/pacman.d/phonewave-noextract.conf` lists, another
+phonewave-system file, which pacman.conf includes from its `[options]` and
+the image build reads too. `usr/lib/phonewave-system/pacman-noextract` puts
+that line there the same two ways and removes a listed file that is already
+on disk. On a phone made earlier the list of its day was a line in
+pacman.conf: that line goes (entries the user added stay; the old file stays
+as `pacman.conf.before-noextract-file`), and a file only the old list kept
+out is unpacked from pacman's package cache.
+
 A phone made from an image never needs a new image to keep up: it gets what
 later images add through `phonewave-image`, which depends on the lists in
 `packages/`.

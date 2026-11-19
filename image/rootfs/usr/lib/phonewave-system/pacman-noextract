@@ -1,0 +1,110 @@
+#!/bin/bash
+# Keeps the files of /etc/pacman.d/phonewave-noextract.conf off the phone:
+# pacman.conf includes that file from its [options], and a file it lists that
+# is on disk goes. A phone made before had the list of its day written into
+# pacman.conf; that line goes, entries the user added to it stay, and a file
+# only the old list kept out comes back from pacman's package cache. Runs
+# from a pacman hook on each phonewave-system install or upgrade, and from
+# image/build. pacman reads its configuration when it starts, so the list
+# counts from the next pacman command.
+set -euo pipefail
+conf=${1:-/etc/pacman.conf}
+ours=/etc/pacman.d/phonewave-noextract.conf
+line="Include = $ours"
+active='^[[:space:]]*NoExtract[[:space:]]*='
+# What images wrote into pacman.conf before the list was a file.
+written_before=(
+  'usr/bin/denial-settings'
+  'usr/lib/denial/settings/*'
+  'usr/share/applications/dev.denial.Settings.desktop'
+  'usr/share/applications/dev.denial.Welcome.desktop'
+  'usr/share/applications/org.denialwm.Welcome.desktop'
+)
+
+[ -f "$ours" ] || { echo "pacman-noextract: $ours is missing" >&2; exit 1; }
+
+entries() {  # FILE: the NoExtract entries written in it, one per line
+  sed -n "s/$active//p" "$1" | tr -s ' \t' '\n\n' | sed '/^$/d'
+}
+
+listed() {  # PATH PATTERN...: one of the patterns names PATH
+  local path=$1 pattern
+  shift
+  for pattern in "$@"; do
+    # shellcheck disable=SC2053  # a pattern, as pacman reads it
+    [[ $path == $pattern ]] && return 0
+  done
+  return 1
+}
+
+released=()
+if ! grep -qxF "$line" "$conf"; then
+  kept=()
+  while read -r entry; do
+    if listed "$entry" "${written_before[@]}"; then released+=("$entry"); else kept+=("$entry"); fi
+  done < <(entries "$conf")
+
+  # The Include takes the place of the first NoExtract line, or follows the
+  # commented one, or opens [options]. The user's entries follow it.
+  if grep -q "$active" "$conf"; then anchor=$active
+  elif grep -q '^#NoExtract' "$conf"; then anchor='^#NoExtract'
+  else anchor='^\\[options\\]'
+  fi
+  new=$(mktemp "$conf.XXXXXX")
+  trap 'rm -f "$new"' EXIT
+  awk -v line="$line" -v kept="${kept[*]}" -v anchor="$anchor" -v active="$active" '
+    function put() {
+      print line
+      if (kept != "") print "NoExtract = " kept
+      done = 1
+    }
+    $0 ~ active { if (!done) put(); next }
+    { print }
+    !done && $0 ~ anchor { put() }
+  ' "$conf" > "$new"
+
+  # Our list and the user's entries, in [options], and the same repositories.
+  want=$({ entries "$ours"; printf '%s\n' "${kept[@]}"; } | sed '/^$/d' | sort -u)
+  have=$(pacman-conf --config "$new" NoExtract | sort -u)
+  [ "$have" = "$want" ] ||
+    { printf 'pacman-noextract: unexpected list:\n%s\n' "$have" >&2; exit 1; }
+  [ "$(pacman-conf --config "$new" --repo-list)" = "$(pacman-conf --config "$conf" --repo-list)" ] ||
+    { echo 'pacman-noextract: the repositories changed' >&2; exit 1; }
+
+  chmod --reference="$conf" "$new"
+  cp -p "$conf" "$conf.before-noextract-file"
+  mv "$new" "$conf"
+  trap - EXIT
+  echo "pacman-noextract: the list now comes from $ours (from the next pacman command)"
+fi
+
+# A file of our list that an earlier update unpacked. The user's own entries
+# only keep pacman from unpacking: nothing of theirs is removed.
+shopt -s nullglob
+while read -r pattern; do
+  for file in /$pattern; do
+    if [ -f "$file" ] || [ -L "$file" ]; then
+      rm -f -- "$file"
+      echo "pacman-noextract: removed $file"
+    fi
+  done
+done < <(entries "$ours")
+shopt -u nullglob
+
+# A file only the old list kept out: back from the package that owns it.
+[ ${#released[@]} -gt 0 ] || exit 0
+mapfile -t now < <(pacman-conf --config "$conf" NoExtract)
+cache=$(pacman-conf --config "$conf" CacheDir | head -n 1)
+while read -r package file; do
+  path=${file#/}
+  listed "$path" "${released[@]}" || continue
+  listed "$path" "${now[@]}" && continue
+  [ -e "$file" ] || [ -L "$file" ] && continue
+  version=$(pacman -Q "$package" | cut -d' ' -f2)
+  archive=$(compgen -G "$cache$package-$version-*.pkg.tar.*" | grep -v '\.sig$' | head -n 1 || true)
+  if [ -n "$archive" ] && bsdtar -xpf "$archive" -C / "$path"; then
+    echo "pacman-noextract: unpacked $file from $package"
+  else
+    echo "pacman-noextract: $file is missing; 'pacman -S $package' brings it back" >&2
+  fi
+done < <(pacman -Ql | grep -v '/$')

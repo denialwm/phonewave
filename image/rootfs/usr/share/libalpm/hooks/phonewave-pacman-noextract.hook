@@ -1,0 +1,13 @@
+# Keeps the files of /etc/pacman.d/phonewave-noextract.conf off the phone,
+# and moves a phone made before onto that file.
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/phonewave-system/pacman-noextract
+Target = etc/pacman.d/phonewave-noextract.conf
+
+[Action]
+Description = Keeping the desktop's files off the phone...
+When = PostTransaction
+Exec = /usr/lib/phonewave-system/pacman-noextract
