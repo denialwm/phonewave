@@ -12,19 +12,30 @@ esac
 ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 \
     -o ServerAliveCountMax=3 "$host" sh -s -- "$action" <<'REMOTE'
 set -eu
+action=$1
 stop() { echo "STOP: $*. No reboot requested." >&2; exit 1; }
 slot=$(slot-success running)
 [ -n "$slot" ] || stop "the running slot is unknown"
 slot-success status >&2 || stop "slot $slot is not marked successful; a reboot would use a boot try"
-# The modules are an erofs filesystem at the page after the kernel and, where
-# the boot image carries one, the ramdisk. Read
-# what the partition holds now, which a kernel update may have replaced,
-# through a loop device: mounting the partition itself again would reuse the
-# filesystem the running kernel mounted at boot.
+# The modules are an erofs filesystem at the page after the kernel, the
+# ramdisk and the DTB. A version 2 header keeps the ramdisk size at byte 16
+# and the DTB size at byte 1648; version 3 and 4 keep the kernel and ramdisk
+# sizes at bytes 8 and 12 and carry no DTB. Read what the partition holds now,
+# which a kernel update may have replaced, through a loop device: mounting the
+# partition itself again would reuse the filesystem the running kernel mounted
+# at boot.
 boot=/dev/disk/by-partlabel/boot_$slot
-size=$(dd if="$boot" bs=4 skip=2 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
-rd=$(dd if="$boot" bs=4 skip=3 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
-loop=$(losetup -r -f --show -o $(( (size + 4095) / 4096 * 4096 + (rd + 4095) / 4096 * 4096 + 4096 )) "$boot")
+version=$(dd if="$boot" bs=4 skip=10 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+[ -n "$version" ] || stop "boot_$slot has no boot header"
+if [ "$version" -le 2 ]; then
+  set -- $(dd if="$boot" bs=4 skip=2 count=1 2>/dev/null | od -An -tu4) \
+         $(dd if="$boot" bs=4 skip=4 count=1 2>/dev/null | od -An -tu4) \
+         $(dd if="$boot" bs=4 skip=412 count=1 2>/dev/null | od -An -tu4)
+else
+  set -- $(dd if="$boot" bs=4 skip=2 count=2 2>/dev/null | od -An -tu4) 0
+fi
+[ $# = 3 ] || stop "boot_$slot has no boot header"
+loop=$(losetup -r -f --show -o $(( 4096 + ($1 + 4095) / 4096 * 4096 + ($2 + 4095) / 4096 * 4096 + ($3 + 4095) / 4096 * 4096 )) "$boot")
 look=$(mktemp -d)
 mount -t erofs -o ro "$loop" "$look" 2>/dev/null ||
   { rmdir "$look"; losetup -d "$loop"; stop "boot_$slot carries no modules after its kernel"; }
@@ -34,7 +45,7 @@ found=0
 umount "$look"; rmdir "$look"; losetup -d "$loop"
 [ "$found" = 0 ] || stop "boot_$slot carries no module tree"
 echo "PASS: boot_$slot carries its kernel's modules, $release."
-if [ "$1" = --reboot ]; then
+if [ "$action" = --reboot ]; then
   echo "Rebooting."
   sync
   systemctl reboot
