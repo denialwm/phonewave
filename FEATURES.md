@@ -145,7 +145,7 @@ last.
 | Light and proximity | works | 2026-11-15, devices-370, user | stk3bfx through the ADSP |
 | Compass and gyroscope | works | 2026-11-15, devices-370, user | icm456xx and qmc6308 through the ADSP, with gravity and rotation vectors |
 | Fingerprint | works | 2026-11-05, devices-230, user | JIIOV JV0307, optical, through fprintd and fingerprint-phonewave like the other phones: Settings adds a finger and it unlocks the phone, lit by the panel through `/dev/fp_illumination`. Needs Denial dev 0f47778 or later |
-| Suspend | ? | | |
+| Suspend | partial | 2026-11-19, devices-388, probe | s2idle round trip: Denial's idle suspend sleeps it, the RTC wakes it 50 s later, and Denial suspends it again 30 s after that wake (Denial dev f7ca3d3). The USB controller does not resume (dwc3 soft reset fails, -110), so USB networking stays down until a reboot; Wi-Fi reconnects. The image keeps suspend off |
 | Cooling | works | devices-12, probe | battmgr cooling device, checked with emulated temperatures |
 | Denial | works | user | |
 | Native apps | works | 2026-10-28, devices-14, user | |
