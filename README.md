@@ -65,6 +65,7 @@ Apps and their libraries are not part of Phonewave; they live in
 | audio | [`voicegen`](services/audio/voicegen) | Builds a voice call profile for the kernel from the stock ACDB, on the workstation | Qualcomm AudioReach |
 | screen | [`screen-record`](services/screen/screen-record) | Records the screen through Denial, scaled on the GPU, to H.264 video | any running Denial |
 | power | [`battery-stats`](services/power/battery-stats) | Books where the battery goes: energy and hardware use per screen state, hour and build | any with a battery |
+| input | [`gts7-touchd`](services/input/gts7-touchd) | The Galaxy Tab S7 FE's touchscreen, which has no kernel driver: firmware download and frames to uinput over spidev | `gts7xllite` |
 
 ## Install
 

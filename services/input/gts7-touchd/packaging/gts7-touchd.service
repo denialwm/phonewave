@@ -1,0 +1,15 @@
+[Unit]
+Description=Touchscreen of the Galaxy Tab S7 FE (FocalTech FT8203 over SPI, fed to uinput)
+Documentation=https://github.com/denialwm/phonewave/tree/main/services/input/gts7-touchd
+Before=getty@tty1.service denial.service
+StartLimitIntervalSec=120
+StartLimitBurst=6
+
+# No [Install]: the gts7xllite boot tail turns it on.
+[Service]
+ExecStart=/usr/bin/gts7-touchd
+# Hold back what starts Denial until the touchscreen exists (at most 20 s), so
+# Denial finds it at its first start.
+ExecStartPost=/bin/sh -c 'for i in $(seq 100); do grep -qx "gts7xllite touch" /sys/class/input/input*/name 2>/dev/null && exit 0; sleep 0.2; done'
+Restart=on-failure
+RestartSec=3

@@ -1,0 +1,15 @@
+# Phonewave's gts7-touchd (services/input/gts7-touchd) for the phones. Build: image/pack gts7-touchd
+pkgname=gts7-touchd
+pkgdesc='Touchscreen of the Galaxy Tab S7 FE: FocalTech FT8203 over spidev, fed to uinput'
+license=(GPL-2.0-only)
+_src=$startdir/../../../services/input/gts7-touchd
+. "$startdir/../recipe.sh"
+makedepends=(clang lld)
+
+build() {
+  make -C "$_src"
+}
+
+package() {
+  make -C "$_src" install DESTDIR="$pkgdir"
+}
