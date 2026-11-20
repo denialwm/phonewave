@@ -1,0 +1,19 @@
+# Samsung Galaxy Tab S7 FE 5G (SM-T736B). Hardware identified in Samsung's
+# T736BXXS9DYF1 kernel source, its device tree (board-id 05 overlay) and the
+# live stock system.
+codename = "gts7xllite"
+model = "Samsung Galaxy Tab S7 FE 5G"
+chassis = "tablet"
+soc = "sm7225"
+dtb = "qcom/sm7225-samsung-gts7xllite.dtb"
+
+[display]
+# Single DSI, video mode with DSC. Backlight: the panel's PWM over DCS,
+# powered by a MAX77816 5 V boost on i2c@988000.
+panel = "boe,ts124qdm"
+resolution = [1600, 2560]
+refresh_hz = [60]
+
+[touch]
+# FocalTech FT8203 on SPI, driven from userspace by gts7-touchd (spidev to uinput).
+controller = "focaltech,ft8203"

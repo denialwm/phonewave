@@ -368,3 +368,50 @@ last.
 | Native apps | partial | 2026-11-16, oriole branch, user | Settings and Welcome open; laggy |
 | Android apps | ? | | |
 | CPU frequency | works | 2026-11-15, oriole branch, probe | cpufreq-dt, schedutil |
+
+## gts7xllite: Samsung Galaxy Tab S7 FE 5G (SM7225)
+
+Builds: linux-perpetua `gts7xllite-pr`; *boot-test64* and *boot-test66* are `c9cfb0e9b264` with
+the sensor rails, packed by `boot/build-boot.sh` (66: with gts7-touchd from the tail).
+
+| Feature | Status | Tested | Notes |
+| --- | --- | --- | --- |
+| Boot | works | 2026-11-20, boot-test64, user, probe | The shared image on UFS `userdata`; `boot` carries the shared early userspace as its ramdisk and the modules' tail after the DTB (header v2). About 2 boots in 5 reset at ~0.8 s in the display bring-up and boot on the next try |
+| Display | works | 2026-11-18, user | BOE TS124QDM over DSI with DSC, 60 fps in landscape with Denial's gamut correction off; the output turned to landscape (`DSI-1,270`) |
+| Brightness | works | 2026-11-18, user | The panel's PWM over DCS, Samsung's range 32 to 3231; MAX77816 5 V boost |
+| Wake from screen off | works | 2026-11-18, user | Power key |
+| GPU | works | 2026-11-18, user, probe | Adreno 619 (freedreno), 253 to 800 MHz |
+| Touch | works | 2026-11-20, boot-test66, user, probe | FocalTech FT8203 on SPI, no kernel driver: `gts7-touchd` downloads the firmware from the boot tail and feeds uinput |
+| Keys | works | 2026-11-18, user | Power key; volume keys untested |
+| Haptics | not started | | No vibrator driver |
+| Storage | works | 2026-11-20, boot-test64, probe | UFS; microSD (sdhc_2) |
+| USB device | works | 2026-11-20, boot-test64, probe | ECM networking and ACM serial, SSH at 10.77.71.2 |
+| USB host | ? | | |
+| Video out (USB-C) | ? | | |
+| Charging | partial | 2026-11-18, probe | SM5714: 500 mA from a PC, 1500 mA in / 1000 mA into the battery on a wall charger; no faster modes, no USB PD |
+| Battery | works | 2026-11-18, probe | SM5714 fuel gauge, 10090 mAh; UPower reads it |
+| Wi-Fi | works | 2026-11-20, boot-test64, user, probe | ath10k (snoc), its firmware service on the modem DSP; rmtfs serves the tablet's own EFS read-only |
+| Bluetooth | works | 2026-11-20, user | WCN3991 on UART, hci_qca without in-band sleep |
+| Speakers | not started | | Two CS35L45 on QUAT TDM: one plays, one silent so far |
+| Microphones | not started | | |
+| Headphone jack | none | | |
+| Mobile data | not started | | |
+| SMS | not started | | |
+| Calls | not started | | |
+| Call audio | not started | | |
+| VoLTE | not started | | |
+| GNSS | not started | | |
+| NFC | none | | |
+| Camera | not started | | |
+| Video decode | not started | | |
+| Rotation | works | 2026-11-20, boot-test64, user | steinerd; the tail's `steinerd/top` `+x`, read docked on the keyboard cover |
+| Light and proximity | partial | 2026-11-20, boot-test64, probe | veml3235 light; no proximity sensor |
+| Compass and gyroscope | works | 2026-11-20, boot-test64, probe | steinerd: lsm6dso, ak0991x |
+| Fingerprint | none | | |
+| Suspend | works | 2026-11-18, probe | s2idle on battery; the power key and an RTC alarm wake it |
+| Cooling | ? | | Thermal zones and trips present; throttling not tried |
+| Denial | works | 2026-11-20, boot-test64, user | The image's `denial` package |
+| Native apps | works | 2026-11-18, user | |
+| Android apps | works | 2026-11-18, user | Droidloom |
+| Pen | works | 2026-11-18, user | S Pen (Wacom W9021) in apps |
+| Keyboard cover | works | 2026-11-18, user | Book Cover Keyboard EF-DT730 over the pogo pins; caps lock LED not driven |
