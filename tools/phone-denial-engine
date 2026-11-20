@@ -30,7 +30,9 @@ else
   sha=$(cat "$build/engine.sha256")
   ssh "${ssh_options[@]}" "$host" "cat > $upload" <"$build/libflutter_engine.so"
 fi
-ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s -- "$sha" "$upload" <<'REMOTE'
+# SSH joins its arguments with spaces, so an empty one would be lost: "-"
+# stands for no engine to install.
+ssh "${ssh_options[@]}" "$host" sh -c "'$as_root'" sh sh -s -- "${sha:--}" "$upload" <<'REMOTE'
 set -eu
 dir=/usr/lib/denial/flutter/lib
 live=$dir/libflutter_engine.so
@@ -56,7 +58,7 @@ restore() {
   systemctl restart denial.service
 }
 
-if [ -z "$1" ]; then
+if [ "$1" = - ]; then
   if package_engine; then
     rm -f "$kept"
     echo "PASS: the package's engine $(sum "$live" | cut -c1-12) is in place."
