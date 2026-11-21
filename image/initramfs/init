@@ -141,19 +141,29 @@ key-held && rescue "Volume key held"
 [ -x /newroot/usr/lib/systemd/systemd ] || rescue "No systemd on ${root#/dev/}"
 
 # The boot partition with this kernel's modules: its filesystem starts at the
-# page after the kernel and the ramdisk, whose sizes are in the header. The
-# ramdisk is empty where the early userspace is an init_boot of its own; a
-# phone without an init_boot partition carries it in boot, after the
-# kernel. Whichever slot holds a folder named after the running kernel is
-# the one that booted.
+# page after the kernel, the ramdisk and the DTB, whose sizes are in the
+# header. A version 2 header keeps the ramdisk size at byte 16 and the DTB
+# size at byte 1648; version 3 and 4 keep the kernel and ramdisk sizes at
+# bytes 8 and 12 and carry no DTB. The ramdisk is empty where the early
+# userspace is an init_boot of its own; a phone without an init_boot partition
+# carries it in boot, after the kernel. Whichever slot holds a folder named
+# after the running kernel is the one that booted.
 modules() {
 	release=$(uname -r)
 	for b in /sys/class/block/sd*; do
 		grep -qx 'PARTNAME=boot\(_[ab]\)\{0,1\}' $b/uevent 2>/dev/null || continue
 		boot=/dev/${b##*/}
-		set -- $(dd if=$boot bs=4 skip=2 count=2 2>/dev/null | od -An -tu4)
-		[ $# = 2 ] || continue
-		mount -t erofs -o ro,fsoffset=$(( 4096 + ($1 + 4095) / 4096 * 4096 + ($2 + 4095) / 4096 * 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
+		version=$(dd if=$boot bs=4 skip=10 count=1 2>/dev/null | od -An -tu4 | tr -d ' ')
+		[ -n "$version" ] || continue
+		if [ "$version" -le 2 ]; then
+			set -- $(dd if=$boot bs=4 skip=2 count=1 2>/dev/null | od -An -tu4) \
+				$(dd if=$boot bs=4 skip=4 count=1 2>/dev/null | od -An -tu4) \
+				$(dd if=$boot bs=4 skip=412 count=1 2>/dev/null | od -An -tu4)
+		else
+			set -- $(dd if=$boot bs=4 skip=2 count=2 2>/dev/null | od -An -tu4) 0
+		fi
+		[ $# = 3 ] || continue
+		mount -t erofs -o ro,fsoffset=$(( 4096 + ($1 + 4095) / 4096 * 4096 + ($2 + 4095) / 4096 * 4096 + ($3 + 4095) / 4096 * 4096 )) $boot /newroot/usr/lib/modules 2>/dev/null || continue
 		[ -d /newroot/usr/lib/modules/$release ] &&
 			slot=$(sed -n 's/^PARTNAME=boot//p' $b/uevent) && return 0
 		umount /newroot/usr/lib/modules
