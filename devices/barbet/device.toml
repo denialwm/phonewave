@@ -1,0 +1,18 @@
+# Google Pixel 5a.
+codename = "barbet"
+model = "Google Pixel 5a"
+chassis = "handset"
+soc = "sm7250"
+dtb = "qcom/sm7250-google-barbet.dtb"
+
+[display]
+panel = "samsung,sofef01"
+resolution = [1080, 2400]
+refresh_hz = [60]
+
+[touch]
+controller = "st,fts-spi"
+
+[haptics]
+actuator = "TI DRV2624"
+input_name = "drv2624:haptics"
