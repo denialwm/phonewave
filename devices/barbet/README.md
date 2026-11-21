@@ -49,8 +49,9 @@ also write the root image; `image/README.md` describes that step.
 
 The phone keeps its firmware in two places. The modem's files are in the
 booted slot's `modem` partition (vfat, `image/`), the same files the modem
-itself runs. The ADSP and the WLAN firmware the modem boots are in `vendor_a`
-inside `super`, which no early mount reaches.
+itself runs. The ADSP, the WLAN firmware the modem boots, the RT5514P DSP
+blobs and the WCN3990 patch/NVM are in `vendor_a` inside `super`, which no
+early mount reaches.
 
 `boot/tail/stock-firmware.conf` names the modem partition, its folder and
 the kernel's `.../modem/` target; `image/stock-firmware` mounts it read-only
@@ -67,14 +68,16 @@ calibration.
 | `adsp.mdt`, `adsp.b00`–`adsp.b33` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/` |
 | `wlanmdsp.mbn`, `wlanmdsp.otaupdate`, `bdwlan.bin` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/`, where tqftpserv finds them beside the ADSP's files |
 | `bdwlan-barbet.bin` | `vendor_a/firmware/`, through the vault | ath10k's `board.bin` and the generated `board-2.bin`, under `ath10k/WCN3990/hw1.0/barbet/` |
+| `rt5514p_dsp_fw{1..4}.bin` | `vendor_a/firmware/`, through the vault | the tail root, because the codec requests them by bare name |
+| `crbtfw32.tlv`, `crnv32.bin`, `crnv32u.bin` | `vendor_a/firmware/`, through the vault | `firmware/qca/` |
 
 ath10k asks for `hw1.0/barbet/<file>` first and falls back to `hw1.0/<file>`
 (`ath10k_fetch_fw_file()`), so its `firmware-5.bin` is the image's
 linux-firmware copy and the tail carries only the board data.
 
-The modem's `image/` folder is 99,411,980 bytes; the vendor set this PR's
-tail carries is 29,584,303 bytes (28.2 MiB) in 44 files. The modules and the
-tail units are added to that. The `boot_b` partition is 96 MiB (100,663,296
+The modem's `image/` folder is 99,411,980 bytes; the vendor set the tail
+carries is about 28.5 MiB in 47 files. The modules and the tail
+units are added to that. The `boot_b` partition is 96 MiB (100,663,296
 bytes); `android-v2` refuses an image that does not fit.
 
 The ADSP stays offline at boot because the kernel's `qcom,sm7250-adsp-pas`
@@ -84,6 +87,53 @@ WLAN firmware, so the order belongs to the modem service; that is
 [issue #10](https://github.com/denialwm/phonewave/issues/10). The same issue
 covers Bluetooth, which answers only after the WLAN has powered the combo
 chip.
+
+## Audio
+
+The speakers are the TAS2562 pair on QUIN TDM RX; the microphone is the
+RT5514P on PRIMARY TDM TX, mono at 32 kHz. The ADSP supplies the `q6afecc`
+clock the card needs, so it must run before the card registers. The route is
+the verified one:
+
+```text
+QUIN_TDM_RX_0 Audio Mixer MultiMedia2  on   # playback, hw:0,1
+MultiMedia1 Mixer PRIMARY_TDM_TX_0     on   # capture, hw:0,0
+ASI1 Sel                               Left
+Amp Gain Volume                        16
+Digital Volume Control                 90
+Stereo1 DMIC Mux                       DMIC1
+Sto1 ADC MIXL DMIC Switch              on
+ADC1 Capture Volume                    23
+```
+
+It is a UCM profile, `services/audio/ucm/ucm2/Qualcomm/sm7250/barbet`,
+selected by the card's `sm7250` driver and `barbet` name. WirePlumber applies
+it; the ALSA restore units must not write a different saved route over it,
+so the tail carries a drop-in that keeps only `alsa-restore.service`'s store
+at shutdown.
+
+The ADSP is not started yet (issue #10), so this image has no `barbet` card
+until that order lands. Microphone capture also carried a DC offset in the
+bring-up.
+
+## Bluetooth
+
+The controller is the WCN3990 behind the modem. The ROM answers the version
+request with the WCN3991 form, so the device tree uses that protocol and the
+WCN3990 patch/NVM (`qca/crbtfw32.tlv`, `qca/crnv32.bin`, `qca/crnv32u.bin`).
+
+Those three files are the phone's own copies from `vendor_a/firmware/`, not
+linux-firmware's: they differ in size and hash from the files of the same
+name in linux-firmware, and the controller needs the set that matches this
+ROM. `build-boot.sh` takes them from the vault, which is populated from the
+phone's `vendor_a`.
+
+The controller answers only after the WLAN firmware has powered the combo
+chip, so the boot-time serdev probe fails. The kernel disables the QCA
+in-band-sleep handshake for this board; with it enabled, standard HCI
+commands time out and the controller dumps, taking the shared Wi-Fi with it.
+The rebind that would bring Bluetooth up after Wi-Fi is part of issue #10,
+so no device script ships here.
 
 ## Notes
 
