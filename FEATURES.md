@@ -388,9 +388,9 @@ last.
 | Charging | works | 2026-11-17, 7.3.0+ #10, probe | USB powered; the battery reported full at 100 % |
 | Battery | partial | 2026-11-17, 7.3.0+ #10, probe | Voltage-derived estimate, 4.43 V; no coulomb counter |
 | Wi-Fi | works | 2026-11-17, 7.3.0+ #10, probe | WCN3990 behind the modem; `wlan0` DHCP and SSH |
-| Bluetooth | works | 2026-11-17, 7.3.0+ #10, probe | WCN3990; QCA setup completes and the controller scans |
-| Speakers | works | 2026-11-17, 7.3.0+ #10, user | TAS2562 pair on QUIN TDM RX; a 440 Hz tone is audible |
-| Microphones | partial | 2026-11-17, 7.3.0+ #10, probe | RT5514P 32 kHz mono capture; the samples carry a DC offset |
+| Bluetooth | not started | | The WCN3990 patch and NVM are in the tail; the controller answers only after the WLAN has powered the combo chip (issue #10) |
+| Speakers | not started | | The TAS2562 route is in the UCM profile; the sound card needs the ADSP, which nothing starts yet (issue #10) |
+| Microphones | not started | | The RT5514P route is in the UCM profile; the card needs the ADSP (issue #10). The bring-up capture carried a DC offset |
 | Headphone jack | ? | | |
 | Mobile data | not started | | Modem data not brought up |
 | SMS | not started | | |

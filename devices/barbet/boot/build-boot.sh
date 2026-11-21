@@ -34,25 +34,30 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir "$T/device"
 [ ! -d "$HERE/tail" ] || cp -a "$HERE/tail/." "$T/device/"
-# The ADSP and the WLAN firmware the modem boots live in vendor_a inside
-# super, where no early mount reaches. The vault holds the phone's own copies
-# and their hashes; the boot tail puts them where the kernel and tqftpserv
-# look. The modem's own files do not come through here: they stay in the
-# booted slot's modem partition and image/stock-firmware binds them over
-# firmware/qcom/sm7250/google/barbet/modem.
+# The ADSP, the WLAN firmware the modem boots, and the audio and Bluetooth
+# firmware live in vendor_a inside super, where no early mount reaches. The
+# vault holds the phone's own copies and their hashes; the boot tail puts them
+# where the kernel and tqftpserv look. The modem's own files do not come
+# through here: they stay in the booted slot's modem partition and
+# image/stock-firmware binds them over firmware/qcom/sm7250/google/barbet/modem.
 VENDOR_FW=$V/firmware/tail
 [ -d "$VENDOR_FW" ] || { echo "$VENDOR_FW is missing" >&2; exit 1; }
 (cd "$VENDOR_FW" && sha256sum -c --quiet SHA256SUMS)
 FW=$T/device/firmware
 ADSP=$FW/qcom/sm7250/google/barbet/adsp
 ATH=$FW/ath10k/WCN3990/hw1.0
-mkdir -p "$ADSP" "$ATH/barbet"
+mkdir -p "$ADSP" "$ATH/barbet" "$FW/qca"
 install -m644 "$VENDOR_FW/adsp.mdt" "$VENDOR_FW"/adsp.b* "$ADSP/"
 # tqftpserv scans every remoteproc's firmware folder, so the WLAN firmware
 # the modem asks for is found beside the ADSP's files.
 install -m644 "$VENDOR_FW/wlanmdsp.mbn" "$ADSP/wlanmdsp.mbn"
 install -m644 "$VENDOR_FW/wlanmdsp.mbn" "$ADSP/wlanmdsp.otaupdate"
 install -m644 "$VENDOR_FW/bdwlan-barbet.bin" "$ADSP/bdwlan.bin"
+# The RT5514P requests its DSP blobs by bare name.
+install -m644 "$VENDOR_FW"/rt5514p_dsp_fw*.bin "$FW/"
+# The WCN3990 patch and NVM.
+install -m644 "$VENDOR_FW/crbtfw32.tlv" "$VENDOR_FW/crnv32.bin" \
+	"$VENDOR_FW/crnv32u.bin" "$FW/qca/"
 # ath10k's board file, built from the phone's own calibration. The WLAN
 # firmware runs on the modem, so firmware-5.bin is only the API-5 non-BMI
 # descriptor.
