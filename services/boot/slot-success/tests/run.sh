@@ -1,5 +1,6 @@
 #!/bin/sh
-# Runs slot-success against a fake GPT, bootconfig, systemd and qbootctl.
+# Runs slot-success against a fake GPT, devinfo, bootconfig, systemd and
+# qbootctl.
 set -eu
 
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
@@ -156,5 +157,54 @@ run status
 check "a bad settle time in the configuration exits 2" "$status" 2
 run bogus
 check "unknown command exits 2" "$status" 2
+
+# A Tensor phone: the slot attributes are in devinfo, no GPT bits are read
+# and qbootctl never runs. devinfo_file A_TRIES A_FLAGS B_TRIES B_FLAGS
+# [MAGIC] writes the magic, version 3.15, the slot records at byte 48 and a
+# byte after them that marking must keep.
+printf 'units=denial.service sshd.service\nsettle=60\n' >"$work/slot-success.conf"
+echo 'androidboot.slot_suffix = "_b"' >"$work/bootconfig"
+byte() {
+    # shellcheck disable=SC2059 # the format is the octal escape
+    printf "\\$(printf %03o "$1")"
+}
+devinfo_file() {
+    {
+        printf '%s\003\000\017\000' "${5-DEVI}"
+        head -c 40 /dev/zero
+        byte "$1"; byte "$2"; printf '\000\000'
+        byte "$3"; byte "$4"; printf '\000\000'
+        printf 'keep'
+        head -c 8000 /dev/zero
+    } >"$work/devinfo"
+}
+devinfo_flags() {
+    od -An -tu1 -j 48 -N 12 "$work/devinfo" | tr -s ' ' | sed 's/^ //'
+}
+ln -s "$work/devinfo" "$work/by-partlabel/devinfo"
+echo 48,49,50,54 >"$work/bits"
+devinfo_file 2 3 2 4
+run status
+check "devinfo: status reads devinfo, not the GPT" "$status $out" "1 Slot b: not marked successful, 2 boot tries left."
+run mark
+check "devinfo: mark sets slot b's successful flag only" "$status $(called) $(devinfo_flags)" "0 none 2 3 0 0 2 6 0 0 107 101 101 112"
+check "devinfo: mark keeps the size" "$(wc -c <"$work/devinfo")" 8060
+run status
+check "devinfo: status of a marked slot exits 0" "$status $out" "0 Slot b: marked successful."
+run mark
+check "devinfo: mark leaves a marked slot alone" "$status $out" "0 Slot b: already marked successful."
+devinfo_file 0 1 3 4
+echo 'androidboot.slot_suffix = "_a"' >"$work/bootconfig"
+run status
+check "devinfo: status of an unbootable slot exits 1" "$status $out" "1 Slot a: unbootable."
+echo 'androidboot.slot_suffix = "_b"' >"$work/bootconfig"
+devinfo_file 2 3 3 4
+FAKE_STATE=degraded run mark
+check "devinfo: mark skips a degraded system" "$status $(devinfo_flags)" "1 2 3 0 0 3 4 0 0 107 101 101 112"
+devinfo_file 2 3 3 4 'ANDR'
+echo 48,49,50,51 >"$work/bits"
+run mark
+check "devinfo: another magic is Qualcomm's devinfo, left alone" "$status $(called) $(devinfo_flags)" "0 -m 1 2 3 0 0 3 4 0 0 107 101 101 112"
+rm "$work/by-partlabel/devinfo"
 
 [ "$failures" -eq 0 ]

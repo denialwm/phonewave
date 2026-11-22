@@ -1,10 +1,11 @@
 # slot-success
 
-Marks the slot Linux booted from on an A/B Qualcomm phone or tablet as
-booted successfully once the boot has proved itself.
+Marks the slot Linux booted from on an A/B Qualcomm phone or tablet, or a
+Google Tensor phone, as booted successfully once the boot has proved itself.
 
-The bootloader keeps a retry count and a successful flag for each slot, in
-the GPT attributes of its boot partition. Each boot of a slot that is not
+The bootloader keeps a retry count and a successful flag for each slot: a
+Qualcomm bootloader in the GPT attributes of the slot's boot partition, a
+Tensor one in the `devinfo` partition. Each boot of a slot that is not
 marked successful uses one retry. When none are left, the bootloader marks
 the slot unbootable and boots the other one. Android marks its slot through
 the boot control HAL once it has started; a Linux slot needs the same, or it
@@ -22,7 +23,7 @@ multi-user.target. mark:
    reports it running: every unit started and none failed. It waits at most
    five more minutes;
 3. checks that each configured unit is active;
-4. marks the slot with qbootctl and reads the mark back from the GPT.
+4. marks the slot and reads the mark back.
 
 slot-success runs only in Linux, so the slot it runs from is Linux's,
 whichever one Linux was installed on; Android marks its own. The running
@@ -31,11 +32,18 @@ slot is `androidboot.slot_suffix` from `/proc/bootconfig` or
 command line, takes the active slot. When no source names exactly one slot,
 mark marks nothing.
 
-qbootctl is linux-msm's port of Qualcomm's boot control HAL, built static
+On a Qualcomm device the mark goes through qbootctl. qbootctl is linux-msm's port of Qualcomm's boot control HAL, built static
 and unmodified from the commit in the Makefile. Marking sets the successful
 bit on the slot's entries in both GPT copies of every disk that holds them,
-and updates both copies' checksums. slot-success only ever marks; it never
-changes the active slot.
+and updates both copies' checksums.
+
+On a Tensor device (`devinfo` starts with the magic `DEVI`, version 3, as
+the stock boot control HAL, gs-common's bootctrl, writes it), slot-success
+sets the running slot's successful flag in `devinfo` and changes nothing
+else there; the HAL's anti-rollback step is never taken. Qualcomm's
+`devinfo` has another magic and is left alone.
+
+slot-success only ever marks; it never changes the active slot.
 
 `slot-success status` prints the slot's state and exits 0 only when another
 boot costs no retry. `slot-success running` prints the running slot.
@@ -77,7 +85,7 @@ configuration exists.
 
 Each Phonewave device carries its configuration: pudding in
 `devices/pudding/rootfs/etc/slot-success.conf`; devices built with
-`image/`, roadstr among them, in the phonewave-system package
+`image/`, roadstr and oriole among them, in the phonewave-system package
 (`image/rootfs/etc/slot-success.conf`).
 
 ## License
