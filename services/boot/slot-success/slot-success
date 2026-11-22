@@ -2,8 +2,9 @@
 # Marks the slot this Linux booted from as booted successfully once the boot
 # has proved itself, so the bootloader stops spending its retries on
 # it. Until then each boot uses one retry, and when they run out the bootloader
-# falls back to the other slot. The slot attributes are read from the GPT;
-# they are written only through qbootctl.
+# falls back to the other slot. On Qualcomm phones the slot attributes are
+# read from the GPT and written only through qbootctl; on Google's Tensor
+# phones they are in the devinfo partition, which mark changes one bit of.
 set -eu
 
 conf=${SLOT_SUCCESS_CONF:-/etc/slot-success.conf}
@@ -58,8 +59,13 @@ running_slot() {
 }
 
 # The GPT attribute bits of boot_<slot>, as sfdisk lists them: 48-49 priority,
-# 50 active, 51-53 retries left, 54 successful, 55 unbootable.
+# 50 active, 51-53 retries left, 54 successful, 55 unbootable. On a devinfo
+# phone, the same bits from its devinfo record.
 read_bits() {
+    if devinfo; then
+        read_devinfo "$1"
+        return
+    fi
     part=$(readlink -f "$partlabels/boot_$1") || fail "No boot_$1 partition."
     [ -e "$part" ] || fail "No boot_$1 partition."
     disk=$(lsblk -ndo PKNAME "$part")
@@ -78,11 +84,57 @@ has_bit() {
 }
 
 retries() {
+    if devinfo; then
+        echo "$tries"
+        return
+    fi
     n=0
     if has_bit 51; then n=$((n + 1)); fi
     if has_bit 52; then n=$((n + 2)); fi
     if has_bit 53; then n=$((n + 4)); fi
     echo "$n"
+}
+
+# Google's Tensor phones keep the slot attributes in the devinfo partition,
+# as their boot control HAL (gs-common's bootctrl) reads and writes them: the
+# magic "DEVI", version 3.x, and from byte 48 one 4-byte record per slot:
+# the retries left, then flags 1 unbootable, 2 successful, 4 active.
+# Qualcomm's devinfo partition has another magic, so it never matches.
+devinfo_part=$partlabels/devinfo
+devinfo() {
+    [ -e "$devinfo_part" ] || return 1
+    [ "$(head -c 4 "$devinfo_part")" = DEVI ] || return 1
+    [ "$(devinfo_byte 4) $(devinfo_byte 5)" = "3 0" ]
+}
+
+devinfo_byte() {
+    od -An -tu1 -j "$1" -N 1 "$devinfo_part" | tr -d ' '
+}
+
+# The slot record's offset and flags byte.
+devinfo_slot() {
+    if [ "$1" = a ]; then record=48; else record=52; fi
+}
+
+read_devinfo() {
+    devinfo_slot "$1"
+    tries=$(devinfo_byte "$record")
+    flags=$(devinfo_byte $((record + 1)))
+    [ -n "$tries" ] && [ -n "$flags" ] || fail "Cannot read $devinfo_part."
+    bits=" "
+    if [ $((flags & 4)) -ne 0 ]; then bits="${bits}50 "; fi
+    if [ $((flags & 2)) -ne 0 ]; then bits="${bits}54 "; fi
+    if [ $((flags & 1)) -ne 0 ]; then bits="${bits}55 "; fi
+}
+
+# Sets the successful flag and nothing else, as the HAL's markBootSuccessful
+# does before its anti-rollback step, which slot-success never takes.
+mark_devinfo() {
+    devinfo_slot "$1"
+    flags=$(devinfo_byte $((record + 1)))
+    # shellcheck disable=SC2059 # the format is the octal escape
+    printf "\\$(printf %03o $((flags | 2)))" |
+        dd of="$devinfo_part" bs=1 seek=$((record + 1)) count=1 conv=notrunc,fsync status=none
 }
 
 # The running slot, or a failure when no source names exactly one.
@@ -155,11 +207,15 @@ mark() {
             return 1
         fi
     done
-    if [ "$slot" = a ]; then number=0; else number=1; fi
-    "$qbootctl" -m "$number"
+    if devinfo; then
+        mark_devinfo "$slot"
+    else
+        if [ "$slot" = a ]; then number=0; else number=1; fi
+        "$qbootctl" -m "$number"
+    fi
     read_bits "$slot"
     if ! has_bit 54; then
-        echo "qbootctl ran, but slot $slot still reads unmarked." >&2
+        echo "The mark was written, but slot $slot still reads unmarked." >&2
         return 1
     fi
     echo "Slot $slot: marked successful."
