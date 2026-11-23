@@ -33,13 +33,13 @@ mkdir $T/device
 cp -a $HERE/tail/. $T/device/
 # The Wi-Fi firmware and board data of the WCN7860 (ath12k), its Bluetooth
 # RAM patch and NVM (hci_qca, qca/gng*), the touch panel's firmware, and
-# the GPU microcode and the board's zap shader, the speaker amplifiers'
-# tuning and the ADSP's audio topology, laid
+# the GPU microcode and the board's zap shader, the video codec's firmware,
+# the speaker amplifiers' tuning and the ADSP's audio topology, laid
 # out as the tail's firmware/, at the names the kernel asks for. The
 # topology is built from audio/topology/OnePlus-Pad3-tdm.m4; the rest are
 # copies of this unit's stock files (the vault's firmware/tail/
 # ORIGIN-mainline.txt): the Wi-Fi set from the modem partition's
-# image/peach/ under other names, the Bluetooth and GPU files from the
+# image/peach/ under other names, the Bluetooth, GPU and video files from the
 # vendor partition in super, so image/stock-firmware, which binds one folder of one partition
 # as it is, cannot provide them. The ADSP and CDSP firmware comes from the
 # tablet's own modem partition (tail/stock-firmware.conf).

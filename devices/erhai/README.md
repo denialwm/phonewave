@@ -134,6 +134,17 @@ zap shader `qcom/sm8750/erhai/gen80000_zap.mbn` from the tail, copies of this
 unit's vendor partition's /vendor/firmware. The vendor partition is a logical
 partition in super, which image/stock-firmware cannot mount.
 
+## Video
+
+Iris decodes H.264, HEVC, VP9 and AV1 on `/dev/video0`; its encoder is
+`/dev/video1`. It loads `qcom/sm8750/erhai/vpu35_4v.mbn` from the tail:
+vendor's `firmware/vpu35_4v.mbn`, the file the vendor driver loads on
+SM8750. OnePlus signs it, so linux-firmware's `vpu35_p4.mbn` does not load
+here. Like the GPU's files it is a copy of this unit's vendor partition.
+
+Firefox decodes H.264 and HEVC on Iris with `ffmpeg-denial`
+(`image/recipes`) in place of Arch's ffmpeg, as on the Pad 4.
+
 ## Charging
 
 The battery is read through the ADSP (qcom_battmgr, pmic_glink):

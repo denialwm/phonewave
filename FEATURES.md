@@ -313,7 +313,7 @@ last.
 | GNSS | ? | | |
 | NFC | none | | |
 | Camera | works | 2026-11-17, devices-71, user, probe | Rear SmartSens C658 on CSIPHY4 (autofocus driven, GT9772) and front D154 on CSIPHY5, both turned upright |
-| Video decode | not started | | No Iris for SM8750 |
+| Video decode | works | 2026-11-22, devices-73, probe | Iris (`/dev/video0`) with the tablet's own `vpu35_4v.mbn` in the tail: H.264, HEVC, VP9 and AV1 at 1080p and 10-bit HEVC decode bit-exact against software through FFmpeg's v4l2m2m decoders (`ffmpeg-denial` 9.1), 12 to 15 times real time; Firefox 160 plays 1080p60 H.264 and HEVC on Iris with hardware WebRender, 0 and 1 of 718 frames dropped. The encoder (`/dev/video1`) makes H.264 and HEVC at 1080p; through FFmpeg it hangs at 1440p and crashes at 4K. Idle, the codec suspends |
 | Rotation | works | 2026-11-17, devices-71, user | steinerd; the tail's `steinerd/top` `+x` (derived from the stock ORIENTATION_270), confirmed by rotating the tablet |
 | Light and proximity | works | 2026-11-17, devices-71, user | stk3b6x |
 | Compass and gyroscope | works | 2026-11-17, devices-71, user, probe | steinerd: bmi3x0, mxg4300, bu52053nvx hall |

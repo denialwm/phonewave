@@ -6,7 +6,9 @@
 # mem2mem decoders (Iris on the Kaanapali phones) hand out their frames as
 # dma-bufs (AV_PIX_FMT_DRM_PRIME), which is the only form Firefox takes from
 # them, and av1_v4l2m2m decodes AV1. The default get_format still picks
-# software frames, so other programs see no change.
+# software frames, so other programs see no change. With
+# patches/v4l2-m2m-enc-padded-source.patch the encoders take the source
+# formats the driver pads (Iris: 4K, widths not a multiple of 128).
 #
 # Its own name, providing, conflicting with and replacing Arch's ffmpeg:
 # pacman -Syu swaps it in on every phone (image/README.md, "Replacing an Arch
@@ -16,7 +18,7 @@
 # later, with no provides, conflicts or replaces.
 pkgname=ffmpeg-denial
 pkgver=9.1
-pkgrel=1
+pkgrel=2
 epoch=2
 pkgdesc='Complete solution to record, convert and stream audio and video'
 arch=(aarch64)
@@ -43,7 +45,8 @@ provides=("ffmpeg=$epoch:$pkgver" libavcodec.so libavdevice.so libavfilter.so
           libavformat.so libavutil.so libswresample.so libswscale.so)
 conflicts=(ffmpeg)
 replaces=(ffmpeg)
-_patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patch)
+_patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patch
+          v4l2-m2m-enc-padded-source.patch)
 source=("https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz")
 sha256sums=('1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433')
 . "$startdir/../../cross.sh"
