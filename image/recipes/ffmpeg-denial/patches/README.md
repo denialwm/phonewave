@@ -12,8 +12,8 @@ order. To change one, raise `pkgrel` and run `image/pack ffmpeg-denial`.
   the stateful decoders behave on Iris: a 10-bit stream gets new P010
   buffers at its visible size, frames the stream does not show are not
   handed out, and timestamps survive when the caller sets no time base
-  (Firefox). Made on n9.0.2; on a new release, rebase it there and refresh
-  the file with `git format-patch`.
+  (Firefox). Made on n9.0.2 and refreshed on n9.1; on a new release,
+  rebase it there and refresh the file with `git format-patch`.
 
 ## Testing on a phone
 

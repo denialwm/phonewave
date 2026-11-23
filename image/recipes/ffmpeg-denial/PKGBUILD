@@ -15,7 +15,7 @@
 # both: a last release, empty, depending only on ffmpeg at that version or
 # later, with no provides, conflicts or replaces.
 pkgname=ffmpeg-denial
-pkgver=9.0.2
+pkgver=9.1
 pkgrel=1
 epoch=2
 pkgdesc='Complete solution to record, convert and stream audio and video'
@@ -45,7 +45,7 @@ conflicts=(ffmpeg)
 replaces=(ffmpeg)
 _patches=(av_stream_get_first_dts-for-Chromium.patch v4l2-m2m-drm-prime-av1.patch)
 source=("https://ffmpeg.org/releases/ffmpeg-$pkgver.tar.xz")
-sha256sums=('8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e')
+sha256sums=('1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433')
 . "$startdir/../../cross.sh"
 # The man pages need pod2man, Arch's perl's, in core_perl: on PATH only in a
 # login shell, which the package builder's is not.
@@ -134,7 +134,6 @@ build() {
     --enable-nvdec \
     --enable-nvenc \
     --enable-opencl \
-    --enable-opengl \
     --enable-shared \
     --enable-vapoursynth \
     --enable-version3 \
