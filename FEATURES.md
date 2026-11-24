@@ -49,7 +49,7 @@ last.
 | Mobile data | works | 2026-11-09, devices-310, probe | 5G on Iliad, APN iliad; pings over the data bearer alone |
 | SMS | works | 2026-11-09, devices-310, user | dmail |
 | Calls | works | 2026-11-08, devices-304, user | Incoming over VoLTE: rings, wakes the screen and shows Calls over the lock screen; answered from it |
-| Call audio | partial | 2026-11-08, devices-310, user / 2026-11-25, devices-397, probe | Two-way speech on speakers and speaker mic. The DSP starts the transmit graph with the stock Fluence echo canceller. Far-end echo was reported on the bypassed profile and awaits a listening test on this build. |
+| Call audio | partial | 2026-11-08, devices-310, user / 2026-11-25, devices-397, probe | Two-way speech on speakers and speaker mic. After a reboot, the Voice Call profile loaded the stock Fluence echo canceller twice and returned to HiFi both times. Far-end echo on devices-397 awaits a listening test. |
 | VoLTE | works | 2026-11-09, devices-310, user | dmail registers IMS on Iliad; calls ring and connect over it |
 | GNSS | works | 2026-11-18, devices-393, Droidloom 0.1.0-46.3, probe | No kernel GNSS device: the modem's engine through dmail `Location1`, as on the 12R; the modem takes only the privileged client type (3). Its first cold start, sessions of 3 minutes or less, heard 1–6 satellites and made no fix. After that, beside the 12R: fix 24 s after starting, ±14 m, 19–22 satellites tracked, 10–13 used. An Android app (Droidloom's GNSS HAL) got ±7.6 m with 71 signals listed, 32 heard, 12 used. Not tried outdoors or with GeoClue |
 | NFC | ? | | No NFC device on perpetua |
