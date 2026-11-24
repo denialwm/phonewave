@@ -2,8 +2,9 @@
 # rule (services/dsp/fastrpc). Build: image/pack fastrpc
 # The sysroot needs libyaml, libbsd and libmd (configure's yaml-0.1 and
 # libbsd-overlay).
-pkgname=fastrpc
-pkgdesc="Qualcomm FastRPC libraries and the CDSP's default listener (cdsprpcd)"
+pkgbase=fastrpc
+pkgname=(fastrpc fastrpc-audio)
+pkgdesc="Qualcomm FastRPC libraries and listeners for the CDSP and ADSP audio"
 _src=$startdir/../../../services/dsp/fastrpc
 # The upstream version, then the number of Phonewave commits under _src.
 pkgver=1.0.9.r$(git -C "$_src" rev-list --count HEAD -- .)
@@ -26,30 +27,49 @@ build() {
     CFLAGS="-O2 -pipe --sysroot=$sysroot -isystem $sysroot/usr/include" \
     LDFLAGS="--sysroot=$sysroot -B$sysroot/usr/lib -Wl,-rpath-link,$sysroot/usr/lib"
   make -j "$(($(nproc) - 2))"
-}
-
-package() {
-  local d
-  make -C fastrpc-1.0.9 install DESTDIR="$pkgdir" \
+  make install DESTDIR="$srcdir/installed" \
     systemdsystemunitdir=/usr/lib/systemd/system udevrulesdir=/usr/lib/udev/rules.d \
     sysusersdir=/usr/lib/sysusers.d
-  # The ADSP belongs to hexagonrpcd: no adsprpcd and no upstream rule that
-  # starts it; only the CDSP's listener, unit and rule.
+}
+
+package_fastrpc() {
+  local d
+  depends+=(fastrpc-audio)
+  cp -a "$srcdir/installed/usr" "$pkgdir/"
+  # The boot tail opts into audiopd. hexagonrpcd serves the sensor domain.
   rm -f "$pkgdir"/usr/lib/udev/rules.d/60-fastrpc.rules
   for d in adsprpcd adsprpcd_audiopd cdsp1rpcd gdsp0rpcd gdsp1rpcd sdsprpcd; do
     rm -f "$pkgdir/usr/lib/systemd/system/$d.service"
   done
-  rm -f "$pkgdir"/usr/bin/{adsprpcd,gdsprpcd,sdsprpcd} "$pkgdir"/usr/bin/fastrpc_test
+  rm -f "$pkgdir"/usr/bin/{gdsprpcd,sdsprpcd} "$pkgdir"/usr/bin/fastrpc_test
   rm -rf "$pkgdir"/usr/lib/fastrpc_test "$pkgdir"/usr/share/fastrpc_test
-  rm -f "$pkgdir"/usr/share/man/man8/{adsprpcd,gdsprpcd,sdsprpcd}.8
+  rm -f "$pkgdir"/usr/share/man/man8/{gdsprpcd,sdsprpcd}.8
   find "$pkgdir" -name '*.la' -delete
-  install -Dm644 "$_src"/{cdsprpcd,fastrpc-dsp-partition}.service -t "$pkgdir/usr/lib/systemd/system"
+  # The audio package owns the ADSP listener and its shared libraries.
+  rm -f "$pkgdir/usr/bin/adsprpcd" "$pkgdir/usr/share/man/man8/adsprpcd.8"
+  rm -f "$pkgdir/usr/lib"/{libadsprpc,libadsp_default_listener}.so*
+  install -Dm644 "$_src/cdsprpcd.service" -t "$pkgdir/usr/lib/systemd/system"
   install -Dm644 "$_src/61-fastrpc-cdsp.rules" -t "$pkgdir/usr/lib/udev/rules.d"
-  install -Dm755 "$_src/dsp-partition" -t "$pkgdir/usr/lib/fastrpc-phonewave"
   install -Dm644 "$startdir/../../../devices/erhai/rootfs/usr/share/qcom/conf.d/oneplus-pad3.yaml" \
     -t "$pkgdir/usr/share/qcom/conf.d"
-  install -d "$pkgdir/usr/share/qcom/phonewave"
-  ln -s /run/dsp "$pkgdir/usr/share/qcom/phonewave/dsp"
   install -Dm644 "$_src/README.md" "$pkgdir/usr/share/doc/fastrpc/README.phonewave.md"
   install -Dm644 fastrpc-1.0.9/LICENSE.txt "$pkgdir/usr/share/licenses/fastrpc/LICENSE"
+}
+
+package_fastrpc-audio() {
+  pkgdesc="Qualcomm FastRPC audio listener and read-only stock DSP libraries mount"
+  depends=(glibc libyaml libbsd util-linux)
+  local usr="$srcdir/installed/usr"
+  install -Dm755 "$usr/bin/adsprpcd" -t "$pkgdir/usr/bin"
+  install -d "$pkgdir/usr/lib"
+  cp -a "$usr/lib"/{libadsprpc,libadsp_default_listener}.so* "$pkgdir/usr/lib/"
+  install -Dm644 "$usr/lib/systemd/system/adsprpcd_audiopd.service" -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 "$usr/share/man/man8/adsprpcd.8" -t "$pkgdir/usr/share/man/man8"
+  install -Dm644 "$_src/fastrpc-dsp-partition.service" -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 "$_src/audio-libraries.conf" \
+    "$pkgdir/usr/lib/systemd/system/adsprpcd_audiopd.service.d/audio-libraries.conf"
+  install -Dm755 "$_src/dsp-partition" -t "$pkgdir/usr/lib/fastrpc-phonewave"
+  install -d "$pkgdir/usr/share/qcom/phonewave"
+  ln -s /run/dsp "$pkgdir/usr/share/qcom/phonewave/dsp"
+  install -Dm644 fastrpc-1.0.9/LICENSE.txt "$pkgdir/usr/share/licenses/fastrpc-audio/LICENSE"
 }

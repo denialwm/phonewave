@@ -1,13 +1,13 @@
-# fastrpc (CDSP)
+# fastrpc
 
 Qualcomm's FastRPC userspace (github.com/qualcomm/fastrpc, BSD-3-Clause) for
-the CDSP: libcdsprpc and the other domain libraries, and cdsprpcd, the
-default listener of the CDSP's root process.
+the CDSP and the ADSP audio domain. The shared image installs fastrpc-audio.
+Installing fastrpc adds the CDSP libraries, listener and udev rule.
 
-- Only the CDSP is wired up. Upstream's udev rules and adsprpcd units are not
-  installed: hexagonrpcd (services/sensors/hexagonrpcd) serves the ADSP, and a
-  second listener on its nodes would take its place. 61-fastrpc-cdsp.rules
-  gives the CDSP's nodes to the fastrpc group and starts cdsprpcd.
+- The CDSP udev rule starts cdsprpcd. A phone can also enable
+  adsprpcd_audiopd.service from its boot tail to load stock audio modules
+  from /run/dsp/adsp. The ADSP audio and sensor domains use separate
+  listeners. hexagonrpcd continues to serve the sensors.
 - The shells the CDSP runs a user process in (fastrpc_shell_3,
   fastrpc_shell_unsigned_3) are Qualcomm-signed images of each phone's stock
   firmware. They are not shipped: fastrpc-dsp-partition.service mounts the

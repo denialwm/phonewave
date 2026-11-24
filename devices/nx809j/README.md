@@ -120,6 +120,11 @@ TX_CODEC_DMA_TX_3, as stock pairs them. The UCM verb "Voice Call" puts
 Speaker and Mic on the policy PCM 13, and callaudio switches the card to it
 while dmail has a call. "Voice Call Volume" takes the ACDB's ten levels
 (9 loudest, the default); "TX_AIF1 Capture Switch" mutes the microphone.
+The transmit graph feeds AMIC1 and a speaker reference to Qualcomm Fluence.
+It needs the ADSP FastRPC heap in devices-397 and the fastrpc-audio package's
+audio-domain listener. Install the package before updating the boot image.
+At call start the listener reads fluence_nn_module_fvxiv.so.1 and its
+dependencies from the booted slot's read-only DSP partition.
 While `Voice Call UCM Switch` is on, the kernel refuses the HiFi PCMs.
 The card's controls are saved at shutdown and restored at boot, so a
 switch saved on would leave PipeWire only the Voice Call profile: the

@@ -39,12 +39,8 @@ keys = [
   [0xAD000000, 0xAD00000F],  # DEVICEPP_TX: VOICE_FLUENCE_SMECNS, stock's single mic choice
   [0xB3000000, 0xB3000001],  # VSID: DEFAULT
 ]
-# The echo canceller and noise suppressor (0x070010a3) is a dynamic module
-# the stock ADSP loads from the vendor partition, as are the other variants'
-# (Endfire, RVE); GRAPH_OPEN fails with it. The microphone goes straight to
-# its main output.
-drop = [0x468a]
-join = [0x469c, 1, 0x48a3, 2]
+# The audio-domain listener loads capi_fluence_nn (0x070010a3) from the
+# stock DSP partition. Keep both ACDB inputs: microphone and speaker reference.
 # TX_CODEC_DMA_TX_3, the WCD939x microphones (AMIC1 for the speaker mic):
 # LPAIF_RXTX, TX3. Rate and width as the backend link; channels as the ACDB
 # gives the endpoint.
