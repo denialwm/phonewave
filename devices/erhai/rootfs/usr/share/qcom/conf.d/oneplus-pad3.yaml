@@ -1,0 +1,5 @@
+# The OnePlus Pad 3 (erhai): the CDSP's shells and skeletons come from the
+# stock dsp partition (fastrpc-dsp-partition.service).
+machines:
+  OnePlus Pad 3:
+    DSP_LIBRARY_PATH: phonewave/dsp/cdsp

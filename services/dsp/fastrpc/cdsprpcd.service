@@ -1,0 +1,16 @@
+[Unit]
+Description=Default listener for the CDSP's root process (cdsprpcd)
+After=dev-fastrpc\x2dcdsp.device dev-fastrpc\x2dcdsp\x2dsecure.device
+Requires=fastrpc-dsp-partition.service
+After=fastrpc-dsp-partition.service
+ConditionPathExists=|/dev/fastrpc-cdsp
+ConditionPathExists=|/dev/fastrpc-cdsp-secure
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/cdsprpcd
+Restart=on-failure
+RestartSec=5
+RestartForceExitStatus=SIGTERM
+# AEE_EITEMBUSY: another listener holds the root process.
+RestartPreventExitStatus=32

@@ -1,0 +1,11 @@
+[Unit]
+Description=The stock DSP partition, read-only, for FastRPC
+DefaultDependencies=no
+After=local-fs.target
+Before=cdsprpcd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/fastrpc-phonewave/dsp-partition mount
+ExecStop=/usr/lib/fastrpc-phonewave/dsp-partition unmount

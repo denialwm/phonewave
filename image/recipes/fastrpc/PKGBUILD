@@ -1,0 +1,53 @@
+# Qualcomm's FastRPC userspace for the CDSP, with Phonewave's units and udev
+# rule (services/dsp/fastrpc). Build: image/pack fastrpc
+# The sysroot needs libyaml, libbsd and libmd (configure's yaml-0.1 and
+# libbsd-overlay).
+pkgname=fastrpc
+pkgdesc="Qualcomm FastRPC libraries and the CDSP's default listener (cdsprpcd)"
+_src=$startdir/../../../services/dsp/fastrpc
+# The upstream version, then the number of Phonewave commits under _src.
+pkgver=1.0.9.r$(git -C "$_src" rev-list --count HEAD -- .)
+pkgrel=1
+arch=(aarch64)
+url="https://github.com/qualcomm/fastrpc"
+license=(BSD-3-Clause)
+options=(!strip !debug !lto)
+depends=(glibc libyaml libbsd acl util-linux)
+source=("fastrpc-1.0.9.tar.gz::https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.9.tar.gz")
+sha256sums=('127f729a9fd34cbcdcc254a93702442ebe309e826b7be68be2c1ba6efde113a1')
+. "$startdir/../../cross.sh"
+
+build() {
+  cd fastrpc-1.0.9
+  autoreconf -is
+  ./configure --host=aarch64-linux-gnu --prefix=/usr --sbindir=/usr/bin \
+    --with-config-base-dir=/usr/share/qcom \
+    CC=aarch64-linux-gnu-gcc \
+    CFLAGS="-O2 -pipe --sysroot=$sysroot -isystem $sysroot/usr/include" \
+    LDFLAGS="--sysroot=$sysroot -B$sysroot/usr/lib -Wl,-rpath-link,$sysroot/usr/lib"
+  make -j "$(($(nproc) - 2))"
+}
+
+package() {
+  local d
+  make -C fastrpc-1.0.9 install DESTDIR="$pkgdir" \
+    systemdsystemunitdir=/usr/lib/systemd/system udevrulesdir=/usr/lib/udev/rules.d \
+    sysusersdir=/usr/lib/sysusers.d
+  # The ADSP belongs to hexagonrpcd: no adsprpcd and no upstream rule that
+  # starts it; only the CDSP's listener, unit and rule.
+  rm -f "$pkgdir"/usr/lib/udev/rules.d/60-fastrpc.rules
+  for d in adsprpcd adsprpcd_audiopd cdsp1rpcd gdsp0rpcd gdsp1rpcd sdsprpcd; do
+    rm -f "$pkgdir/usr/lib/systemd/system/$d.service"
+  done
+  rm -f "$pkgdir"/usr/bin/{adsprpcd,gdsprpcd,sdsprpcd} "$pkgdir"/usr/bin/fastrpc_test
+  rm -rf "$pkgdir"/usr/lib/fastrpc_test "$pkgdir"/usr/share/fastrpc_test
+  rm -f "$pkgdir"/usr/share/man/man8/{adsprpcd,gdsprpcd,sdsprpcd}.8
+  find "$pkgdir" -name '*.la' -delete
+  install -Dm644 "$_src"/{cdsprpcd,fastrpc-dsp-partition}.service -t "$pkgdir/usr/lib/systemd/system"
+  install -Dm644 "$_src/61-fastrpc-cdsp.rules" -t "$pkgdir/usr/lib/udev/rules.d"
+  install -Dm755 "$_src/dsp-partition" -t "$pkgdir/usr/lib/fastrpc-phonewave"
+  install -d "$pkgdir/usr/share/qcom/phonewave"
+  ln -s /run/dsp "$pkgdir/usr/share/qcom/phonewave/dsp"
+  install -Dm644 "$_src/README.md" "$pkgdir/usr/share/doc/fastrpc/README.phonewave.md"
+  install -Dm644 fastrpc-1.0.9/LICENSE.txt "$pkgdir/usr/share/licenses/fastrpc/LICENSE"
+}

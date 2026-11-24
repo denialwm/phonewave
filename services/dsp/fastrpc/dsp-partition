@@ -1,0 +1,23 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Mounts the booted slot's stock dsp partition at /run/dsp, read-only: the
+# FastRPC shells (cdsp/fastrpc_shell_3, fastrpc_shell_unsigned_3) and the
+# skeletons the stock firmware ships. The block device is set read-only
+# first and the journal is never replayed (noload), so nothing is ever
+# written to the partition.
+set -eu
+dir=/run/dsp
+case ${1:-mount} in
+unmount)
+	mountpoint -q "$dir" && umount "$dir"
+	exit 0 ;;
+esac
+slot=$(sed -n 's/^androidboot.slot_suffix = "\(_[ab]\)"$/\1/p' /proc/bootconfig 2>/dev/null)
+[ -n "$slot" ] || slot=$(tr ' ' '\n' < /proc/cmdline | sed -n 's/^androidboot.slot_suffix=//p')
+part=/dev/disk/by-partlabel/dsp${slot}
+[ -e "$part" ] || part=/dev/disk/by-partlabel/dsp
+[ -e "$part" ] || { echo "no dsp partition" >&2; exit 1; }
+mountpoint -q "$dir" && exit 0
+blockdev --setro "$(readlink -f "$part")"
+mkdir -p "$dir"
+mount -t ext4 -o ro,noload,nodev,nosuid,noexec "$part" "$dir"
