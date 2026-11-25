@@ -39,7 +39,7 @@ last.
 | USB device | works | probe | SSH over USB |
 | USB host | ? | | |
 | Video out (USB-C) | works | 2026-11-09, devices-310, user | DisplayPort; the phone's screen goes off and on while the monitor stays lit |
-| Charging | works | devices-130, probe | The firmware charges; USB PD 9 V at about 3 A |
+| Charging | works | devices-130, probe; 2026-11-25, devices-402, probe | The firmware charges; USB PD 9 V at about 3 A. Charge separation: `charge_behaviour` `inhibit-charge` on qcom-battmgr-bat holds the battery (charge current 0, status Not charging) while USB carries the phone; tested on a 500 mA port only. Settings › Battery › Bypass charging switches it (denial-apps 025f684, not yet in the denial package) |
 | Battery | works | 2026-11-09, devices-317, probe | battmgr; reports what it holds when full (6670 of 7500 mAh), which Settings needs to show it |
 | Wi-Fi | works | 2026-11-09, devices-310, user | WCN7860, ath12k |
 | Bluetooth | works | 2026-11-09, devices-310, user | On the image radio-addr gives the controller its address |
