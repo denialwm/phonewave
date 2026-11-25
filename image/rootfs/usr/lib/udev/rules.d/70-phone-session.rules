@@ -15,3 +15,7 @@ ACTION=="add", SUBSYSTEM=="module", TEST=="parameters/ambient", RUN+="/usr/bin/c
 # quiet gap is not held until the chip's next wake, and allows it again when
 # every screen is dark.
 SUBSYSTEM=="pci", TEST=="power_save_allowed", RUN+="/usr/bin/chgrp seat /sys%p/power_save_allowed", RUN+="/usr/bin/chmod g+w /sys%p/power_save_allowed"
+# Denial sets the device's own lights (multicolor LEDs, such as a logo or
+# trigger lights) to the colours chosen in Settings, and turns them off with
+# the screen when asked.
+SUBSYSTEM=="leds", TEST=="multi_intensity", RUN+="/usr/bin/chgrp video /sys%p/brightness /sys%p/multi_intensity", RUN+="/usr/bin/chmod g+w /sys%p/brightness /sys%p/multi_intensity"
