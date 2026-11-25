@@ -13,7 +13,9 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 export DENIAL_TARGET_ARCH=aarch64 DENIAL_ARM64_SYSROOT=$root/cross/alarm-sysroot
 # The build root of tools/build's Denial packages: one Cargo target for both.
 export DENIAL_PC_BUILD_ROOT=${XDG_CACHE_HOME:-$HOME/.cache}/denial/pc-build-aarch64
-export DENIAL_SETTINGS_SOURCE_ROOT=$root DENIAL_BUILD_JOBS=$(($(nproc) - 2))
+# DENIAL_SETTINGS_SOURCE_ROOT may name another folder holding denial-apps and
+# gpui-touch, such as one whose denial-apps is a worktree.
+export DENIAL_SETTINGS_SOURCE_ROOT=${DENIAL_SETTINGS_SOURCE_ROOT:-$root} DENIAL_BUILD_JOBS=$(($(nproc) - 2))
 export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 "$root/denial/tools/denial-settings" build
 program=$("$root/denial/tools/denial-settings" path)
