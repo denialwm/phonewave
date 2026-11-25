@@ -12,8 +12,16 @@ order. To change one, raise `pkgrel` and run `image/pack ffmpeg-denial`.
   the stateful decoders behave on Iris: a 10-bit stream gets new P010
   buffers at its visible size, frames the stream does not show are not
   handed out, and timestamps survive when the caller sets no time base
-  (Firefox). Made on n9.0.2; on a new release, rebase it there and refresh
-  the file with `git format-patch`.
+  (Firefox). Made on n9.0.2 and refreshed on n9.1; on a new release,
+  rebase it there and refresh the file with `git format-patch`.
+- `v4l2-m2m-enc-padded-source.patch`: the V4L2 mem2mem encoders lay the
+  frame out at the source format's stride and height, which the driver may
+  pad (Iris aligns NV12 to 128 x 32: 3840x2160 becomes 3840x2176); before,
+  the copy read past the frame (a crash at 2160 lines) and a width that is
+  not a multiple of 128 sheared (1366: PSNR 8.7 dB, now 42 dB). An end of
+  stream before the first frame (a muxer that fails to start, such as
+  Matroska, which needs extradata these encoders never set) ends at once
+  instead of waiting for a last buffer forever.
 
 ## Testing on a phone
 

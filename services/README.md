@@ -22,6 +22,7 @@ tests, packaging and README.
 | [`camera/braun`](camera/braun) | Finds the cameras and gives apps previews and photos, raw to JPEG in its own pipeline | any with qcom-camss |
 | [`sensors/steinerd`](sensors/steinerd) | Orientation, motion, compass, light and proximity from the Snapdragon Sensor Core | `nx809j`, `pudding` |
 | [`sensors/hexagonrpcd`](sensors/hexagonrpcd) | Serves the ADSP's sensor drivers their configuration: linux-msm's hexagonrpcd with Phonewave's patches | `nx809j`, `pudding` |
+| [`dsp/fastrpc`](dsp/fastrpc) | Qualcomm's FastRPC userspace for the CDSP (cdsprpcd), with the stock dsp partition mounted read-only for its shells | any with a CDSP and a stock dsp partition (`erhai`) |
 | [`modem/dmail`](modem/dmail) | Modem service replacing ModemManager: SIM, registration, data, SMS | `aston`, `roadstr` |
 
 A service that works on any device never hard-codes one. It reads

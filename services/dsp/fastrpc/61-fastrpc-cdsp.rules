@@ -1,0 +1,6 @@
+# The CDSP's FastRPC nodes for the fastrpc group, and cdsprpcd once one
+# exists. Upstream's 60-fastrpc.rules is not installed: it also starts
+# adsprpcd on the ADSP's nodes, which hexagonrpcd serves on these phones.
+ACTION=="add", SUBSYSTEM=="dma_heap", KERNEL=="system", RUN+="/usr/bin/setfacl -m g:fastrpc:rw $env{DEVNAME}"
+ACTION=="add", SUBSYSTEM=="misc", KERNEL=="fastrpc-cdsp", OWNER="root", GROUP="fastrpc", MODE="0640", TAG+="systemd", ENV{SYSTEMD_WANTS}+="cdsprpcd.service"
+ACTION=="add", SUBSYSTEM=="misc", KERNEL=="fastrpc-cdsp-secure", TAG+="systemd", ENV{SYSTEMD_WANTS}+="cdsprpcd.service"

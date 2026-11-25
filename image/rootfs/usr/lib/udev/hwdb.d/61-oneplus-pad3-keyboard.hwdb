@@ -1,0 +1,21 @@
+# OnePlus Pad 3 Keyboard (22d9:3869) over Bluetooth: the top row sends AC
+# Back on the Esc key and F13, F16/F17, F22, F23 and F24 for mic mute,
+# touchpad off/on, the key beside search, search and lock screen. Give
+# the keys the functions on their caps, as the pogo-pin driver
+# (oneplus-pogo-kbd) does when the keyboard is docked; the key beside
+# search, which it maps as setup, becomes super. The keyboard switches
+# its touchpad off and on by itself; the two codes only tell the
+# desktop the new state.
+
+# The keyboard interface (it has LEDs)
+evdev:input:b0005v22D9p3869e0300-e0,1,4,11,14,k*
+ KEYBOARD_KEY_70068=micmute
+ KEYBOARD_KEY_7006b=touchpad_off
+ KEYBOARD_KEY_7006c=touchpad_on
+ KEYBOARD_KEY_70071=leftmeta
+ KEYBOARD_KEY_70072=search
+ KEYBOARD_KEY_70073=screenlock
+
+# The consumer control interface
+evdev:input:b0005v22D9p3869e0300-e0,1,4,k*
+ KEYBOARD_KEY_c0224=esc

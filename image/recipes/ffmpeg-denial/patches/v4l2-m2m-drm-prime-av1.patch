@@ -1,4 +1,4 @@
-From f1786a905711da5a3ecbc43841cf181b01805dc8 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Doctor Logix <doctor.logix@gmail.com>
 Date: Wed, 18 Nov 2026 01:13:29 +0100
 Subject: [PATCH] avcodec/v4l2_m2m_dec: DRM PRIME frames, AV1 and P010
@@ -38,10 +38,10 @@ For the stateful decoders around them:
  9 files changed, 249 insertions(+), 17 deletions(-)
 
 diff --git a/configure b/configure
-index 374bd5c..10a21ae 100755
+index f5e1fbb..f83cab3 100755
 --- a/configure
 +++ b/configure
-@@ -3612,6 +3612,7 @@ av1_cuvid_decoder_deps="cuvid CUVIDAV1PICPARAMS"
+@@ -3585,6 +3585,7 @@ av1_cuvid_decoder_deps="cuvid CUVIDAV1PICPARAMS"
  av1_d3d12va_encoder_deps="d3d12va d3d12va_av1_headers"
  av1_d3d12va_encoder_select="cbs_av1 d3d12va_encode"
  av1_mediacodec_decoder_deps="mediacodec"
@@ -49,7 +49,7 @@ index 374bd5c..10a21ae 100755
  av1_mediacodec_encoder_deps="mediacodec"
  av1_mediacodec_encoder_select="extract_extradata_bsf"
  av1_mf_encoder_deps="mediafoundation"
-@@ -7649,6 +7650,7 @@ if enabled v4l2_m2m; then
+@@ -7558,6 +7559,7 @@ if enabled v4l2_m2m; then
      check_cc h264_v4l2_m2m linux/videodev2.h "int i = V4L2_PIX_FMT_H264;"
      check_cc vp8_v4l2_m2m linux/videodev2.h "int i = V4L2_PIX_FMT_VP8;"
      check_cc vp9_v4l2_m2m linux/videodev2.h "int i = V4L2_PIX_FMT_VP9;"
@@ -58,10 +58,10 @@ index 374bd5c..10a21ae 100755
  
  check_headers sys/videoio.h
 diff --git a/libavcodec/Makefile b/libavcodec/Makefile
-index 95ba308..30abec9 100644
+index 2ea4f94..1ee37ce 100644
 --- a/libavcodec/Makefile
 +++ b/libavcodec/Makefile
-@@ -276,6 +276,7 @@ OBJS-$(CONFIG_AV1_DECODER)             += av1dec.o av1_parse.o
+@@ -278,6 +278,7 @@ OBJS-$(CONFIG_AV1_DECODER)             += av1dec.o av1_parse.o
  OBJS-$(CONFIG_AV1_CUVID_DECODER)       += cuviddec.o
  OBJS-$(CONFIG_AV1_D3D12VA_ENCODER)     += d3d12va_encode_av1.o av1_levels.o
  OBJS-$(CONFIG_AV1_MEDIACODEC_DECODER)  += mediacodecdec.o
@@ -70,10 +70,10 @@ index 95ba308..30abec9 100644
  OBJS-$(CONFIG_AV1_NVENC_ENCODER)       += nvenc_av1.o nvenc.o
  OBJS-$(CONFIG_AV1_QSV_ENCODER)         += qsvenc_av1.o
 diff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c
-index 47eded2..5be4d07 100644
+index b12dcc4..d5f3bdd 100644
 --- a/libavcodec/allcodecs.c
 +++ b/libavcodec/allcodecs.c
-@@ -853,6 +853,7 @@ extern const FFCodec ff_av1_mediacodec_decoder;
+@@ -863,6 +863,7 @@ extern const FFCodec ff_av1_mediacodec_decoder;
  extern const FFCodec ff_av1_mediacodec_encoder;
  extern const FFCodec ff_av1_nvenc_encoder;
  extern const FFCodec ff_av1_qsv_decoder;
@@ -82,7 +82,7 @@ index 47eded2..5be4d07 100644
  extern const FFCodec ff_av1_amf_encoder;
  extern const FFCodec ff_av1_amf_decoder;
 diff --git a/libavcodec/v4l2_buffers.c b/libavcodec/v4l2_buffers.c
-index f96c267..a0a04be 100644
+index 3b79152..778ea9e 100644
 --- a/libavcodec/v4l2_buffers.c
 +++ b/libavcodec/v4l2_buffers.c
 @@ -39,6 +39,10 @@
@@ -525,5 +525,5 @@ index ba1fe76..468dfde 100644
  M2MDEC(vp9,   "VP9",   AV_CODEC_ID_VP9,        NULL);
 +M2MDEC(av1,   "AV1",   AV_CODEC_ID_AV1,        NULL);
 -- 
-2.55.0
+2.56.0
 
