@@ -13,8 +13,9 @@ default listener of the CDSP's root process.
   firmware. They are not shipped: fastrpc-dsp-partition.service mounts the
   booted slot's dsp partition at /run/dsp, read-only (block device set
   read-only, journal never replayed). /usr/share/qcom/phonewave/dsp points
-  there; each phone's devices/<codename>/rootfs/usr/share/qcom/conf.d/ file
-  names its folder by the phone's device tree model (erhai: cdsp/).
+  there. The package installs the Pad 3's model-specific search path in
+  /usr/share/qcom/conf.d/oneplus-pad3.yaml, so the CDSP finds its files in
+  /run/dsp/cdsp on a fresh installation.
 - Programs that use FastRPC run as a member of the fastrpc group.
 
 Smoke test, with the test program and skeletons of the upstream source tree

@@ -46,6 +46,8 @@ package() {
   install -Dm644 "$_src"/{cdsprpcd,fastrpc-dsp-partition}.service -t "$pkgdir/usr/lib/systemd/system"
   install -Dm644 "$_src/61-fastrpc-cdsp.rules" -t "$pkgdir/usr/lib/udev/rules.d"
   install -Dm755 "$_src/dsp-partition" -t "$pkgdir/usr/lib/fastrpc-phonewave"
+  install -Dm644 "$startdir/../../../devices/erhai/rootfs/usr/share/qcom/conf.d/oneplus-pad3.yaml" \
+    -t "$pkgdir/usr/share/qcom/conf.d"
   install -d "$pkgdir/usr/share/qcom/phonewave"
   ln -s /run/dsp "$pkgdir/usr/share/qcom/phonewave/dsp"
   install -Dm644 "$_src/README.md" "$pkgdir/usr/share/doc/fastrpc/README.phonewave.md"
