@@ -1,0 +1,27 @@
+#!/bin/bash
+# Sets the country whose rules the Wi-Fi radios follow: Settings runs it
+# through pkexec, first-user at setup. `wifi-country CODE`, an ISO 3166-1
+# code such as IT.
+#
+# The country goes into wireless-regdb's /etc/conf.d/wireless-regdom, which
+# its udev rule applies whenever the Wi-Fi stack loads, and `iw reg set`
+# applies it now. Other settings lines in the file are commented out, so the
+# file says one country.
+set -euo pipefail
+
+file=/etc/conf.d/wireless-regdom
+[[ $# -eq 1 ]] || { echo 'usage: wifi-country CODE' >&2; exit 2; }
+code=$1
+[[ $code =~ ^[A-Z]{2}$ ]] || { echo "$code is not a country code" >&2; exit 2; }
+
+new=$file.new
+{
+  if [[ -f $file ]]; then
+    sed 's/^\([[:space:]]*WIRELESS_REGDOM=\)/#\1/' "$file"
+  fi
+  printf 'WIRELESS_REGDOM="%s"\n' "$code"
+} >"$new"
+chmod 644 "$new"
+sync "$new"
+mv "$new" "$file"
+/usr/bin/iw reg set "$code"

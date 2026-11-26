@@ -19,3 +19,6 @@ SUBSYSTEM=="pci", TEST=="power_save_allowed", RUN+="/usr/bin/chgrp seat /sys%p/p
 # trigger lights) to the colours chosen in Settings, and turns them off with
 # the screen when asked.
 SUBSYSTEM=="leds", TEST=="multi_intensity", RUN+="/usr/bin/chgrp video /sys%p/brightness /sys%p/multi_intensity", RUN+="/usr/bin/chmod g+w /sys%p/brightness /sys%p/multi_intensity"
+# Settings switches bypass charging, on a battery whose driver offers it: the
+# phone runs from the charger and the battery neither charges nor drains.
+SUBSYSTEM=="power_supply", ATTR{type}=="Battery", TEST=="charge_behaviour", RUN+="/usr/bin/chgrp video /sys%p/charge_behaviour", RUN+="/usr/bin/chmod g+w /sys%p/charge_behaviour"

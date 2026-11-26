@@ -43,12 +43,12 @@ case ${1-} in
     [[ -n $zone && $zone != *..* && -f /usr/share/zoneinfo/$zone ]] ||
       fail "$zone is not a time zone" 2
     timedatectl set-timezone "$zone"
-    # tzdata's zone.tab names each zone's country; Settings' helper, where
-    # the phone has it, keeps the country and tells the radios now.
+    # tzdata's zone.tab names each zone's country; the Wi-Fi country helper
+    # keeps it and tells the radios now.
     country=$(awk -F'\t' -v zone="$zone" '!/^#/ && $3 == zone { print $1; exit }' \
       /usr/share/zoneinfo/zone.tab)
-    if [[ $country =~ ^[A-Z]{2}$ && -x /usr/lib/denial-apps/wifi-country ]]; then
-      /usr/lib/denial-apps/wifi-country "$country"
+    if [[ $country =~ ^[A-Z]{2}$ ]]; then
+      /usr/lib/phonewave-system/wifi-country "$country"
     fi
     exit 0
     ;;
