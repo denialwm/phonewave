@@ -63,7 +63,7 @@ last.
 | Cooling | works | 2026-11-09, devices-310, user | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump (AWP1921) on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | works | 2026-11-09, devices-310, user | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps. Media volume and screen brightness are the host's, both ways: an app's change moves the host's, and apps read the host's level (2026-11-26, Droidloom 0.1.0-49.13, probe). A window's own brightness, as a video player sets it, not tried |
+| Android apps | works | 2026-11-09, devices-310, user | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps. Media volume and screen brightness are the host's, both ways: an app's change moves the host's, and apps read the host's level (2026-11-26, Droidloom 0.1.0-49.15, probe). Findroid's player swipes move the host's backlight and volume; leaving the player gives the host its level back |
 | Shoulder triggers | works | 2026-11-25, devices-403, user | Two AW96205 as keys: "Left shoulder trigger" BTN_TL, "Right shoulder trigger" BTN_TR, set up from the stock register files in the tail. No game mapping yet |
 | RGB light | works | 2026-11-25, devices-403, user | AW22127: `rgb:trigger-left`, `rgb:trigger-right`, `rgb:fan-1` to `-4`, `rgb:logo`, `rgb:gamemode` as multicolor LEDs, with hardware patterns. No Settings page yet |
 
