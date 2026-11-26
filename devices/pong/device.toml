@@ -1,0 +1,20 @@
+# Nothing Phone (2), model A065.
+codename = "pong"
+model = "Nothing Phone (2)"
+chassis = "handset"
+soc = "sm8475"
+dtb = "qcom/sm8475-nothing-pong.dtb"
+
+[display]
+# The phone ships with one of two panels; the bootloader names the fitted one
+# (msm_drm.dsi_display0). The second source is a Visionox RM692E5.
+panel = "visionox,nt37705"
+resolution = [1080, 2412]
+refresh_hz = [60, 90, 120]
+
+[touch]
+controller = "goodix,gt9916"
+
+[haptics]
+actuator = "Awinic AW86927 LRA"
+input_name = "aw86927-haptics"
