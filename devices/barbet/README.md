@@ -66,8 +66,11 @@ calibration.
 | `modem.mdt`, `modem.b00`–`modem.b34` | the booted slot's `modem` partition, `image/` | `firmware/qcom/sm7250/google/barbet/modem/`, bound at boot |
 | `adsp.mdt`, `adsp.b00`–`adsp.b33` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/` |
 | `wlanmdsp.mbn`, `wlanmdsp.otaupdate`, `bdwlan.bin` | `vendor_a/firmware/`, through the vault | `firmware/qcom/sm7250/google/barbet/adsp/`, where tqftpserv finds them beside the ADSP's files |
-| `bdwlan-barbet.bin` | `vendor_a/firmware/`, through the vault | ath10k's `board.bin` and the generated `board-2.bin` under `ath10k/WCN3990/hw1.0/` and `hw1.0/barbet/` |
-| `firmware-5.bin` | generated, the API-5 non-BMI descriptor | the same ath10k folders |
+| `bdwlan-barbet.bin` | `vendor_a/firmware/`, through the vault | ath10k's `board.bin` and the generated `board-2.bin`, under `ath10k/WCN3990/hw1.0/barbet/` |
+
+ath10k asks for `hw1.0/barbet/<file>` first and falls back to `hw1.0/<file>`
+(`ath10k_fetch_fw_file()`), so its `firmware-5.bin` is the image's
+linux-firmware copy and the tail carries only the board data.
 
 The modem's `image/` folder is 99,411,980 bytes; the vendor set this PR's
 tail carries is 29,584,303 bytes (28.2 MiB) in 44 files. The modules and the
