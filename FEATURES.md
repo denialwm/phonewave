@@ -43,7 +43,7 @@ last.
 | Battery | works | 2026-11-09, devices-317, probe | battmgr; reports what it holds when full (6670 of 7500 mAh), which Settings needs to show it |
 | Wi-Fi | works | 2026-11-09, devices-310, user | WCN7860, ath12k |
 | Bluetooth | works | 2026-11-09, devices-310, user | On the image radio-addr gives the controller its address |
-| Speakers | works | 2026-11-09, devices-310, user | Through the shared UCM profile; the amplifiers run 6 dB under stock, which has speaker protection in the audio DSP. Droidloom plays at full scale (fixed volume) |
+| Speakers | works | 2026-11-09, devices-310, user | Through the shared UCM profile; the amplifiers run 6 dB under stock, which has speaker protection in the audio DSP. Android apps' media volume is the host's output volume, both ways, mute included (2026-11-26, Droidloom 0.1.0-49.13, probe) |
 | Microphones | works | 2026-11-18, devices-393, Droidloom 0.1.0-44.1, user | The main microphone (AMIC1), in Linux and in Android apps; the decimators add 20 dB, since stock's level comes from ADSP calibration we do not run |
 | Headphone jack | not started | 2026-11-09, devices-310, probe | The codec reports the jack (Headphone Jack, Mic Jack, an input device); no playback or capture route in the UCM profile. Reixo0's patches 0068 and on |
 | Mobile data | works | 2026-11-09, devices-310, probe | 5G on Iliad, APN iliad; pings over the data bearer alone |
@@ -63,7 +63,7 @@ last.
 | Cooling | works | 2026-11-09, devices-310, user | Fan from its lowest speed at 40 C to full at 80 C, a level every 2 C, from the prime core and GPU sensors; pump (AWP1921) on from 70 C, off below 65 C; each CPU cluster throttles from 90 C on any of its CPU, LLC and QMX sensors |
 | Denial | works | 2026-10-28, user | |
 | Native apps | works | user | Settings, Sensors |
-| Android apps | works | 2026-11-09, devices-310, user | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps |
+| Android apps | works | 2026-11-09, devices-310, user | Droidloom release 30 from the image with the local Google apps package; the old Android storage restored with its apps. Media volume and screen brightness are the host's, both ways: an app's change moves the host's, and apps read the host's level (2026-11-26, Droidloom 0.1.0-49.13, probe). A window's own brightness, as a video player sets it, not tried |
 | Shoulder triggers | works | 2026-11-25, devices-403, user | Two AW96205 as keys: "Left shoulder trigger" BTN_TL, "Right shoulder trigger" BTN_TR, set up from the stock register files in the tail. No game mapping yet |
 | RGB light | works | 2026-11-25, devices-403, user | AW22127: `rgb:trigger-left`, `rgb:trigger-right`, `rgb:fan-1` to `-4`, `rgb:logo`, `rgb:gamemode` as multicolor LEDs, with hardware patterns. No Settings page yet |
 
