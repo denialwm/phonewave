@@ -53,10 +53,11 @@ install -m644 "$VENDOR_FW/adsp.mdt" "$VENDOR_FW"/adsp.b* "$ADSP/"
 install -m644 "$VENDOR_FW/wlanmdsp.mbn" "$ADSP/wlanmdsp.mbn"
 install -m644 "$VENDOR_FW/wlanmdsp.mbn" "$ADSP/wlanmdsp.otaupdate"
 install -m644 "$VENDOR_FW/bdwlan-barbet.bin" "$ADSP/bdwlan.bin"
-# ath10k's board file, built from the phone's own calibration. The WLAN
-# firmware runs on the modem, so firmware-5.bin is only the API-5 non-BMI
-# descriptor.
-python3 - "$VENDOR_FW/bdwlan-barbet.bin" "$ATH/board-2.bin" <<'PY'
+# ath10k's board file, built from the phone's own calibration, under the
+# board name the device tree sets. ath10k asks for hw1.0/barbet/<file> first
+# and falls back to hw1.0/<file>, where the image's linux-firmware copy of
+# firmware-5.bin serves.
+python3 - "$VENDOR_FW/bdwlan-barbet.bin" "$ATH/barbet/board-2.bin" <<'PY'
 import struct
 import sys
 
@@ -77,10 +78,7 @@ name = b"bus=snoc,qmi-board-id=ff"
 blob += ie(0, ie(0, name) + ie(1, data))
 open(out, "wb").write(blob)
 PY
-install -m644 "$VENDOR_FW/bdwlan-barbet.bin" "$ATH/board.bin"
-printf '%s' 'UUNBLUFUSDEwSwB3AQAAAAQAAACk5L5bAgAAAAMAAABAAAx3BQAAAAQAAAAEAAAABgAAAAQAAAADAAAA' |
-	base64 -d > "$ATH/firmware-5.bin"
-cp "$ATH/board.bin" "$ATH/board-2.bin" "$ATH/firmware-5.bin" "$ATH/barbet/"
+install -m644 "$VENDOR_FW/bdwlan-barbet.bin" "$ATH/barbet/board.bin"
 "$HERE/../../../image/boot-tail" "$OUT" "$T/device" "$T/tail.erofs"
 # The phone keeps its ramdisk in boot, so the shared early userspace is
 # written as the legacy-lz4 ramdisk image/boot-tail does not carry.
