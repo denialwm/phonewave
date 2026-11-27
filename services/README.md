@@ -14,6 +14,7 @@ tests, packaging and README.
 | [`boot/slot-success`](boot/slot-success) | Marks the Linux slot booted successfully once the boot has proved itself, so the bootloader keeps booting it | any A/B Qualcomm |
 | [`boot/ufs-boot-lpm`](boot/ufs-boot-lpm) | Keeps the UFS host out of its low-power states while booting, as stock Android init does, and restores them once booted | any UFS phone |
 | [`wallpaper/wallpaper-depth`](wallpaper/wallpaper-depth) | Cuts the wallpaper's subject out so the lock screen clock sits behind it | any with Vulkan |
+| [`wallpaper/video-wallpaper`](wallpaper/video-wallpaper) | Plays a video as the home and lock screen wallpaper, decoded in hardware | any with a V4L2 decoder |
 | [`screen/screen-record`](screen/screen-record) | Records the screen; Denial's shade starts and stops it | any with GBM and EGL |
 | [`power/battery-stats`](power/battery-stats) | Books where the battery goes, per screen state, hour and build | any with a battery |
 | [`fingerprint/jiiov`](fingerprint/jiiov) | JIIOV JV0307 optical fingerprint | `roadstr` |

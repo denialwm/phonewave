@@ -1,0 +1,16 @@
+[package]
+name = "video-wallpaper"
+version = "0.1.0"
+edition = "2024"
+description = "Plays a video as the wallpaper of a Denial phone, decoded in hardware"
+publish = false
+
+[dependencies]
+libc = "0.2"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

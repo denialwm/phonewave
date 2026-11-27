@@ -1,0 +1,17 @@
+# Phonewave's video-wallpaper (services/wallpaper/video-wallpaper) for the phones.
+# Build: image/pack video-wallpaper
+pkgname=video-wallpaper
+pkgdesc='Plays a video as the wallpaper, decoded in hardware'
+license=(MIT)
+_src=$startdir/../../../services/wallpaper/video-wallpaper
+. "$startdir/../recipe.sh"
+depends=(glibc gcc-libs denial)
+
+build() {
+  # Its rust-toolchain.toml picks the toolchain.
+  make -C "$_src" TARGET=$TARGET
+}
+
+package() {
+  make -C "$_src" install TARGET=$TARGET DESTDIR="$pkgdir"
+}

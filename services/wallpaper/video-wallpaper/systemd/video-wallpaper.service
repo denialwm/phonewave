@@ -1,0 +1,15 @@
+[Unit]
+Description=Video wallpaper
+Documentation=https://github.com/denialwm/phonewave
+PartOf=graphical-session.target
+After=graphical-session.target
+# Without a chosen video the shell's own wallpaper stays.
+ConditionPathExists=%E/denial/video-wallpaper.conf
+
+[Service]
+ExecStart=/usr/bin/video-wallpaper
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=graphical-session.target
