@@ -18,7 +18,7 @@
 # later, with no provides, conflicts or replaces.
 pkgname=ffmpeg-denial
 pkgver=9.1
-pkgrel=2
+pkgrel=3
 epoch=2
 pkgdesc='Complete solution to record, convert and stream audio and video'
 arch=(aarch64)
@@ -148,11 +148,17 @@ build() {
 }
 
 package() {
+  # Arch's list, then libraries whose new major versions Arch Linux ARM
+  # shipped before this package was rebuilt (libjxl 0.13, sndio 1.11): with
+  # their sonames pinned, pacman refuses such an upgrade instead of leaving
+  # ffmpeg unable to start. A refusal means: put the new packages in the
+  # sysroot, bump pkgrel, rebuild.
   depends+=(
     libass.so libbs2b.so libdav1d.so libfreetype.so libharfbuzz.so
     libopenmpt.so librsvg-2.so librubberband.so libva.so libva-drm.so
     libva-x11.so libvidstab.so libvorbisenc.so libvorbis.so libvpx.so
     libx264.so libxvidcore.so libzimg.so libzmq.so
+    libjxl.so libjxl_threads.so libsndio.so
   )
   make DESTDIR="$pkgdir" -C ffmpeg-$pkgver install install-man
   install -Dm755 ffmpeg-$pkgver/tools/qt-faststart "$pkgdir"/usr/bin/
