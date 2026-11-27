@@ -389,8 +389,8 @@ last.
 | Battery | partial | 2026-11-17, 7.3.0+ #10, probe | Voltage-derived estimate, 4.43 V; no coulomb counter |
 | Wi-Fi | works | 2026-11-21, perpetua 328f3b32e09b, probe | WCN3990 behind the modem; `wlan0` DHCP and SSH |
 | Bluetooth | not started | | The WCN3990 patch and NVM are in the tail; the controller answers only after the WLAN has powered the combo chip (issue #10) |
-| Speakers | not started | | The TAS2562 route is in the UCM profile; the sound card needs the ADSP, which nothing starts yet (issue #10) |
-| Microphones | not started | | The RT5514P route is in the UCM profile; the card needs the ADSP (issue #10). The bring-up capture carried a DC offset |
+| Speakers | partial | 2026-11-27, perpetua d677c5774d62, probe | The TAS2562 route is in the UCM profile; with the ADSP up (started by hand) a 1 kHz tone plays on `hw:0,1`. The image still needs the ADSP start (issue #10) |
+| Microphones | partial | 2026-11-27, perpetua d677c5774d62, probe | The RT5514P route is in the UCM profile; with the ADSP up (started by hand) 32 kHz mono capture on `hw:0,0` is real audio. The image still needs the ADSP start (issue #10); the DC offset remains |
 | Headphone jack | ? | | |
 | Mobile data | not started | | Modem data not brought up |
 | SMS | not started | | |
