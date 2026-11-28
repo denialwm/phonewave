@@ -148,9 +148,8 @@ the panel keeps showing its last frame from its own memory, at
 `ambient_brightness` (stock 0x0120 = 288), while the display hardware is
 off. The tail's `denial/ambient-display.json`, which the image copies to
 `/etc/denial`, names the switch, the normal-mode
-code whose picture looks like idle mode's (`brightness`, 400) and how long
-the finished picture holds still before the switch (`settle_ms`, 1000; a
-switch at full rate draws a wave). Before DSI-1 goes dark the lock screen
+code whose picture looks like idle mode's (`brightness`, 400). Before DSI-1
+goes dark the lock screen
 keeps the time, the date, the wallpaper's subject and the fingerprint mark,
 darkens the rest of the wallpaper and lets both fade into black below the
 clock, while the backlight fades to that code. Denial sets the switch for
