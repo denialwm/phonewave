@@ -7,7 +7,7 @@
     "customAccentColor": 4291869951,
     "glass": {
       "appPanelOpacity": 0.4,
-      "blurSigma": 26.1,
+      "blurSigma": 15.9,
       "opacity": 0.2,
       "windowOpacity": 0.5
     },
