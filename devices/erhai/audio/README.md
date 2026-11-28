@@ -153,11 +153,11 @@ controls):
 | `stream2.vol_ctrl2 MultiMedia3 Playback Volume` (max 8192) | Headphones, the capped stream gain |
 | `MultiMedia1 Mixer TX_CODEC_DMA_TX_3` | the HiFi verb, the mic route |
 
-WirePlumber: the image's
-`wireplumber.conf.d/51-erhai-audio.conf` (devices/erhai/rootfs/,
-installed by `make install-device`) sets the card to software volume
-and its description; the image's shared `51-phone-audio.conf` matches
-only the other phones' card name (`alsa_card.platform-sound`).
+WirePlumber: the image's shared `51-phone-audio.conf`
+(`image/rootfs/usr/share/wireplumber/wireplumber.conf.d/`, in
+`phonewave-system`) sets the card to software volume and its
+description; it matches this card's name, `alsa_card.OnePlus-Pad3`, next
+to the other phones' `alsa_card.platform-sound`.
 
 ## The kernel side
 
