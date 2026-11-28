@@ -37,10 +37,11 @@ A pacman package goes in the same way, after the root:
 
     fastboot flash package droidloom-gapps-VERSION-aarch64.pkg.tar.zst
 
-Google apps for Droidloom are that one package, apart from Droidloom's own
-repository: `https://packages.denialwm.org/gapps/aarch64/`, each file with
-its `.sha256`. One package fits every Droidloom release on the same Android
-base.
+Google apps for Droidloom are that one package, published with every
+Droidloom release in its repository; https://denialwm.github.io/droidloom/
+links the current file. Its pkgrel is the release of the Android base it fits,
+and the phone's `pacman -Syu` upgrades it from `[droidloom]` when that base
+moves.
 
 The fastboot stores it in the installed root
 (`/var/lib/phonewave-system/flashed/`), and the phone installs it as it next
@@ -377,7 +378,7 @@ the two newest images. Test the image on a phone first, then publish that
 same build. After publishing, bring the manual page up to date: the image's
 name in its links and commands, and the device table's boot image and
 tested stock firmware. A device joins the table when the published image
-has passed on it. Google apps are a file apart, in `gapps/aarch64/`.
+has passed on it. Google apps come from Droidloom's releases, not from here.
 
 To try setup again on a phone that already runs the image, write nothing:
 `tools/phone-setup-again HOST [PACKAGE...]` installs the given builds (say
